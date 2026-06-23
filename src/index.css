@@ -10,6 +10,14 @@ body,
   height: 100%;
 }
 
+/* Keep content clear of the notch / home indicator when launched as an
+   installed app (Add to Home Screen, fullscreen standalone). */
+#root {
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 body {
   margin: 0;
   background:
