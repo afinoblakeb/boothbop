@@ -11,11 +11,14 @@ export interface StripTheme {
   caption: string;
 }
 
+// Atomic-age strip borders. Captions render in the condensed display face.
 export const THEMES: Record<string, StripTheme> = {
-  classic: { background: "#ffffff", text: "#111111", caption: "PhotoBlast" },
-  noir: { background: "#111111", text: "#ffffff", caption: "PhotoBlast" },
-  bubblegum: { background: "#ff5db1", text: "#ffffff", caption: "PhotoBlast" },
-  mint: { background: "#19c37d", text: "#04150d", caption: "PhotoBlast" },
+  classic: { background: "#f6e7cf", text: "#111111", caption: "PhotoBlast" },
+  orange: { background: "#e85a1a", text: "#f6e7cf", caption: "PhotoBlast" },
+  teal: { background: "#3e7c78", text: "#f6e7cf", caption: "PhotoBlast" },
+  mustard: { background: "#d9a441", text: "#111111", caption: "PhotoBlast" },
+  olive: { background: "#6e7551", text: "#f6e7cf", caption: "PhotoBlast" },
+  carbon: { background: "#111111", text: "#f6e7cf", caption: "PhotoBlast" },
 };
 
 /**
@@ -52,17 +55,31 @@ export function composeStrip(
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, cell, cell);
   });
 
-  // Footer: caption + date.
+  // Footer: caption + date, in the condensed display face.
   const footerY = height - footer;
   ctx.fillStyle = theme.text;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "700 56px 'Helvetica Neue', Arial, sans-serif";
-  ctx.fillText(theme.caption, width / 2, footerY + footer / 2 - 16);
+  try {
+    ctx.letterSpacing = "3px";
+  } catch {
+    /* older browsers: no canvas letter-spacing */
+  }
+  ctx.font = "400 72px 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif";
+  ctx.fillText(theme.caption.toUpperCase(), width / 2, footerY + footer / 2 - 14);
 
-  ctx.font = "400 28px 'Helvetica Neue', Arial, sans-serif";
-  ctx.globalAlpha = 0.7;
-  ctx.fillText(formatDate(new Date()), width / 2, footerY + footer / 2 + 32);
+  try {
+    ctx.letterSpacing = "1px";
+  } catch {
+    /* no-op */
+  }
+  ctx.font = "500 26px 'Oswald', 'Arial Narrow', sans-serif";
+  ctx.globalAlpha = 0.75;
+  ctx.fillText(
+    formatDate(new Date()).toUpperCase(),
+    width / 2,
+    footerY + footer / 2 + 34,
+  );
   ctx.globalAlpha = 1;
 
   return canvas;
