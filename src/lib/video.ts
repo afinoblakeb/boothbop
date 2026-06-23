@@ -15,7 +15,7 @@ export interface VideoResult {
 }
 
 /** Pick the best video container/codec the browser will actually record. */
-function pickMimeType(): { mimeType: string; extension: string } | null {
+export function pickMimeType(): { mimeType: string; extension: string } | null {
   const candidates: { mimeType: string; extension: string }[] = [
     { mimeType: "video/mp4;codecs=avc1", extension: "mp4" },
     { mimeType: "video/mp4", extension: "mp4" },

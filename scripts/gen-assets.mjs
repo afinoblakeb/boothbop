@@ -57,7 +57,9 @@ async function ogImage() {
   const w = 1200,
     h = 630;
   const logo = await wideArt().resize({ width: 980 }).png(PNG).toBuffer();
-  await sharp({ create: { width: w, height: h, channels: 3, background: CREAM } })
+  await sharp({
+    create: { width: w, height: h, channels: 3, background: CREAM },
+  })
     .composite([{ input: logo, gravity: "center" }])
     .png(PNG)
     .toFile(`${OUT}/og-image.png`);
@@ -81,7 +83,9 @@ async function uiIcon(name, size = 256) {
     const db = data[i + 2] - bg[2];
     if (dr * dr + dg * dg + db * db < th * th) data[i + 3] = 0;
   }
-  await sharp(data, { raw: { width: info.width, height: info.height, channels: ch } })
+  await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: ch },
+  })
     .trim()
     .resize(size, size, {
       fit: "contain",
@@ -105,7 +109,9 @@ async function watermark() {
       data[i + 3] = 0; // light background -> transparent
     }
   }
-  await sharp(data, { raw: { width: info.width, height: info.height, channels: ch } })
+  await sharp(data, {
+    raw: { width: info.width, height: info.height, channels: ch },
+  })
     .trim()
     .resize({ width: 640 })
     .png({ palette: true, effort: 10 })

@@ -3,6 +3,9 @@ import type { ReactNode } from "react";
 // Brand illustration icons (camera / gallery / install), generated as
 // transparent PNGs by scripts/gen-assets.mjs. Base-path aware.
 const BASE = import.meta.env.BASE_URL;
+// Colocated with the BrandIcon component that consumes it; the fast-refresh
+// "components-only export" nag doesn't apply to this static map.
+// eslint-disable-next-line react-refresh/only-export-components
 export const ICONS = {
   camera: `${BASE}ic-camera.png`,
   gallery: `${BASE}ic-gallery.png`,
