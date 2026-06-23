@@ -3,7 +3,7 @@ import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
 import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
-import { canShareFiles, isIOS, probeShareFiles } from "./lib/platform";
+import { canShareFiles, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
   canvasToBlob,
@@ -14,7 +14,6 @@ import {
   saveSession,
   type Session,
 } from "./lib/gallery";
-import { ALBUM_NAME, SHORTCUT_URL } from "./config";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
 type Format = "strip" | "gif" | "video";
@@ -38,6 +37,8 @@ const COUNTDOWN_COLOR: Record<number, string> = {
   1: "var(--color-orange)",
 };
 
+const CAMERA_MSG = "PhotoBlast requires camera permission. Please try again.";
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
@@ -53,15 +54,25 @@ export default function App() {
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
-  const [showSaveHelp, setShowSaveHelp] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+
+  // Shutter delay (seconds counted down before each shot), persisted.
+  const [delay, setDelay] = useState<number>(() => {
+    const v = Number(localStorage.getItem("pb.delay"));
+    return v === 1 || v === 2 || v === 3 ? v : 2;
+  });
+  useEffect(() => {
+    localStorage.setItem("pb.delay", String(delay));
+  }, [delay]);
+
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const abortRef = useRef(false); // set when the user cancels a session
 
   // Attach the live stream whenever we are showing the camera.
   useEffect(() => {
@@ -76,6 +87,38 @@ export default function App() {
   // Release the camera when the component goes away.
   useEffect(() => () => stopCamera(streamRef.current), []);
 
+  // If the user revokes camera permission (Settings, site controls, etc.),
+  // send them home with a clear message.
+  useEffect(() => {
+    let status: PermissionStatus | undefined;
+    navigator.permissions
+      ?.query?.({ name: "camera" as PermissionName })
+      .then((s) => {
+        status = s;
+        s.onchange = () => {
+          if (s.state === "denied") failToHome(CAMERA_MSG);
+        };
+      })
+      .catch(() => {});
+    return () => {
+      if (status) status.onchange = null;
+    };
+    // failToHome only touches stable setters/refs, so a one-time bind is fine.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bail to the home screen and explain why (camera lost / denied).
+  function failToHome(msg: string) {
+    abortRef.current = true;
+    setCountdown(null);
+    setFlash(false);
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    setFrames([]);
+    setPhase("idle");
+    setError(msg);
+  }
+
   function clearResults() {
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
@@ -83,39 +126,62 @@ export default function App() {
 
   async function openCamera() {
     setError(null);
+    abortRef.current = false;
     try {
-      streamRef.current = await startCamera();
+      const stream = await startCamera();
+      streamRef.current = stream;
+      // If the camera track ends mid-use (revoked, taken by another app),
+      // drop the user back home with the permission message.
+      stream.getVideoTracks().forEach((t) => {
+        t.addEventListener("ended", () => failToHome(CAMERA_MSG));
+      });
       setFrames([]);
       setPhase("preview");
     } catch (e) {
-      setError(
-        e instanceof Error
-          ? e.message
-          : "Couldn't access the camera. Check browser permissions.",
-      );
+      setError(cameraError(e));
+      setPhase("idle");
     }
   }
 
+  // Stop everything and go back to the start screen.
+  function cancelToHome() {
+    abortRef.current = true;
+    setCountdown(null);
+    setFlash(false);
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    setFrames([]);
+    setError(null);
+    setPhase("idle");
+  }
+
   async function runSequence() {
+    const video = videoRef.current;
+    // Don't count down onto a dead/black stream — make sure we have real pixels.
+    if (!video || !(await videoReady(video))) {
+      setError("The camera isn't ready. Check camera access and try again.");
+      return;
+    }
+
+    abortRef.current = false;
     setPhase("capturing");
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
-    await wait(500);
+    await wait(400);
 
     for (let shot = 0; shot < SHOTS; shot++) {
-      for (let n = 3; n >= 1; n--) {
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
         setCountdown(n);
-        await wait(720);
+        await wait(1000);
       }
+      if (abortRef.current) return;
       setCountdown(null);
 
       setFlash(true);
-      const video = videoRef.current;
-      if (video) {
-        const frame = captureSquareFrame(video);
-        captured.push(frame);
-        setFrames([...captured]);
-      }
+      const frame = captureSquareFrame(video);
+      captured.push(frame);
+      setFrames([...captured]);
       await wait(240);
       setFlash(false);
       if (shot < SHOTS - 1) await wait(750); // quick "pose!" gap
@@ -219,10 +285,9 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  // Opens the native share sheet with the image file so the user can tap their
-  // "Save to <album>" Shortcut, Save Image, or send it on. Falls back to a
-  // plain download where file sharing is missing. Shared by review + gallery.
-  async function shareFile(blob: Blob, filename: string) {
+  // Open the native share sheet (Messages, Save Image, AirDrop, …). Falls back
+  // to a download where file sharing isn't available (most desktops).
+  async function shareMedia(blob: Blob, filename: string) {
     setError(null);
     setNote(null);
     const file = new File([blob], filename, { type: blob.type });
@@ -233,25 +298,19 @@ export default function App() {
     }
 
     try {
-      // Image-only payload (no `text`) so an "Images only" Shortcut accepts it.
-      await navigator.share({ files: [file], title: "Photoblast Photo" });
-      if (isIOS()) {
-        setNote(`Tip: in the Share Sheet, tap “Save to ${ALBUM_NAME} Album”.`);
-      }
+      await navigator.share({ files: [file], title: "Photoblast" });
     } catch (e) {
-      const name = (e as Error)?.name;
-      if (name === "AbortError") {
-        setNote("Save canceled."); // user dismissed the sheet — no scary error
+      if ((e as Error)?.name === "AbortError") {
+        setNote("Share canceled."); // dismissed the sheet — not an error
       } else {
         triggerDownload(blob, filename); // graceful fallback
       }
     }
   }
 
-  // Primary "Save to iPhone" on the review screen.
-  async function saveToPhone() {
+  async function shareCurrent() {
     const media = await currentMedia();
-    if (media) await shareFile(media.blob, media.filename);
+    if (media) await shareMedia(media.blob, media.filename);
   }
 
   async function downloadCurrent() {
@@ -283,7 +342,10 @@ export default function App() {
           countdown={countdown}
           flash={flash}
           thumbs={thumbs}
+          delay={delay}
+          setDelay={setDelay}
           onStart={runSequence}
+          onCancel={cancelToHome}
         />
       )}
 
@@ -300,18 +362,19 @@ export default function App() {
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
-          onSave={saveToPhone}
+          onShare={shareCurrent}
           onDownload={downloadCurrent}
-          onShowSaveHelp={() => setShowSaveHelp(true)}
+          onOpenGallery={() => setShowGallery(true)}
+          onHome={cancelToHome}
           onRetake={retake}
         />
       )}
 
-      <SaveHelp open={showSaveHelp} onClose={() => setShowSaveHelp(false)} />
       {showGallery && (
         <GalleryScreen
           onClose={() => setShowGallery(false)}
-          onSave={shareFile}
+          onShare={shareMedia}
+          onDownload={triggerDownload}
         />
       )}
     </div>
@@ -349,7 +412,7 @@ function IdleScreen({
 
       <button
         onClick={onOpenGallery}
-        className="mt-3 font-sans text-sm font-semibold uppercase tracking-wide text-brown underline-offset-4 hover:underline"
+        className={`mt-3 w-full max-w-xs px-8 py-4 ${btnSecondary}`}
       >
         🖼️ My Photos
       </button>
@@ -447,22 +510,76 @@ function CameraScreen({
   countdown,
   flash,
   thumbs,
+  delay,
+  setDelay,
   onStart,
+  onCancel,
 }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   phase: Phase;
   countdown: number | null;
   flash: boolean;
   thumbs: string[];
+  delay: number;
+  setDelay: (n: number) => void;
   onStart: () => void;
+  onCancel: () => void;
 }) {
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
   return (
     <div className="flex flex-1 flex-col py-4">
+      {/* Back + timer settings */}
+      <div className="mb-3 flex items-center justify-between">
+        <button
+          onClick={onCancel}
+          className="font-display text-xl uppercase tracking-wide text-ink underline-offset-4 hover:underline"
+        >
+          ← Home
+        </button>
+
+        {phase === "preview" && (
+          <div className="relative">
+            <button
+              onClick={() => setSettingsOpen((o) => !o)}
+              aria-label="Timer settings"
+              className="flex items-center gap-1 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink"
+            >
+              ⚙ Timer · {delay}s
+            </button>
+            {settingsOpen && (
+              <div className="absolute right-0 z-10 mt-2 w-44 border-2 border-ink bg-paper p-2">
+                <p className="px-1 pb-1 font-sans text-xs font-bold uppercase tracking-wide text-warmgray">
+                  Shutter delay
+                </p>
+                <div className="flex gap-1">
+                  {[1, 2, 3].map((n) => (
+                    <button
+                      key={n}
+                      onClick={() => {
+                        setDelay(n);
+                        setSettingsOpen(false);
+                      }}
+                      className={`flex-1 border-2 border-ink py-1.5 font-display text-lg uppercase ${
+                        delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
+                      }`}
+                    >
+                      {n}s
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
         <video
           ref={videoRef}
           playsInline
           muted
+          autoPlay
           className="h-full w-full -scale-x-100 object-cover"
         />
 
@@ -537,9 +654,10 @@ function ReviewScreen({
   error,
   note,
   shareFilesOk,
-  onSave,
+  onShare,
   onDownload,
-  onShowSaveHelp,
+  onOpenGallery,
+  onHome,
   onRetake,
 }: {
   format: Format;
@@ -553,9 +671,10 @@ function ReviewScreen({
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
-  onSave: () => void;
+  onShare: () => void;
   onDownload: () => void;
-  onShowSaveHelp: () => void;
+  onOpenGallery: () => void;
+  onHome: () => void;
   onRetake: () => void;
 }) {
   const videoOk = isVideoSupported();
@@ -568,6 +687,14 @@ function ReviewScreen({
 
   return (
     <div className="flex flex-1 flex-col items-center py-4">
+      {/* Back to home */}
+      <button
+        onClick={onHome}
+        className="mb-3 self-start font-display text-xl uppercase tracking-wide text-ink underline-offset-4 hover:underline"
+      >
+        ← Home
+      </button>
+
       {/* Format tabs */}
       <div className="flex w-full border-2 border-ink bg-paper">
         {tabs.map((t) => (
@@ -647,24 +774,34 @@ function ReviewScreen({
         </p>
       )}
 
-      {/* Save (opens the iOS share sheet) */}
-      <button
-        onClick={onSave}
-        disabled={isBusy || !previewUrl}
-        className={`mt-5 w-full px-8 py-4 ${btnPrimary}`}
-      >
-        {shareFilesOk ? "📲 Save to iPhone" : "⬇️ Download Photo"}
-      </button>
-
-      {shareFilesOk && (
+      {/* Share + Save */}
+      <div className="mt-5 grid w-full grid-cols-2 gap-3">
+        {shareFilesOk && (
+          <button
+            onClick={onShare}
+            disabled={isBusy || !previewUrl}
+            className={`px-6 py-4 ${btnPrimary}`}
+          >
+            Share
+          </button>
+        )}
         <button
           onClick={onDownload}
           disabled={isBusy || !previewUrl}
-          className="mt-2 font-sans text-sm font-semibold uppercase tracking-wide text-brown underline-offset-4 hover:underline disabled:opacity-50"
+          className={`px-6 py-4 ${shareFilesOk ? btnSecondary : btnPrimary} ${
+            shareFilesOk ? "" : "col-span-2"
+          }`}
         >
-          or just download the file
+          Save
         </button>
-      )}
+      </div>
+
+      <button
+        onClick={onOpenGallery}
+        className="mt-3 w-full border-2 border-ink bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-ink transition active:bg-cream active:translate-y-px"
+      >
+        🖼️ Go to Album
+      </button>
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
@@ -673,13 +810,6 @@ function ReviewScreen({
       <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
         Photos stay on this device. PhotoBlast never uploads or stores them.
       </p>
-
-      <button
-        onClick={onShowSaveHelp}
-        className="mt-3 font-sans text-xs font-bold uppercase tracking-wide text-orange-dark underline-offset-4 hover:underline"
-      >
-        How to save into a {ALBUM_NAME} album →
-      </button>
 
       <button
         onClick={onRetake}
@@ -697,130 +827,14 @@ function ReviewScreen({
   );
 }
 
-function SaveHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/50 p-3"
-      onClick={onClose}
-    >
-      <div
-        className="max-h-[88vh] w-full max-w-md overflow-y-auto border-2 border-ink bg-paper p-5 text-ink"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-2xl uppercase tracking-wide">
-            Save into a {ALBUM_NAME} album
-          </h2>
-          <button onClick={onClose} className="px-2 text-xl text-brown">
-            ✕
-          </button>
-        </div>
-
-        <p className="mt-2 font-sans text-sm text-brown">
-          iPhone won't let a web app drop photos straight into your Photos
-          library. A tiny one-time Shortcut fixes that — then saving is two taps.
-        </p>
-
-        <h3 className="mt-4 font-display text-lg uppercase tracking-wide">
-          Every time
-        </h3>
-        <ol className="mt-2 space-y-1.5 font-sans text-sm text-brown">
-          <li>
-            1. Tap <strong>Save to iPhone</strong>.
-          </li>
-          <li>
-            2. In the Share Sheet, tap{" "}
-            <strong>Save to {ALBUM_NAME} Album</strong>.
-          </li>
-          <li>
-            3. Find them in <strong>Photos → Albums → {ALBUM_NAME}</strong>.
-          </li>
-        </ol>
-
-        <h3 className="mt-4 font-display text-lg uppercase tracking-wide">
-          One-time setup
-        </h3>
-        {SHORTCUT_URL ? (
-          <>
-            <a
-              href={SHORTCUT_URL}
-              target="_blank"
-              rel="noreferrer"
-              className={`mt-2 block px-4 py-3 text-center ${btnPrimary}`}
-            >
-              Install the Save Shortcut
-            </a>
-            <ol className="mt-2 space-y-1 font-sans text-sm text-brown">
-              <li>
-                1. Tap <strong>Install the Save Shortcut</strong> above.
-              </li>
-              <li>
-                2. Tap <strong>Add Shortcut</strong>.
-              </li>
-              <li>3. Done — that's it.</li>
-            </ol>
-            <p className="mt-2 font-sans text-xs text-warmgray">
-              The shortcut makes your {ALBUM_NAME} album by itself the first time
-              you save — you never have to create it.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="mt-2 font-sans text-sm text-brown">
-              No shortcut link is set up yet. You can build one in the{" "}
-              <strong>Shortcuts</strong> app in about a minute:
-            </p>
-            <ol className="mt-2 space-y-1.5 font-sans text-sm text-brown">
-              <li>
-                1. In <strong>Photos</strong>, make an album named{" "}
-                <strong>{ALBUM_NAME}</strong> (Albums → +).
-              </li>
-              <li>
-                2. New shortcut → add <strong>Save to Photo Album</strong>, set
-                the album to <strong>{ALBUM_NAME}</strong> and the input to{" "}
-                <strong>Shortcut Input</strong>.
-              </li>
-              <li>
-                3. In <strong>Details</strong>, turn on{" "}
-                <strong>Show in Share Sheet</strong> (Images only).
-              </li>
-              <li>
-                4. Name it <strong>Save to {ALBUM_NAME} Album</strong>.
-              </li>
-            </ol>
-          </>
-        )}
-
-        <h3 className="mt-4 font-display text-lg uppercase tracking-wide">
-          Don't see the shortcut?
-        </h3>
-        <p className="mt-2 font-sans text-sm text-brown">
-          Scroll to the end of the Share Sheet, tap <strong>Edit Actions…</strong>
-          , and add <strong>Save to {ALBUM_NAME} Album</strong>.
-        </p>
-
-        <p className="mt-4 border-2 border-ink bg-cream p-3 font-sans text-xs leading-relaxed text-brown">
-          🔒 No accounts. No uploads. No cloud. The camera runs only in your
-          browser, photos are made on your device, and the Shortcut saves them
-          straight to your Photos app. You can inspect or delete the Shortcut
-          anytime.
-        </p>
-
-        <button onClick={onClose} className={`mt-4 w-full py-3 ${btnSecondary}`}>
-          Got it
-        </button>
-      </div>
-    </div>
-  );
-}
-
 function GalleryScreen({
   onClose,
-  onSave,
+  onShare,
+  onDownload,
 }: {
   onClose: () => void;
-  onSave: (blob: Blob, filename: string) => void;
+  onShare: (blob: Blob, filename: string) => void;
+  onDownload: (blob: Blob, filename: string) => void;
 }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [selected, setSelected] = useState<Session | null>(null);
@@ -951,17 +965,28 @@ function GalleryScreen({
               </div>
             )}
 
-            <button
-              onClick={() => {
-                if (stripBlobRef.current) {
-                  onSave(stripBlobRef.current, `photoblast-${stamp()}.png`);
+            <div className="mt-5 grid w-full grid-cols-2 gap-3">
+              <button
+                onClick={() =>
+                  stripBlobRef.current &&
+                  onShare(stripBlobRef.current, `photoblast-${stamp()}.png`)
                 }
-              }}
-              disabled={!stripUrl}
-              className={`mt-5 w-full px-8 py-3.5 ${btnPrimary}`}
-            >
-              📲 Save to iPhone
-            </button>
+                disabled={!stripUrl}
+                className={`px-6 py-3.5 ${btnPrimary}`}
+              >
+                Share
+              </button>
+              <button
+                onClick={() =>
+                  stripBlobRef.current &&
+                  onDownload(stripBlobRef.current, `photoblast-${stamp()}.png`)
+                }
+                disabled={!stripUrl}
+                className={`px-6 py-3.5 ${btnSecondary}`}
+              >
+                Save
+              </button>
+            </div>
             <button
               onClick={removeSelected}
               className="mt-3 font-sans text-sm font-bold uppercase tracking-wide text-orange underline-offset-4 hover:underline"
@@ -1010,4 +1035,31 @@ function stripBlob(
 
 function stamp() {
   return new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+/, "");
+}
+
+/** Friendly message for a getUserMedia failure. */
+function cameraError(e: unknown): string {
+  const name = (e as Error)?.name;
+  if (name === "NotAllowedError" || name === "SecurityError") return CAMERA_MSG;
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No camera found on this device.";
+  }
+  if (name === "NotReadableError") {
+    return "The camera is in use by another app. Close it and try again.";
+  }
+  return "Couldn't access the camera. Please try again.";
+}
+
+/** Resolve once the video has real pixels (so we never capture black). */
+function videoReady(video: HTMLVideoElement, timeoutMs = 2500): Promise<boolean> {
+  if (video.videoWidth > 0) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (video.videoWidth > 0) return resolve(true);
+      if (Date.now() > deadline) return resolve(false);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
 }
