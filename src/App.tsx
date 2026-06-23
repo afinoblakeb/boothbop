@@ -14,6 +14,14 @@ import {
   saveSession,
   type Session,
 } from "./lib/gallery";
+import {
+  BrandIcon,
+  DownloadIcon,
+  RefreshIcon,
+  ShareIcon,
+  TrashIcon,
+} from "./icons";
+import { loadWatermark } from "./lib/watermark";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
 type Format = "strip" | "gif" | "video";
@@ -235,6 +243,21 @@ export default function App() {
     openCamera();
   }
 
+  // Reopen a saved session in the review screen so the user can get the strip,
+  // GIF, or video (and re-share) from any past shoot — not just the strip.
+  async function openSession(session: Session) {
+    clearResults();
+    setError(null);
+    setNote(null);
+    const canvases = await Promise.all(
+      session.photos.map((b) => blobToCanvas(b)),
+    );
+    setFrames(canvases);
+    setFormat("strip");
+    setShowGallery(false);
+    setPhase("review");
+  }
+
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
@@ -258,9 +281,9 @@ export default function App() {
   async function ensureGif() {
     setGenerating("gif");
     try {
-      await fontsReady(); // watermark needs the brand font loaded
+      const watermarkImg = await loadWatermark();
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = encodeGif(frames);
+      const blob = encodeGif(frames, { watermarkImg });
       setGifResult({
         url: URL.createObjectURL(blob),
         blob,
@@ -280,8 +303,8 @@ export default function App() {
     }
     setGenerating("video");
     try {
-      await fontsReady(); // watermark needs the brand font loaded
-      const { blob, extension } = await encodeVideo(frames);
+      const watermarkImg = await loadWatermark();
+      const { blob, extension } = await encodeVideo(frames, { watermarkImg });
       setVideoResult({
         url: URL.createObjectURL(blob),
         blob,
@@ -405,8 +428,7 @@ export default function App() {
       {showGallery && (
         <GalleryScreen
           onClose={() => setShowGallery(false)}
-          onShare={shareMedia}
-          onDownload={triggerDownload}
+          onOpen={openSession}
         />
       )}
     </div>
@@ -436,9 +458,10 @@ function TopBar({
       {showAlbum && (
         <button
           onClick={onAlbum}
-          className="border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
+          className="inline-flex items-center gap-1.5 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
         >
-          🖼 My Photos
+          <BrandIcon name="gallery" className="h-5 w-5" />
+          My Photos
         </button>
       )}
     </header>
@@ -448,9 +471,9 @@ function TopBar({
 /* ---------------------------------------------------------------- screens */
 
 const btnPrimary =
-  "border-2 border-ink bg-orange text-cream font-display text-2xl uppercase tracking-wide transition active:bg-orange-dark active:translate-y-px disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 border-2 border-ink bg-orange text-cream font-display text-2xl uppercase tracking-wide transition active:bg-orange-dark active:translate-y-px disabled:opacity-40";
 const btnSecondary =
-  "border-2 border-ink bg-paper text-ink font-display text-xl uppercase tracking-wide transition active:bg-cream active:translate-y-px disabled:opacity-40";
+  "inline-flex items-center justify-center gap-2 border-2 border-ink bg-paper text-ink font-display text-xl uppercase tracking-wide transition active:bg-cream active:translate-y-px disabled:opacity-40";
 
 function IdleScreen({
   onStart,
@@ -476,14 +499,16 @@ function IdleScreen({
         onClick={onStart}
         className={`mt-7 w-full max-w-xs px-8 py-5 text-3xl ${btnPrimary}`}
       >
-        📸 Take Photos
+        <BrandIcon name="camera" className="h-8 w-8" />
+        Take Photos
       </button>
 
       <button
         onClick={onOpenGallery}
         className={`mt-3 w-full max-w-xs px-8 py-4 ${btnSecondary}`}
       >
-        🖼️ My Photos
+        <BrandIcon name="gallery" className="h-7 w-7" />
+        My Photos
       </button>
 
       <InstallCard installPrompt={installPrompt} />
@@ -533,8 +558,9 @@ function InstallCard({
 
   return (
     <div className="mt-8 w-full max-w-xs border-2 border-ink bg-orange/15 p-4 text-left">
-      <p className="font-display text-2xl uppercase tracking-wide text-ink">
-        ⭐ Get the full app
+      <p className="flex items-center gap-2 font-display text-2xl uppercase tracking-wide text-ink">
+        <BrandIcon name="install" className="h-7 w-7" />
+        Get the full app
       </p>
       <p className="mt-1 font-sans text-sm text-brown">
         Add PhotoBlast to your home screen — it opens full-screen, loads
@@ -546,7 +572,8 @@ function InstallCard({
           onClick={oneTapInstall}
           className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
         >
-          📲 Add to Home Screen
+          <BrandIcon name="install" className="h-6 w-6" />
+          Add to Home Screen
         </button>
       ) : (
         <>
@@ -554,7 +581,8 @@ function InstallCard({
             onClick={() => setShowSteps((v) => !v)}
             className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
           >
-            📲 Add to Home Screen
+            <BrandIcon name="install" className="h-6 w-6" />
+            Add to Home Screen
           </button>
           {showSteps && <InstallSteps />}
         </>
@@ -696,7 +724,8 @@ function CameraScreen({
               onClick={onStart}
               className={`w-full px-8 py-5 text-3xl ${btnPrimary}`}
             >
-              📸 Take Photos
+              <BrandIcon name="camera" className="h-8 w-8" />
+              Take Photos
             </button>
           </>
         ) : (
@@ -849,20 +878,16 @@ function ReviewScreen({
             disabled={isBusy || !previewUrl}
             className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
           >
-            📤 Share
+            <ShareIcon className="h-7 w-7" />
+            Save / Share
           </button>
-          <div className="mt-3 grid w-full grid-cols-2 gap-3">
-            <button
-              onClick={onDownload}
-              disabled={isBusy || !previewUrl}
-              className={`px-6 py-4 ${btnSecondary}`}
-            >
-              ⬇️ Save
-            </button>
-            <button onClick={onRetake} className={`px-6 py-4 ${btnSecondary}`}>
-              ↻ Again
-            </button>
-          </div>
+          <button
+            onClick={onRetake}
+            className={`mt-3 w-full px-6 py-4 ${btnSecondary}`}
+          >
+            <RefreshIcon className="h-6 w-6" />
+            Take Again
+          </button>
         </>
       ) : (
         <>
@@ -871,13 +896,15 @@ function ReviewScreen({
             disabled={isBusy || !previewUrl}
             className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
           >
-            ⬇️ Save Photo
+            <DownloadIcon className="h-7 w-7" />
+            Save Photo
           </button>
           <button
             onClick={onRetake}
             className={`mt-3 w-full px-6 py-4 ${btnSecondary}`}
           >
-            ↻ Take Again
+            <RefreshIcon className="h-6 w-6" />
+            Take Again
           </button>
         </>
       )}
@@ -901,60 +928,26 @@ function ReviewScreen({
 
 function GalleryScreen({
   onClose,
-  onShare,
-  onDownload,
+  onOpen,
 }: {
   onClose: () => void;
-  onShare: (blob: Blob, filename: string) => void;
-  onDownload: (blob: Blob, filename: string) => void;
+  onOpen: (session: Session) => void;
 }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
-  const [selected, setSelected] = useState<Session | null>(null);
-  const [stripUrl, setStripUrl] = useState<string | null>(null);
-  const stripBlobRef = useRef<Blob | null>(null);
 
   const reload = () => listSessions().then(setSessions);
   useEffect(() => {
     reload();
   }, []);
 
-  // Compose the selected session's strip on demand.
-  useEffect(() => {
-    let url: string | null = null;
-    let cancelled = false;
-    if (!selected) {
-      setStripUrl(null);
-      stripBlobRef.current = null;
-      return;
-    }
-    (async () => {
-      const canvases = await Promise.all(selected.photos.map((b) => blobToCanvas(b)));
-      const strip = composeStrip(canvases, "4x1", THEMES.classic);
-      const blob = await new Promise<Blob>((res) =>
-        strip.toBlob((b) => res(b!), "image/png"),
-      );
-      if (cancelled) return;
-      stripBlobRef.current = blob;
-      url = URL.createObjectURL(blob);
-      setStripUrl(url);
-    })();
-    return () => {
-      cancelled = true;
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [selected]);
-
-  async function removeSelected() {
-    if (!selected) return;
-    await deleteSession(selected.id);
-    setSelected(null);
+  async function remove(id: string) {
+    await deleteSession(id);
     reload();
   }
 
   async function clearAll() {
     if (!window.confirm("Delete all saved photos from this device?")) return;
     await clearSessions();
-    setSelected(null);
     reload();
   }
 
@@ -971,7 +964,7 @@ function GalleryScreen({
         </div>
 
         <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-          🔒 Saved privately on this device only — never uploaded.
+          Tap a set to get its strip, GIF, or video. Saved on this device only.
         </p>
 
         {sessions === null ? (
@@ -979,8 +972,8 @@ function GalleryScreen({
             Loading…
           </p>
         ) : sessions.length === 0 ? (
-          <div className="mt-16 text-center text-brown">
-            <div className="text-5xl">🖼️</div>
+          <div className="mt-16 flex flex-col items-center text-center text-brown">
+            <BrandIcon name="gallery" className="h-16 w-16" />
             <p className="mt-3 font-display text-2xl uppercase tracking-wide">
               No photos yet
             </p>
@@ -995,85 +988,35 @@ function GalleryScreen({
                 <Cover
                   key={s.id}
                   blob={s.photos[0]}
-                  onClick={() => setSelected(s)}
+                  onOpen={() => onOpen(s)}
+                  onDelete={() => remove(s.id)}
                 />
               ))}
             </div>
             <button
               onClick={clearAll}
-              className="mt-6 w-full border-2 border-orange-dark bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
+              className="mt-6 inline-flex w-full items-center justify-center gap-2 border-2 border-orange-dark bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
             >
-              🗑 Clear all
+              <TrashIcon className="h-5 w-5" />
+              Clear all
             </button>
           </>
         )}
       </div>
-
-      {/* Detail view for the selected session */}
-      {selected && (
-        <div
-          className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-ink/85 px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]"
-          onClick={() => setSelected(null)}
-        >
-          <div
-            className="flex w-full max-w-md flex-col items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setSelected(null)}
-              className="self-end px-2 text-2xl text-cream"
-            >
-              ✕
-            </button>
-            {stripUrl ? (
-              <img
-                src={stripUrl}
-                alt="Saved strip"
-                className="max-h-[60vh] w-auto border-2 border-ink"
-              />
-            ) : (
-              <div className="flex h-40 items-center font-display text-xl uppercase text-cream">
-                Loading…
-              </div>
-            )}
-
-            <div className="mt-5 grid w-full grid-cols-2 gap-3">
-              <button
-                onClick={() =>
-                  stripBlobRef.current &&
-                  onShare(stripBlobRef.current, `photoblast-${stamp()}.png`)
-                }
-                disabled={!stripUrl}
-                className={`px-6 py-3.5 ${btnPrimary}`}
-              >
-                Share
-              </button>
-              <button
-                onClick={() =>
-                  stripBlobRef.current &&
-                  onDownload(stripBlobRef.current, `photoblast-${stamp()}.png`)
-                }
-                disabled={!stripUrl}
-                className={`px-6 py-3.5 ${btnSecondary}`}
-              >
-                Save
-              </button>
-            </div>
-            <button
-              onClick={removeSelected}
-              className="mt-3 w-full border-2 border-orange bg-transparent px-6 py-3 font-display text-lg uppercase tracking-wide text-orange transition active:translate-y-px"
-            >
-              🗑 Delete
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
-/** Grid thumbnail that owns its object URL lifecycle. */
-function Cover({ blob, onClick }: { blob: Blob; onClick: () => void }) {
+/** Grid thumbnail: tap to open the set, small corner button to delete it. */
+function Cover({
+  blob,
+  onOpen,
+  onDelete,
+}: {
+  blob: Blob;
+  onOpen: () => void;
+  onDelete: () => void;
+}) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     const u = URL.createObjectURL(blob);
@@ -1081,12 +1024,21 @@ function Cover({ blob, onClick }: { blob: Blob; onClick: () => void }) {
     return () => URL.revokeObjectURL(u);
   }, [blob]);
   return (
-    <button
-      onClick={onClick}
-      className="aspect-square overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
-    >
-      {url && <img src={url} alt="" className="h-full w-full object-cover" />}
-    </button>
+    <div className="relative">
+      <button
+        onClick={onOpen}
+        className="block aspect-square w-full overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+      >
+        {url && <img src={url} alt="" className="h-full w-full object-cover" />}
+      </button>
+      <button
+        onClick={onDelete}
+        aria-label="Delete"
+        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink"
+      >
+        <TrashIcon className="h-4 w-4" />
+      </button>
+    </div>
   );
 }
 
@@ -1107,16 +1059,6 @@ function stripBlob(
 
 function stamp() {
   return new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+/, "");
-}
-
-/** Make sure the brand font is loaded so the canvas watermark renders right. */
-async function fontsReady() {
-  try {
-    await document.fonts.load('400 24px "Bebas Neue"');
-    await document.fonts.ready;
-  } catch {
-    /* font API unavailable — fall back to the canvas default */
-  }
 }
 
 /** Friendly message for a getUserMedia failure. */

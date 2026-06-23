@@ -64,6 +64,55 @@ async function ogImage() {
   console.log("wrote og-image.png 1200x630");
 }
 
+// UI icons: knock the cream background out to transparent so they sit on any
+// button colour, trim, and pad to a square.
+async function uiIcon(name, size = 256) {
+  const src = `brand/icons/src-${name}.png`;
+  const { data, info } = await sharp(src)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const ch = info.channels;
+  const bg = [data[0], data[1], data[2]]; // cream, sampled from the corner
+  const th = 72; // chroma-key tolerance
+  for (let i = 0; i < data.length; i += ch) {
+    const dr = data[i] - bg[0];
+    const dg = data[i + 1] - bg[1];
+    const db = data[i + 2] - bg[2];
+    if (dr * dr + dg * dg + db * db < th * th) data[i + 3] = 0;
+  }
+  await sharp(data, { raw: { width: info.width, height: info.height, channels: ch } })
+    .trim()
+    .resize(size, size, {
+      fit: "contain",
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    })
+    .png({ palette: true, effort: 10 })
+    .toFile(`${OUT}/ic-${name}.png`);
+  console.log("wrote", `ic-${name}.png`, `${size}x${size}`);
+}
+
+// Transparent horizontal wordmark for the GIF/video watermark: knock out the
+// white margin + cream artboard (light pixels), keep the black + orange art.
+async function watermark() {
+  const { data, info } = await sharp(WIDE)
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const ch = info.channels;
+  for (let i = 0; i < data.length; i += ch) {
+    if (data[i] > 200 && data[i + 1] > 185 && data[i + 2] > 160) {
+      data[i + 3] = 0; // light background -> transparent
+    }
+  }
+  await sharp(data, { raw: { width: info.width, height: info.height, channels: ch } })
+    .trim()
+    .resize({ width: 640 })
+    .png({ palette: true, effort: 10 })
+    .toFile(`${OUT}/watermark.png`);
+  console.log("wrote watermark.png");
+}
+
 await icon(512, "icon-512.png");
 await icon(192, "icon-192.png");
 await icon(180, "apple-touch-icon.png");
@@ -71,4 +120,8 @@ await icon(32, "favicon-32.png");
 await maskable();
 await wideLogo();
 await ogImage();
+await uiIcon("camera");
+await uiIcon("gallery");
+await uiIcon("install");
+await watermark();
 console.log("done");
