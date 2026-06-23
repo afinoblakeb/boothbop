@@ -673,15 +673,25 @@ function InstallSteps() {
     <ol className="mt-3 space-y-1.5 font-sans text-sm text-brown">
       {ios ? (
         <>
-          <li>
-            1. Tap the <strong>Share</strong> button — the square with an arrow
-            pointing up — in your browser's toolbar.
+          <li className="flex items-center gap-1">
+            <span>1. Tap the</span>
+            <strong>Share</strong>
+            <ShareIcon className="inline h-4 w-4" />
+            <span>icon in Safari's toolbar.</span>
           </li>
           <li>
-            2. Tap <strong>Add to Home Screen</strong>.
+            2. Tap <strong>View More</strong> (scroll down) if you don't see the
+            next step.
           </li>
           <li>
-            3. Tap <strong>Add</strong>. Done!
+            3. Tap <strong>Add to Home Screen</strong>.
+          </li>
+          <li>
+            4. Make sure <strong>Open as Web App</strong> is toggled{" "}
+            <strong>ON</strong>.
+          </li>
+          <li>
+            5. Tap <strong>Add</strong>. Done!
           </li>
         </>
       ) : (

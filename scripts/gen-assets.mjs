@@ -15,9 +15,19 @@ const PNG = { palette: true, colors: 256, effort: 10 };
 const squareArt = () => sharp(SQUARE).trim({ threshold: 12 });
 const wideArt = () => sharp(WIDE).trim({ threshold: 12 });
 
-async function icon(size, name) {
-  await squareArt()
-    .resize(size, size, { fit: "cover" })
+async function icon(size, name, margin = 0.14) {
+  // Pad the logo onto a cream square so iOS's rounded-corner mask (and Android's
+  // icon shape) never clip the wordmark. `contain` keeps the whole mark visible;
+  // the margin leaves a safe border on every side.
+  const inner = Math.round(size * (1 - margin * 2));
+  const logo = await squareArt()
+    .resize(inner, inner, { fit: "contain", background: CREAM })
+    .png(PNG)
+    .toBuffer();
+  await sharp({
+    create: { width: size, height: size, channels: 3, background: CREAM },
+  })
+    .composite([{ input: logo, gravity: "center" }])
     .flatten({ background: CREAM })
     .png(PNG)
     .toFile(`${OUT}/${name}`);
