@@ -3,9 +3,8 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Served from the custom domain root (boothbop.com). Override BASE_PATH only
-// need to resolve under that sub-path. Override with BASE_PATH if you fork
-// to a differently-named repo or use a custom domain.
+// Served from the custom-domain root (boothbop.com). Override with BASE_PATH
+// for a project-page build served from a sub-path.
 const base = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
@@ -45,6 +44,9 @@ export default defineConfig({
         globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,woff2}"],
         globIgnores: ["**/og-image.png"], // social preview only; not needed offline
         navigateFallback: "index.html",
+        // Legal/support pages are real static HTML — never replace them with the
+        // SPA shell on navigation.
+        navigateFallbackDenylist: [/^\/(privacy|terms|support)/],
       },
     }),
   ],

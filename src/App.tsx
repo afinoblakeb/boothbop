@@ -553,6 +553,15 @@ function IdleScreen({
       <p className="mt-8 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
         No accounts · No uploads · No cloud
       </p>
+      <p className="mt-2 font-sans text-xs text-warmgray">
+        <a href="/privacy/" className="underline">
+          Privacy
+        </a>{" "}
+        ·{" "}
+        <a href="/terms/" className="underline">
+          Terms
+        </a>
+      </p>
 
       {error && (
         <p className="mt-6 max-w-xs border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
