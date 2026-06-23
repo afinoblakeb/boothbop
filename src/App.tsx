@@ -4,6 +4,16 @@ import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
 import { canShareFiles, isIOS, probeShareFiles } from "./lib/platform";
+import {
+  blobToCanvas,
+  canvasToBlob,
+  clearSessions,
+  deleteSession,
+  listSessions,
+  requestPersistence,
+  saveSession,
+  type Session,
+} from "./lib/gallery";
 import { ALBUM_NAME, SHORTCUT_URL } from "./config";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
@@ -34,8 +44,11 @@ export default function App() {
 
   const [note, setNote] = useState<string | null>(null);
   const [showSaveHelp, setShowSaveHelp] = useState(false);
+  const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
+  // Best-effort: ask the browser to keep the private gallery through eviction.
+  useEffect(() => requestPersistence(), []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -100,6 +113,15 @@ export default function App() {
 
     stopCamera(streamRef.current);
     streamRef.current = null;
+
+    // Auto-save this session to the private on-device gallery.
+    try {
+      const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
+      await saveSession(photos);
+    } catch {
+      /* storage is best-effort — never block the flow on it */
+    }
+
     setFormat("strip");
     setPhase("review");
   }
@@ -187,20 +209,16 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  // Primary "Save to iPhone": opens the native share sheet with the image
-  // file so the user can tap their "Save to <album>" Shortcut, Save Image, or
-  // send it on. Falls back to a plain download where file sharing is missing.
-  async function saveToPhone() {
+  // Opens the native share sheet with the image file so the user can tap their
+  // "Save to <album>" Shortcut, Save Image, or send it on. Falls back to a
+  // plain download where file sharing is missing. Shared by review + gallery.
+  async function shareFile(blob: Blob, filename: string) {
     setError(null);
     setNote(null);
-    const media = await currentMedia();
-    if (!media) return;
-    const file = new File([media.blob], media.filename, {
-      type: media.blob.type,
-    });
+    const file = new File([blob], filename, { type: blob.type });
 
     if (!canShareFiles(file)) {
-      triggerDownload(media.blob, media.filename);
+      triggerDownload(blob, filename);
       return;
     }
 
@@ -215,9 +233,15 @@ export default function App() {
       if (name === "AbortError") {
         setNote("Save canceled."); // user dismissed the sheet — no scary error
       } else {
-        triggerDownload(media.blob, media.filename); // graceful fallback
+        triggerDownload(blob, filename); // graceful fallback
       }
     }
+  }
+
+  // Primary "Save to iPhone" on the review screen.
+  async function saveToPhone() {
+    const media = await currentMedia();
+    if (media) await shareFile(media.blob, media.filename);
   }
 
   async function downloadCurrent() {
@@ -234,7 +258,13 @@ export default function App() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col px-4">
-      {phase === "idle" && <IdleScreen onStart={openCamera} error={error} />}
+      {phase === "idle" && (
+        <IdleScreen
+          onStart={openCamera}
+          onOpenGallery={() => setShowGallery(true)}
+          error={error}
+        />
+      )}
 
       {(phase === "preview" || phase === "capturing") && (
         <CameraScreen
@@ -268,6 +298,12 @@ export default function App() {
       )}
 
       <SaveHelp open={showSaveHelp} onClose={() => setShowSaveHelp(false)} />
+      {showGallery && (
+        <GalleryScreen
+          onClose={() => setShowGallery(false)}
+          onSave={shareFile}
+        />
+      )}
     </div>
   );
 }
@@ -276,9 +312,11 @@ export default function App() {
 
 function IdleScreen({
   onStart,
+  onOpenGallery,
   error,
 }: {
   onStart: () => void;
+  onOpenGallery: () => void;
   error: string | null;
 }) {
   return (
@@ -295,6 +333,13 @@ function IdleScreen({
         className="mt-8 rounded-full bg-pink-500 px-10 py-4 text-lg font-bold shadow-lg shadow-pink-500/30 transition active:scale-95"
       >
         Insert Coin — Start
+      </button>
+
+      <button
+        onClick={onOpenGallery}
+        className="mt-3 text-sm font-semibold text-white/70 underline-offset-4 hover:underline"
+      >
+        🖼️ My Photos
       </button>
 
       <ol className="mt-10 space-y-1 text-sm text-white/50">
@@ -759,6 +804,176 @@ function SaveHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
         </button>
       </div>
     </div>
+  );
+}
+
+function GalleryScreen({
+  onClose,
+  onSave,
+}: {
+  onClose: () => void;
+  onSave: (blob: Blob, filename: string) => void;
+}) {
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [selected, setSelected] = useState<Session | null>(null);
+  const [stripUrl, setStripUrl] = useState<string | null>(null);
+  const stripBlobRef = useRef<Blob | null>(null);
+
+  const reload = () => listSessions().then(setSessions);
+  useEffect(() => {
+    reload();
+  }, []);
+
+  // Compose the selected session's strip on demand.
+  useEffect(() => {
+    let url: string | null = null;
+    let cancelled = false;
+    if (!selected) {
+      setStripUrl(null);
+      stripBlobRef.current = null;
+      return;
+    }
+    (async () => {
+      const canvases = await Promise.all(selected.photos.map((b) => blobToCanvas(b)));
+      const strip = composeStrip(canvases, "4x1", THEMES.classic);
+      const blob = await new Promise<Blob>((res) =>
+        strip.toBlob((b) => res(b!), "image/png"),
+      );
+      if (cancelled) return;
+      stripBlobRef.current = blob;
+      url = URL.createObjectURL(blob);
+      setStripUrl(url);
+    })();
+    return () => {
+      cancelled = true;
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [selected]);
+
+  async function removeSelected() {
+    if (!selected) return;
+    await deleteSession(selected.id);
+    setSelected(null);
+    reload();
+  }
+
+  async function clearAll() {
+    if (!window.confirm("Delete all saved photos from this device?")) return;
+    await clearSessions();
+    setSelected(null);
+    reload();
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-[#0b0b12]">
+      <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-black">My Photos</h2>
+          <button onClick={onClose} className="px-2 text-xl text-white/60">
+            ✕
+          </button>
+        </div>
+
+        <p className="mt-1 text-xs text-white/40">
+          🔒 Saved privately on this device only — never uploaded.
+        </p>
+
+        {sessions === null ? (
+          <p className="mt-16 text-center text-white/50">Loading…</p>
+        ) : sessions.length === 0 ? (
+          <div className="mt-16 text-center text-white/50">
+            <div className="text-5xl">🖼️</div>
+            <p className="mt-3">No photos yet.</p>
+            <p className="text-sm text-white/40">
+              Your booth sessions are saved here automatically.
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="mt-4 grid grid-cols-3 gap-2">
+              {sessions.map((s) => (
+                <Cover
+                  key={s.id}
+                  blob={s.photos[0]}
+                  onClick={() => setSelected(s)}
+                />
+              ))}
+            </div>
+            <button
+              onClick={clearAll}
+              className="mt-6 w-full text-sm font-semibold text-red-300/80 underline-offset-4 hover:underline"
+            >
+              Clear all
+            </button>
+          </>
+        )}
+      </div>
+
+      {/* Detail view for the selected session */}
+      {selected && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center overflow-y-auto bg-black/80 px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)] backdrop-blur-sm"
+          onClick={() => setSelected(null)}
+        >
+          <div
+            className="flex w-full max-w-md flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setSelected(null)}
+              className="self-end px-2 text-xl text-white/60"
+            >
+              ✕
+            </button>
+            {stripUrl ? (
+              <img
+                src={stripUrl}
+                alt="Saved strip"
+                className="max-h-[60vh] w-auto rounded-2xl shadow-2xl"
+              />
+            ) : (
+              <div className="flex h-40 items-center text-white/50">Loading…</div>
+            )}
+
+            <button
+              onClick={() => {
+                if (stripBlobRef.current) {
+                  onSave(stripBlobRef.current, `photoblast-${stamp()}.png`);
+                }
+              }}
+              disabled={!stripUrl}
+              className="mt-5 w-full rounded-2xl bg-pink-500 py-3.5 font-bold transition active:scale-95 disabled:opacity-50"
+            >
+              📲 Save to iPhone
+            </button>
+            <button
+              onClick={removeSelected}
+              className="mt-3 text-sm font-semibold text-red-300/80 underline-offset-4 hover:underline"
+            >
+              Delete
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Grid thumbnail that owns its object URL lifecycle. */
+function Cover({ blob, onClick }: { blob: Blob; onClick: () => void }) {
+  const [url, setUrl] = useState<string>();
+  useEffect(() => {
+    const u = URL.createObjectURL(blob);
+    setUrl(u);
+    return () => URL.revokeObjectURL(u);
+  }, [blob]);
+  return (
+    <button
+      onClick={onClick}
+      className="aspect-square overflow-hidden rounded-xl border border-white/10 bg-white/5 transition active:scale-95"
+    >
+      {url && <img src={url} alt="" className="h-full w-full object-cover" />}
+    </button>
   );
 }
 

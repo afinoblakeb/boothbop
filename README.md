@@ -17,6 +17,7 @@ no uploads, no server. Your photos never leave your device.
 - 🎞️ Export as **PNG strip**, **animated GIF**, or **video** (MP4/WebM)
 - 📱 Mobile-first, front-facing (selfie) camera support
 - 📲 **Save to iPhone** via the native share sheet — straight into a Photos album with an optional Shortcut
+- 🗂️ **Private on-device gallery** — every session is auto-saved locally (IndexedDB); re-open, re-save, or delete anytime
 - 🔒 100% client-side — nothing is uploaded
 
 ## Saving to your iPhone (and a Photoblast album)
@@ -53,6 +54,15 @@ building the Shortcut themselves. The **Create Album** action requires a recent
 iOS; on current versions no manual album creation is needed. If file sharing
 isn't available (e.g. desktop browsers), the button falls back to a normal
 download.
+
+## Private on-device gallery
+
+Every booth session is **automatically saved to your device** (via IndexedDB)
+and shown under **My Photos** on the home screen. It's your phone acting as
+private storage — no cloud, no accounts, nothing uploaded. From the gallery you
+can re-open a session, **Save to iPhone** again, or **delete** it; **Clear all**
+wipes everything. The app also requests persistent storage so the browser is
+less likely to evict your photos (most durable when installed as a PWA).
 
 ## Install it like an app (and use it offline)
 
