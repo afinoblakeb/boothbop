@@ -560,6 +560,10 @@ function IdleScreen({
         ·{" "}
         <a href="/terms/" className="underline">
           Terms
+        </a>{" "}
+        ·{" "}
+        <a href="/support/" className="underline">
+          Support
         </a>
       </p>
 
