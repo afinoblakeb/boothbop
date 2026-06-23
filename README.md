@@ -16,7 +16,43 @@ no uploads, no server. Your photos never leave your device.
 - 🎨 Theme swatches for the strip border
 - 🎞️ Export as **PNG strip**, **animated GIF**, or **video** (MP4/WebM)
 - 📱 Mobile-first, front-facing (selfie) camera support
+- 📲 **Save to iPhone** via the native share sheet — straight into a Photos album with an optional Shortcut
 - 🔒 100% client-side — nothing is uploaded
+
+## Saving to your iPhone (and a Photoblast album)
+
+The **Save to iPhone** button opens the iOS share sheet with the generated
+image, so you can **Save Image** to your camera roll, send it in **Messages**,
+or — with a tiny one-time Shortcut — drop it straight into a dedicated
+**Photoblast** album.
+
+> iOS deliberately doesn't let a web app write to your Photos library or create
+> albums directly. A user-installed Shortcut bridges that gap. There is no cloud
+> and no server — the Shortcut saves on-device to your own Photos app.
+
+**The Shortcut creates the album for you**, so onboarding is just:
+
+1. Tap **Install the Save Shortcut**
+2. Tap **Add Shortcut**
+3. Done — the first save makes the *Photoblast* album automatically
+
+Recommended Shortcut logic (build it in the **Shortcuts** app, enable *Show in
+Share Sheet* with *Images* input, and share it via iCloud):
+
+```
+Find Albums  where Name is "Photoblast"
+If  (count of result is 0)
+    Create Album  "Photoblast"
+End If
+Save  Shortcut Input  to the "Photoblast" album
+```
+
+Then publish the iCloud link and point the app at it via `VITE_SHORTCUT_URL`
+(see below). Without a link configured, the in-app help walks users through
+building the Shortcut themselves. The **Create Album** action requires a recent
+iOS; on current versions no manual album creation is needed. If file sharing
+isn't available (e.g. desktop browsers), the button falls back to a normal
+download.
 
 ## Install it like an app (and use it offline)
 
@@ -72,3 +108,15 @@ to a different repo name or use a custom domain, override it at build time:
 ```bash
 BASE_PATH=/your-repo/ npm run build
 ```
+
+### Optional: wire up the Save Shortcut
+
+Once you've built and shared the iCloud Shortcut (see above), enable the
+one-tap install button by setting its link at build time:
+
+```bash
+VITE_SHORTCUT_URL=https://www.icloud.com/shortcuts/xxxxxxxx npm run build
+```
+
+You can also hard-code it in `src/config.ts`. The album name lives there too
+(`ALBUM_NAME`, default `Photoblast`).

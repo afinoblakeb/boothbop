@@ -3,6 +3,8 @@ import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
 import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
+import { canShareFiles, isIOS, probeShareFiles } from "./lib/platform";
+import { ALBUM_NAME, SHORTCUT_URL } from "./config";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
 type Format = "strip" | "gif" | "video";
@@ -29,6 +31,11 @@ export default function App() {
   const [generating, setGenerating] = useState<null | "gif" | "video">(null);
   const [gifResult, setGifResult] = useState<MediaResult | null>(null);
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
+
+  const [note, setNote] = useState<string | null>(null);
+  const [showSaveHelp, setShowSaveHelp] = useState(false);
+  const [shareFilesOk, setShareFilesOk] = useState(false);
+  useEffect(() => setShareFilesOk(probeShareFiles()), []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -119,6 +126,7 @@ export default function App() {
   async function selectFormat(f: Format) {
     setFormat(f);
     setError(null);
+    setNote(null);
     if (f === "gif" && !gifResult) await ensureGif();
     if (f === "video" && !videoResult) await ensureVideo();
   }
@@ -179,26 +187,35 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  async function shareCurrent() {
+  // Primary "Save to iPhone": opens the native share sheet with the image
+  // file so the user can tap their "Save to <album>" Shortcut, Save Image, or
+  // send it on. Falls back to a plain download where file sharing is missing.
+  async function saveToPhone() {
+    setError(null);
+    setNote(null);
     const media = await currentMedia();
     if (!media) return;
     const file = new File([media.blob], media.filename, {
       type: media.blob.type,
     });
-    const nav = navigator as Navigator & {
-      canShare?: (data?: ShareData) => boolean;
-    };
+
+    if (!canShareFiles(file)) {
+      triggerDownload(media.blob, media.filename);
+      return;
+    }
+
     try {
-      if (nav.canShare?.({ files: [file] })) {
-        await nav.share({ files: [file], title: "PhotoBlast" });
-      } else {
-        // No file-sharing support (e.g. desktop) — fall back to a download.
-        triggerDownload(media.blob, media.filename);
+      // Image-only payload (no `text`) so an "Images only" Shortcut accepts it.
+      await navigator.share({ files: [file], title: "Photoblast Photo" });
+      if (isIOS()) {
+        setNote(`Tip: in the Share Sheet, tap “Save to ${ALBUM_NAME} Album”.`);
       }
     } catch (e) {
-      // The user dismissing the share sheet throws AbortError — ignore that.
-      if ((e as Error)?.name !== "AbortError") {
-        setError("Couldn't open the share sheet.");
+      const name = (e as Error)?.name;
+      if (name === "AbortError") {
+        setNote("Save canceled."); // user dismissed the sheet — no scary error
+      } else {
+        triggerDownload(media.blob, media.filename); // graceful fallback
       }
     }
   }
@@ -241,11 +258,16 @@ export default function App() {
           themeKey={themeKey}
           setThemeKey={setThemeKey}
           error={error}
-          onShare={shareCurrent}
+          note={note}
+          shareFilesOk={shareFilesOk}
+          onSave={saveToPhone}
           onDownload={downloadCurrent}
+          onShowSaveHelp={() => setShowSaveHelp(true)}
           onRetake={retake}
         />
       )}
+
+      <SaveHelp open={showSaveHelp} onClose={() => setShowSaveHelp(false)} />
     </div>
   );
 }
@@ -280,6 +302,10 @@ function IdleScreen({
         <li>2. Prop up your phone in selfie mode</li>
         <li>3. Strike a pose on each countdown ✨</li>
       </ol>
+
+      <p className="mt-6 text-xs font-medium text-white/40">
+        🔒 No accounts · No uploads · No cloud
+      </p>
 
       {error && (
         <p className="mt-6 rounded-lg bg-red-500/15 px-4 py-3 text-sm text-red-200">
@@ -448,8 +474,11 @@ function ReviewScreen({
   themeKey,
   setThemeKey,
   error,
-  onShare,
+  note,
+  shareFilesOk,
+  onSave,
   onDownload,
+  onShowSaveHelp,
   onRetake,
 }: {
   format: Format;
@@ -461,8 +490,11 @@ function ReviewScreen({
   themeKey: keyof typeof THEMES;
   setThemeKey: (k: keyof typeof THEMES) => void;
   error: string | null;
-  onShare: () => void;
+  note: string | null;
+  shareFilesOk: boolean;
+  onSave: () => void;
   onDownload: () => void;
+  onShowSaveHelp: () => void;
   onRetake: () => void;
 }) {
   const videoOk = isVideoSupported();
@@ -554,27 +586,43 @@ function ReviewScreen({
         </p>
       )}
 
-      {/* Share + download */}
-      <div className="mt-5 grid w-full grid-cols-2 gap-3">
-        <button
-          onClick={onShare}
-          disabled={isBusy || !previewUrl}
-          className="rounded-2xl bg-pink-500 py-3.5 font-bold transition active:scale-95 disabled:opacity-50"
-        >
-          📤 Share
-        </button>
+      {/* Save (opens the iOS share sheet) */}
+      <button
+        onClick={onSave}
+        disabled={isBusy || !previewUrl}
+        className="mt-5 w-full rounded-2xl bg-pink-500 py-4 text-lg font-bold transition active:scale-95 disabled:opacity-50"
+      >
+        {shareFilesOk ? "📲 Save to iPhone" : "⬇️ Download Photo"}
+      </button>
+
+      {shareFilesOk && (
         <button
           onClick={onDownload}
           disabled={isBusy || !previewUrl}
-          className="rounded-2xl bg-white/10 py-3.5 font-semibold transition active:scale-95 disabled:opacity-50"
+          className="mt-2 text-sm font-semibold text-white/55 underline-offset-4 hover:underline disabled:opacity-50"
         >
-          ⬇️ Save
+          or just download the file
         </button>
-      </div>
+      )}
+
+      {note && (
+        <p className="mt-3 text-center text-sm text-white/75">{note}</p>
+      )}
+
+      <p className="mt-3 max-w-xs text-center text-xs text-white/40">
+        Photos stay on this device. PhotoBlast never uploads or stores them.
+      </p>
+
+      <button
+        onClick={onShowSaveHelp}
+        className="mt-3 text-xs font-semibold text-pink-300 underline-offset-4 hover:underline"
+      >
+        How to save into a {ALBUM_NAME} album →
+      </button>
 
       <button
         onClick={onRetake}
-        className="mt-4 text-sm font-semibold text-white/60 underline-offset-4 hover:underline"
+        className="mt-5 text-sm font-semibold text-white/60 underline-offset-4 hover:underline"
       >
         ↻ Retake
       </button>
@@ -584,6 +632,132 @@ function ReviewScreen({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+function SaveHelp({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-3 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-[#15131f] p-5"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-bold">Save into a {ALBUM_NAME} album</h2>
+          <button onClick={onClose} className="px-2 text-xl text-white/50">
+            ✕
+          </button>
+        </div>
+
+        <p className="mt-2 text-sm text-white/60">
+          iPhone won't let a web app drop photos straight into your Photos
+          library. A tiny one-time Shortcut fixes that — then saving is two taps.
+        </p>
+
+        <h3 className="mt-4 text-sm font-bold text-white/80">Every time</h3>
+        <ol className="mt-2 space-y-1.5 text-sm text-white/70">
+          <li>
+            1. Tap <strong>Save to iPhone</strong>.
+          </li>
+          <li>
+            2. In the Share Sheet, tap{" "}
+            <strong>Save to {ALBUM_NAME} Album</strong>.
+          </li>
+          <li>
+            3. Find them in{" "}
+            <strong>Photos → Albums → {ALBUM_NAME}</strong>.
+          </li>
+        </ol>
+
+        <h3 className="mt-4 text-sm font-bold text-white/80">
+          One-time setup
+        </h3>
+        {SHORTCUT_URL ? (
+          <>
+            <a
+              href={SHORTCUT_URL}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 block rounded-2xl bg-pink-500 py-3 text-center font-bold"
+            >
+              Install the Save Shortcut
+            </a>
+            <ol className="mt-2 space-y-1 text-sm text-white/70">
+              <li>
+                1. Tap <strong>Install the Save Shortcut</strong> above.
+              </li>
+              <li>
+                2. Tap <strong>Add Shortcut</strong>.
+              </li>
+              <li>3. Done — that's it.</li>
+            </ol>
+            <p className="mt-2 text-xs text-white/50">
+              The shortcut makes your {ALBUM_NAME} album by itself the first time
+              you save — you never have to create it.
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="mt-2 text-sm text-white/60">
+              No shortcut link is set up yet. You can build a smart one in the{" "}
+              <strong>Shortcuts</strong> app that creates the album on its own:
+            </p>
+            <ol className="mt-2 space-y-1.5 text-sm text-white/70">
+              <li>
+                1. New shortcut → turn on <strong>Show in Share Sheet</strong>,
+                accepted input <strong>Images</strong>.
+              </li>
+              <li>
+                2. <strong>Find Albums</strong> where Name is{" "}
+                <strong>{ALBUM_NAME}</strong>.
+              </li>
+              <li>
+                3. <strong>If</strong> the result has no items →{" "}
+                <strong>Create Album</strong> named <strong>{ALBUM_NAME}</strong>.
+              </li>
+              <li>
+                4. <strong>Save to Album</strong> → the {ALBUM_NAME} album, using
+                the Shortcut Input.
+              </li>
+              <li>
+                5. Name it <strong>Save to {ALBUM_NAME} Album</strong>.
+              </li>
+            </ol>
+            <p className="mt-2 text-xs text-white/50">
+              The <strong>Create Album</strong> action needs a recent iOS; on
+              current versions this works and no manual album is required.
+            </p>
+          </>
+        )}
+
+        <h3 className="mt-4 text-sm font-bold text-white/80">
+          Don't see the shortcut?
+        </h3>
+        <p className="mt-2 text-sm text-white/60">
+          Scroll to the end of the Share Sheet, tap{" "}
+          <strong>Edit Actions…</strong>, and add{" "}
+          <strong>Save to {ALBUM_NAME} Album</strong>.
+        </p>
+
+        <p className="mt-4 rounded-2xl bg-white/5 p-3 text-xs leading-relaxed text-white/50">
+          🔒 No accounts. No uploads. No cloud. The camera runs only in your
+          browser, photos are made on your device, and the Shortcut saves them
+          straight to your Photos app. You can inspect or delete the Shortcut
+          anytime.
+        </p>
+
+        <button
+          onClick={onClose}
+          className="mt-4 w-full rounded-2xl bg-white/10 py-3 font-semibold"
+        >
+          Got it
+        </button>
+      </div>
     </div>
   );
 }
