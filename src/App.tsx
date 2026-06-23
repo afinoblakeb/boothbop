@@ -539,7 +539,9 @@ function IdleScreen({
         My Photos
       </button>
 
-      <InstallCard installPrompt={installPrompt} />
+      {/* Migrated users get install steps inside the welcome banner, so skip
+          the separate card to avoid duplicating them. */}
+      {!migrated && <InstallCard installPrompt={installPrompt} />}
 
       <p className="mt-8 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
         No accounts · No uploads · No cloud
@@ -586,18 +588,13 @@ function MigrationNotice() {
       <p className="mt-1 font-sans text-sm text-brown">
         PhotoBlast is now{" "}
         <span className="font-bold text-orange">BoothBop</span> — same booth,
-        new name. Two quick things to finish moving over:
+        new name. To keep it on your phone:
       </p>
-      <ol className="mt-2 space-y-1 font-sans text-sm text-brown">
-        <li>
-          <strong>1. Add BoothBop to your Home Screen</strong> — use the button
-          just below.
-        </li>
-        <li>
-          <strong>2. Delete the old PhotoBlast icon</strong> — it's retired and
-          won't update.
-        </li>
-      </ol>
+      <InstallSteps />
+      <p className="mt-3 font-sans text-sm text-brown">
+        Then <strong>delete the old PhotoBlast icon</strong> — it's retired and
+        won't update.
+      </p>
     </div>
   );
 }
