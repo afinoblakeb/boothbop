@@ -514,7 +514,7 @@ function IdleScreen({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
-      {migrated && !isStandalone() && <MigrationNotice />}
+      {migrated && <MigrationNotice />}
 
       <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
 
@@ -557,16 +557,24 @@ function IdleScreen({
 /**
  * Welcome-back banner for users who arrived from the retired PhotoBlast app
  * (via boothbop.com/?from=photoblast). Gives the two steps they need to finish
- * moving over. The parent only renders it when migrated && not yet installed,
- * so it disappears for good once they're running standalone.
+ * moving over. Shown whenever `migrated` is set — deliberately NOT gated on
+ * display-mode, because the old iOS PWA opens the link in an in-app browser
+ * that reports as standalone, which is exactly where the banner is needed.
+ * Dismissal is persisted so it never nags again.
  */
 function MigrationNotice() {
-  const [dismissed, setDismissed] = useState(false);
+  const [dismissed, setDismissed] = useState(
+    () => localStorage.getItem("bb.migrationDismissed") === "1",
+  );
   if (dismissed) return null;
+  const dismiss = () => {
+    localStorage.setItem("bb.migrationDismissed", "1");
+    setDismissed(true);
+  };
   return (
     <div className="relative mb-6 w-full max-w-xs border-2 border-ink bg-mustard/25 p-4 text-left">
       <button
-        onClick={() => setDismissed(true)}
+        onClick={dismiss}
         aria-label="Dismiss"
         className="absolute right-2 top-1 px-1 text-xl text-brown"
       >
