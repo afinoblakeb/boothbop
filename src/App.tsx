@@ -84,6 +84,28 @@ export default function App() {
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
 
+  // Detect arrival from the retired PhotoBlast app — its migration page links to
+  // boothbop.com/?from=photoblast. Persist it so the welcome-back guidance
+  // survives reloads until they've installed BoothBop.
+  const [migrated, setMigrated] = useState(
+    () => localStorage.getItem("bb.migrated") === "1",
+  );
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("from") === "photoblast") {
+      localStorage.setItem("bb.migrated", "1");
+      setMigrated(true);
+      // Strip the marker so it doesn't linger on reload or get bookmarked.
+      params.delete("from");
+      const qs = params.toString();
+      window.history.replaceState(
+        {},
+        "",
+        window.location.pathname + (qs ? `?${qs}` : ""),
+      );
+    }
+  }, []);
+
   // Capture the Chromium install prompt for a real one-tap "Add to Home
   // Screen" button (Android / desktop). iOS has no such event — handled with
   // visual steps instead.
@@ -390,6 +412,7 @@ export default function App() {
           onStart={openCamera}
           onOpenGallery={() => setShowGallery(true)}
           installPrompt={installPrompt}
+          migrated={migrated}
           error={error}
         />
       )}
@@ -480,15 +503,19 @@ function IdleScreen({
   onStart,
   onOpenGallery,
   installPrompt,
+  migrated,
   error,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
   installPrompt: InstallPromptEvent | null;
+  migrated: boolean;
   error: string | null;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
+      {migrated && !isStandalone() && <MigrationNotice />}
+
       <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
 
       <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
@@ -523,6 +550,46 @@ function IdleScreen({
           {error}
         </p>
       )}
+    </div>
+  );
+}
+
+/**
+ * Welcome-back banner for users who arrived from the retired PhotoBlast app
+ * (via boothbop.com/?from=photoblast). Gives the two steps they need to finish
+ * moving over. The parent only renders it when migrated && not yet installed,
+ * so it disappears for good once they're running standalone.
+ */
+function MigrationNotice() {
+  const [dismissed, setDismissed] = useState(false);
+  if (dismissed) return null;
+  return (
+    <div className="relative mb-6 w-full max-w-xs border-2 border-ink bg-mustard/25 p-4 text-left">
+      <button
+        onClick={() => setDismissed(true)}
+        aria-label="Dismiss"
+        className="absolute right-2 top-1 px-1 text-xl text-brown"
+      >
+        ✕
+      </button>
+      <p className="font-display text-2xl uppercase tracking-wide text-ink">
+        Welcome back!
+      </p>
+      <p className="mt-1 font-sans text-sm text-brown">
+        PhotoBlast is now{" "}
+        <span className="font-bold text-orange">BoothBop</span> — same booth,
+        new name. Two quick things to finish moving over:
+      </p>
+      <ol className="mt-2 space-y-1 font-sans text-sm text-brown">
+        <li>
+          <strong>1. Add BoothBop to your Home Screen</strong> — use the button
+          just below.
+        </li>
+        <li>
+          <strong>2. Delete the old PhotoBlast icon</strong> — it's retired and
+          won't update.
+        </li>
+      </ol>
     </div>
   );
 }
