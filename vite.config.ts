@@ -14,7 +14,8 @@ export default defineConfig({
     react(),
     tailwindcss(),
     VitePWA({
-      // Ship a fresh service worker automatically on each deploy.
+      // Ship a fresh service worker automatically on each deploy (applies on
+      // next close/reopen of the installed app).
       registerType: "autoUpdate",
       // Static icons that aren't fingerprinted, so they must be precached too.
       includeAssets: ["apple-touch-icon.png", "favicon-32.png"],
