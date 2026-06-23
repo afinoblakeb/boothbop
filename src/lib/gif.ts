@@ -1,14 +1,16 @@
 // Encode the 4 frames into an animated GIF using gifenc (pure JS, no workers).
 import { GIFEncoder, quantize, applyPalette } from "gifenc";
+import { drawWatermark } from "./watermark";
 
 export interface GifOptions {
   size?: number; // output dimension (square)
   delay?: number; // ms each frame is shown
+  watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
 }
 
 export function encodeGif(
   frames: HTMLCanvasElement[],
-  { size = 480, delay = 450 }: GifOptions = {},
+  { size = 480, delay = 450, watermark = true }: GifOptions = {},
 ): Blob {
   const gif = GIFEncoder();
 
@@ -20,6 +22,7 @@ export function encodeGif(
   for (const frame of frames) {
     ctx.clearRect(0, 0, size, size);
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+    if (watermark) drawWatermark(ctx, size, size);
     const { data } = ctx.getImageData(0, 0, size, size);
     const palette = quantize(data, 256);
     const index = applyPalette(data, palette);

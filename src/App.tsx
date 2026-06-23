@@ -258,6 +258,7 @@ export default function App() {
   async function ensureGif() {
     setGenerating("gif");
     try {
+      await fontsReady(); // watermark needs the brand font loaded
       await wait(30); // let the spinner paint before the (sync) encode
       const blob = encodeGif(frames);
       setGifResult({
@@ -279,6 +280,7 @@ export default function App() {
     }
     setGenerating("video");
     try {
+      await fontsReady(); // watermark needs the brand font loaded
       const { blob, extension } = await encodeVideo(frames);
       setVideoResult({
         url: URL.createObjectURL(blob),
@@ -1105,6 +1107,16 @@ function stripBlob(
 
 function stamp() {
   return new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+/, "");
+}
+
+/** Make sure the brand font is loaded so the canvas watermark renders right. */
+async function fontsReady() {
+  try {
+    await document.fonts.load('400 24px "Bebas Neue"');
+    await document.fonts.ready;
+  } catch {
+    /* font API unavailable — fall back to the canvas default */
+  }
 }
 
 /** Friendly message for a getUserMedia failure. */
