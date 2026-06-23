@@ -327,6 +327,12 @@ export default function App() {
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col px-4">
+      <TopBar
+        onHome={cancelToHome}
+        onAlbum={() => setShowGallery(true)}
+        showAlbum={phase !== "capturing"}
+      />
+
       {phase === "idle" && (
         <IdleScreen
           onStart={openCamera}
@@ -345,7 +351,6 @@ export default function App() {
           delay={delay}
           setDelay={setDelay}
           onStart={runSequence}
-          onCancel={cancelToHome}
         />
       )}
 
@@ -365,7 +370,6 @@ export default function App() {
           onShare={shareCurrent}
           onDownload={downloadCurrent}
           onOpenGallery={() => setShowGallery(true)}
-          onHome={cancelToHome}
           onRetake={retake}
         />
       )}
@@ -378,6 +382,38 @@ export default function App() {
         />
       )}
     </div>
+  );
+}
+
+/* ---------------------------------------------------------------- nav bar */
+
+function TopBar({
+  onHome,
+  onAlbum,
+  showAlbum,
+}: {
+  onHome: () => void;
+  onAlbum: () => void;
+  showAlbum: boolean;
+}) {
+  return (
+    <header className="sticky top-0 z-30 -mx-4 flex items-center justify-between border-b-2 border-ink bg-cream px-4 py-2">
+      <button
+        onClick={onHome}
+        aria-label="Home"
+        className="font-display text-2xl uppercase tracking-wide text-ink"
+      >
+        Photo<span className="text-orange">blast</span>
+      </button>
+      {showAlbum && (
+        <button
+          onClick={onAlbum}
+          className="border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
+        >
+          🖼 Album
+        </button>
+      )}
+    </header>
   );
 }
 
@@ -513,7 +549,6 @@ function CameraScreen({
   delay,
   setDelay,
   onStart,
-  onCancel,
 }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   phase: Phase;
@@ -523,57 +558,9 @@ function CameraScreen({
   delay: number;
   setDelay: (n: number) => void;
   onStart: () => void;
-  onCancel: () => void;
 }) {
-  const [settingsOpen, setSettingsOpen] = useState(false);
-
   return (
     <div className="flex flex-1 flex-col py-4">
-      {/* Back + timer settings */}
-      <div className="mb-3 flex items-center justify-between">
-        <button
-          onClick={onCancel}
-          className="font-display text-xl uppercase tracking-wide text-ink underline-offset-4 hover:underline"
-        >
-          ← Home
-        </button>
-
-        {phase === "preview" && (
-          <div className="relative">
-            <button
-              onClick={() => setSettingsOpen((o) => !o)}
-              aria-label="Timer settings"
-              className="flex items-center gap-1 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink"
-            >
-              ⚙ Timer · {delay}s
-            </button>
-            {settingsOpen && (
-              <div className="absolute right-0 z-10 mt-2 w-44 border-2 border-ink bg-paper p-2">
-                <p className="px-1 pb-1 font-sans text-xs font-bold uppercase tracking-wide text-warmgray">
-                  Shutter delay
-                </p>
-                <div className="flex gap-1">
-                  {[1, 2, 3].map((n) => (
-                    <button
-                      key={n}
-                      onClick={() => {
-                        setDelay(n);
-                        setSettingsOpen(false);
-                      }}
-                      className={`flex-1 border-2 border-ink py-1.5 font-display text-lg uppercase ${
-                        delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
-                      }`}
-                    >
-                      {n}s
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
       <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
         <video
           ref={videoRef}
@@ -629,9 +616,29 @@ function CameraScreen({
 
       <div className="mt-auto pt-6 text-center">
         {phase === "preview" ? (
-          <button onClick={onStart} className={`w-full px-8 py-4 ${btnPrimary}`}>
-            Take 4 Photos
-          </button>
+          <>
+            <div className="mb-3 flex items-center justify-center gap-2">
+              <span className="font-display text-lg uppercase tracking-wide text-brown">
+                Timer
+              </span>
+              <div className="flex border-2 border-ink">
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setDelay(n)}
+                    className={`px-3 py-1 font-display text-lg uppercase ${
+                      delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
+                    }`}
+                  >
+                    {n}s
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button onClick={onStart} className={`w-full px-8 py-4 ${btnPrimary}`}>
+              Take 4 Photos
+            </button>
+          </>
         ) : (
           <p className="font-display text-2xl uppercase tracking-wide text-orange">
             Strike a pose!
@@ -657,7 +664,6 @@ function ReviewScreen({
   onShare,
   onDownload,
   onOpenGallery,
-  onHome,
   onRetake,
 }: {
   format: Format;
@@ -674,7 +680,6 @@ function ReviewScreen({
   onShare: () => void;
   onDownload: () => void;
   onOpenGallery: () => void;
-  onHome: () => void;
   onRetake: () => void;
 }) {
   const videoOk = isVideoSupported();
@@ -687,14 +692,6 @@ function ReviewScreen({
 
   return (
     <div className="flex flex-1 flex-col items-center py-4">
-      {/* Back to home */}
-      <button
-        onClick={onHome}
-        className="mb-3 self-start font-display text-xl uppercase tracking-wide text-ink underline-offset-4 hover:underline"
-      >
-        ← Home
-      </button>
-
       {/* Format tabs */}
       <div className="flex w-full border-2 border-ink bg-paper">
         {tabs.map((t) => (
