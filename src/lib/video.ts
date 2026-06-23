@@ -1,9 +1,11 @@
 // Record the 4 frames into a short looping video via canvas + MediaRecorder.
+import { drawWatermark } from "./watermark";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
   frameMs?: number; // how long each photo stays on screen
   loops?: number; // how many times to cycle through the 4 photos
+  watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
 }
 
 export interface VideoResult {
@@ -36,7 +38,7 @@ export function isVideoSupported(): boolean {
 
 export async function encodeVideo(
   frames: HTMLCanvasElement[],
-  { size = 720, frameMs = 600, loops = 3 }: VideoOptions = {},
+  { size = 720, frameMs = 600, loops = 3, watermark = true }: VideoOptions = {},
 ): Promise<VideoResult> {
   const picked = pickMimeType();
   if (!picked) throw new Error("Video recording isn't supported here.");
@@ -49,6 +51,7 @@ export async function encodeVideo(
   const draw = (frame: HTMLCanvasElement) => {
     ctx.clearRect(0, 0, size, size);
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+    if (watermark) drawWatermark(ctx, size, size);
   };
   draw(frames[0]);
 
