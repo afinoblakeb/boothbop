@@ -2,10 +2,18 @@
 
 ## Now: a web SPA + installable PWA
 
-PhotoBlast is a single-page app (Vite + React) deployed to **GitHub Pages** and
+BoothBop is a single-page app (Vite + React) deployed to **GitHub Pages** and
 installable as a **PWA** (Add to Home Screen, works offline). This is the
 primary target **for the foreseeable future** — all current work assumes the
 web SPA.
+
+## Monetization
+
+A planned **"BoothBop Pro" one-time unlock** (super small dollars) gates
+vanity/pro-polish features — never usability. See
+[docs/MONETIZATION.md](docs/MONETIZATION.md). Not wired yet; the anchor feature
+(remove watermark) is already architected via the `watermark` flag in
+`gif.ts`/`video.ts`.
 
 ## Later (maybe): native iOS + Android in the app stores
 
@@ -22,7 +30,7 @@ and reuses ~all of our code. When we do it, it adds these as **siblings of the
 web app at the repo root**:
 
 ```
-photoblast/
+boothbop/
 ├── src/ index.html vite.config.ts   # the web app (unchanged, still the source of truth)
 ├── ios/                             # generated native Xcode project (committed)
 ├── android/                         # generated native Android project (committed)
@@ -38,9 +46,9 @@ The web app stays exactly where it is; native is additive.
   (IndexedDB) are the only places that touch platform capabilities. A native
   port swaps these for Capacitor plugins (`@capacitor/camera`,
   `@capacitor/share`, `@capacitor/filesystem`) without touching `App.tsx`.
-- **The base path is already build-time configurable.** Pages needs
-  `base: /photoblast/`; a native build serves from `/`. That's already a single
-  `BASE_PATH` env override (`vite.config.ts`) — no code change.
+- **The base path is already build-time configurable.** The web build serves
+  from `/` (custom-domain root) and so does a native build — and any other base
+  is a single `BASE_PATH` env override (`vite.config.ts`), no code change.
 - **Everything runs client-side.** No backend to stand up or auth to migrate.
 
 ### Design rules to keep the port cheap (follow these now)

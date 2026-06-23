@@ -45,7 +45,7 @@ const COUNTDOWN_COLOR: Record<number, string> = {
   1: "var(--color-orange)",
 };
 
-const CAMERA_MSG = "PhotoBlast requires camera permission. Please try again.";
+const CAMERA_MSG = "BoothBop requires camera permission. Please try again.";
 
 // The Chromium "install app" event (Android / desktop). Not in lib.dom.
 interface InstallPromptEvent extends Event {
@@ -73,11 +73,11 @@ export default function App() {
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
-    const v = Number(localStorage.getItem("pb.delay"));
+    const v = Number(localStorage.getItem("bb.delay"));
     return v === 1 || v === 2 || v === 3 ? v : 2;
   });
   useEffect(() => {
-    localStorage.setItem("pb.delay", String(delay));
+    localStorage.setItem("bb.delay", String(delay));
   }, [delay]);
 
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
@@ -288,7 +288,7 @@ export default function App() {
       setGifResult({
         url: URL.createObjectURL(blob),
         blob,
-        filename: `photoblast-${stamp()}.gif`,
+        filename: `boothbop-${stamp()}.gif`,
       });
     } catch {
       setError("Couldn't create the GIF.");
@@ -309,7 +309,7 @@ export default function App() {
       setVideoResult({
         url: URL.createObjectURL(blob),
         blob,
-        filename: `photoblast-${stamp()}.${extension}`,
+        filename: `boothbop-${stamp()}.${extension}`,
       });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't record the video.");
@@ -323,7 +323,7 @@ export default function App() {
     if (format === "gif") return gifResult;
     if (format === "video") return videoResult;
     const blob = await stripBlob(frames, layout, THEMES[themeKey]);
-    return { url: "", blob, filename: `photoblast-${stamp()}.png` };
+    return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
   function triggerDownload(blob: Blob, name: string) {
@@ -350,7 +350,7 @@ export default function App() {
     }
 
     try {
-      await navigator.share({ files: [file], title: "Photoblast" });
+      await navigator.share({ files: [file], title: "BoothBop" });
     } catch (e) {
       if ((e as Error)?.name === "AbortError") {
         setNote("Share canceled."); // dismissed the sheet — not an error
@@ -454,7 +454,7 @@ function TopBar({
         aria-label="Home"
         className="font-display text-2xl uppercase tracking-wide text-ink"
       >
-        Photo<span className="text-orange">blast</span>
+        Booth<span className="text-orange">Bop</span>
       </button>
       {showAlbum && (
         <button
@@ -489,7 +489,7 @@ function IdleScreen({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
-      <img src={LOGO} alt="PhotoBlast" className="w-full max-w-xs" />
+      <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
 
       <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
         Your phone is the photo booth. Tap the button, strike four poses, and
@@ -564,7 +564,7 @@ function InstallCard({
         Get the full app
       </p>
       <p className="mt-1 font-sans text-sm text-brown">
-        Add PhotoBlast to your home screen — it opens full-screen, loads
+        Add BoothBop to your home screen — it opens full-screen, loads
         instantly, and works with no signal. No app store, free.
       </p>
 
@@ -619,7 +619,7 @@ function InstallSteps() {
             2. Tap <strong>Install app</strong> or{" "}
             <strong>Add to Home screen</strong>.
           </li>
-          <li>3. Open PhotoBlast from your home screen anytime.</li>
+          <li>3. Open BoothBop from your home screen anytime.</li>
         </>
       )}
     </ol>
@@ -915,7 +915,7 @@ function ReviewScreen({
       )}
 
       <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
-        Photos stay on this device. PhotoBlast never uploads or stores them.
+        Photos stay on this device. BoothBop never uploads or stores them.
       </p>
 
       {error && (

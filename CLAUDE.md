@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-PhotoBlast is developed entirely by AI agents (Claude + Codex). This file and
+BoothBop is developed entirely by AI agents (Claude + Codex). This file and
 the verification loop below are the contract that keeps that safe: make a
 change, then prove it with `npm run check` before considering the work done.
 
@@ -75,7 +75,7 @@ GalleryScreen is an overlay, orthogonal to phase.
 | `strip.ts`     | `composeStrip` canvas compositing; `stripGeometry` (pure layout math, unit-tested); the 6 `THEMES`                     |
 | `gif.ts`       | `encodeGif` — synchronous gifenc quantize/applyPalette per frame                                                       |
 | `video.ts`     | `encodeVideo` via canvas `captureStream` + `MediaRecorder`; `pickMimeType` negotiates mp4→webm                         |
-| `gallery.ts`   | IndexedDB CRUD (`photoblast`/`sessions`) + canvas↔blob helpers                                                         |
+| `gallery.ts`   | IndexedDB CRUD (`boothbop`/`sessions`) + canvas↔blob helpers                                                           |
 | `watermark.ts` | brand wordmark on GIF/video (strip is exempt — it has its own footer)                                                  |
 | `platform.ts`  | capability detection — `canShareFiles` drives behavior; `isIOS` only tailors copy                                      |
 | `icons.tsx`    | brand `<img>` icons (generated) + inline monochrome SVG utility icons                                                  |
@@ -90,10 +90,11 @@ GalleryScreen is an overlay, orthogonal to phase.
   `probeShareFiles()` decides whether the primary button is "Save / Share"
   (native share sheet) or "Save Photo" (download). Share failures fall back to
   download. `isIOS()` is only for wording install instructions.
-- **Base path.** The site is served from `/photoblast/`. Every public asset URL
-  must go through `import.meta.env.BASE_URL` (see `LOGO`, `ICONS`, watermark
-  `SRC`). Hard-coding `/foo.png` breaks on GitHub Pages. Override the base at
-  build time with `BASE_PATH=/your-repo/ npm run build`.
+- **Base path.** The site serves from the custom-domain root (boothbop.com), so
+  Vite `base` is `/`. Every public asset URL must still go through
+  `import.meta.env.BASE_URL` (see `LOGO`, `ICONS`, watermark `SRC`) so a sub-path
+  build still works — hard-coding `/foo.png` is a latent bug. Override the base
+  for a project-page build with `BASE_PATH=/your-repo/ npm run build`.
 - **The watermark is a deliberate paid-tier seam.** `encodeGif`/`encodeVideo`
   take a `watermark` flag; a future "remove watermark" tier just passes `false`.
   Keep that flag threaded.
@@ -127,6 +128,10 @@ write code today:
 - The repo is laid out so native is **additive**: the web app stays at the root,
   and `ios/`, `android/`, and `capacitor.config.ts` will appear as root siblings
   when added (already pre-ignored in `.gitignore`).
+- **Monetization** (`docs/MONETIZATION.md`): a planned one-time "Pro" unlock
+  gates vanity features only, never usability. When built, gate everything on a
+  single `isPro()` (the `watermark` flag in `gif.ts`/`video.ts` is the anchor).
+  Not wired yet.
 
 ## Public-repo hygiene
 
