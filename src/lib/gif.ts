@@ -11,7 +11,12 @@ export interface GifOptions {
 
 export function encodeGif(
   frames: HTMLCanvasElement[],
-  { size = 480, delay = 450, watermark = true, watermarkImg = null }: GifOptions = {},
+  {
+    size = 480,
+    delay = 450,
+    watermark = true,
+    watermarkImg = null,
+  }: GifOptions = {},
 ): Blob {
   const gif = GIFEncoder();
 

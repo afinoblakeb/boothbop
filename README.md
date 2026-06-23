@@ -55,6 +55,12 @@ GIF, or video. (The very first load needs internet to download the app, and an
 internet connection is only needed again to pick up future updates.) Everything
 runs on-device; nothing is ever uploaded.
 
+## Roadmap
+
+A web SPA + installable PWA today; possibly native iOS + Android (via Capacitor)
+in the app stores later. See [ROADMAP.md](ROADMAP.md) — and note the code is
+kept portable for that, so the eventual port stays small.
+
 ## Tech
 
 - [Vite](https://vitejs.dev) + [React](https://react.dev) + TypeScript

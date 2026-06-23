@@ -138,7 +138,6 @@ export default function App() {
       if (status) status.onchange = null;
     };
     // failToHome only touches stable setters/refs, so a one-time bind is fine.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Bail to the home screen and explain why (camera lost / denied).
@@ -261,7 +260,9 @@ export default function App() {
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(frames, layout, THEMES[themeKey]).toDataURL("image/png");
+    return composeStrip(frames, layout, THEMES[themeKey]).toDataURL(
+      "image/png",
+    );
   }, [frames, layout, themeKey]);
 
   const thumbs = useMemo(
@@ -1075,7 +1076,10 @@ function cameraError(e: unknown): string {
 }
 
 /** Resolve once the video has real pixels (so we never capture black). */
-function videoReady(video: HTMLVideoElement, timeoutMs = 2500): Promise<boolean> {
+function videoReady(
+  video: HTMLVideoElement,
+  timeoutMs = 2500,
+): Promise<boolean> {
   if (video.videoWidth > 0) return Promise.resolve(true);
   return new Promise((resolve) => {
     const deadline = Date.now() + timeoutMs;

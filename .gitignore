@@ -1,8 +1,58 @@
+# This repo is PUBLIC (GitHub Pages on the free tier requires it), so only
+# commit what's needed to build and run the app. Everything below is either a
+# build artifact, a local/dev-only file, or machine cruft — none of it belongs
+# on GitHub. When in doubt, ignore it.
+
+# ---- Dependencies ----
 node_modules
+
+# ---- Build output ----
 dist
 dist-ssr
-*.local
-.DS_Store
-.vite
-*.log
+dev-dist          # vite-plugin-pwa dev service worker output
 *.tsbuildinfo
+
+# ---- Test / coverage ----
+coverage
+
+# ---- Caches ----
+.vite
+.eslintcache
+.cache
+
+# ---- Local config & secrets (never expose on a public repo) ----
+*.local
+.env
+.env.*
+!.env.example      # a committed template is fine; real .env files are not
+*.pem
+*.key
+
+# ---- Editor / IDE ----
+.vscode
+.idea
+*.swp
+*.swo
+
+# ---- OS cruft ----
+.DS_Store
+Thumbs.db
+
+# ---- Logs ----
+*.log
+npm-debug.log*
+
+# ---- Native app builds (Capacitor) — see ROADMAP.md ----
+# When we add iOS/Android, the native project folders (ios/, android/) ARE
+# committed, but their generated build artifacts are not. These are pre-ignored
+# so the first native build stays clean.
+ios/App/Pods
+ios/App/build
+ios/App/App/public      # the web build is copied in at build time, not committed
+ios/DerivedData
+android/.gradle
+android/app/build
+android/build
+android/app/src/main/assets/public   # copied-in web build
+android/local.properties
+*.keystore

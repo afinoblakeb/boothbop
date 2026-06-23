@@ -17,7 +17,10 @@ export function canShareFiles(file: File): boolean {
   const nav = navigator as Navigator & {
     canShare?: (data?: ShareData) => boolean;
   };
-  return typeof nav.share === "function" && nav.canShare?.({ files: [file] }) === true;
+  return (
+    typeof nav.share === "function" &&
+    nav.canShare?.({ files: [file] }) === true
+  );
 }
 
 /** One-off probe so UI can label the primary button before a file exists. */

@@ -111,7 +111,10 @@ export function canvasToBlob(
 }
 
 /** Load a stored photo blob back into a square canvas (for re-compositing). */
-export function blobToCanvas(blob: Blob, size = 720): Promise<HTMLCanvasElement> {
+export function blobToCanvas(
+  blob: Blob,
+  size = 720,
+): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
