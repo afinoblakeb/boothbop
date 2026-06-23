@@ -10,7 +10,7 @@ export interface Session {
   photos: Blob[]; // the four captured frames (JPEG)
 }
 
-const DB_NAME = "photoblast";
+const DB_NAME = "boothbop";
 const STORE = "sessions";
 const VERSION = 1;
 

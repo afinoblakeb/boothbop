@@ -1,13 +1,13 @@
-# PhotoBlast 📸
+# BoothBop 📸
 
 Turn your phone into a selfie photo booth. Prop up your phone in selfie mode,
-tap start, and PhotoBlast snaps **four photos back to back** on a countdown —
+tap start, and BoothBop snaps **four photos back to back** on a countdown —
 just like scrambling for funny shots in a real booth. Then turn them into a
 downloadable **photo strip** (4×1 or 2×2), an animated **GIF**, or a short
 looping **video**.
 
-Inspired by [PartyParty](https://partyparty.app). Runs entirely in the browser —
-no uploads, no server. Your photos never leave your device.
+Runs entirely in the browser — no uploads, no server. Your photos never leave
+your device.
 
 ## Features
 
@@ -42,7 +42,7 @@ durable when installed as a PWA).
 
 ## Install it like an app (and use it offline)
 
-PhotoBlast is a PWA, so you can add it to your home screen and it runs
+BoothBop is a PWA, so you can add it to your home screen and it runs
 fullscreen with its own icon.
 
 - **iPhone (Safari):** tap **Share** → **Add to Home Screen** → **Add**.
@@ -91,11 +91,12 @@ deploys to GitHub Pages on every push to `main`.
 
 **One-time setup:** in the repo go to **Settings → Pages → Build and
 deployment → Source** and choose **GitHub Actions**. Push to `main` (or run the
-workflow manually) and the site publishes to
-`https://<your-username>.github.io/photoblast/`.
+workflow manually) and the site publishes to the custom domain
+[boothbop.com](https://boothbop.com).
 
-The Vite `base` path is set to `/photoblast/` in `vite.config.ts`. If you fork
-to a different repo name or use a custom domain, override it at build time:
+The Vite `base` is `/` (`vite.config.ts`) because the site serves from the
+custom-domain root. If you fork to a project page served from a sub-path
+(`<user>.github.io/<repo>/`), override it at build time:
 
 ```bash
 BASE_PATH=/your-repo/ npm run build

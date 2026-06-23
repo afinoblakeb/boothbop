@@ -1,4 +1,4 @@
-// Brand watermark for generated GIFs / videos: the horizontal PhotoBlast
+// Brand watermark for generated GIFs / videos: the horizontal BoothBop
 // wordmark drawn bottom-right, semi-transparent, with a soft light halo so it
 // stays legible over both dark and light photos. (The photo strip carries the
 // brand in its own footer, so it's not watermarked.)

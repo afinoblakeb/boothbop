@@ -3,10 +3,10 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
 
-// The site is served from https://<user>.github.io/photoblast/, so assets
+// Served from the custom domain root (boothbop.com). Override BASE_PATH only
 // need to resolve under that sub-path. Override with BASE_PATH if you fork
 // to a differently-named repo or use a custom domain.
-const base = process.env.BASE_PATH ?? "/photoblast/";
+const base = process.env.BASE_PATH ?? "/";
 
 export default defineConfig({
   base,
@@ -20,8 +20,8 @@ export default defineConfig({
       // Static icons that aren't fingerprinted, so they must be precached too.
       includeAssets: ["apple-touch-icon.png", "favicon-32.png"],
       manifest: {
-        name: "PhotoBlast",
-        short_name: "PhotoBlast",
+        name: "BoothBop",
+        short_name: "BoothBop",
         description: "Turn your phone into a selfie photo booth.",
         start_url: ".",
         scope: ".",

@@ -13,12 +13,12 @@ export interface StripTheme {
 
 // Atomic-age strip borders. Captions render in the condensed display face.
 export const THEMES: Record<string, StripTheme> = {
-  classic: { background: "#f6e7cf", text: "#111111", caption: "PhotoBlast" },
-  orange: { background: "#e85a1a", text: "#f6e7cf", caption: "PhotoBlast" },
-  teal: { background: "#3e7c78", text: "#f6e7cf", caption: "PhotoBlast" },
-  mustard: { background: "#d9a441", text: "#111111", caption: "PhotoBlast" },
-  olive: { background: "#6e7551", text: "#f6e7cf", caption: "PhotoBlast" },
-  carbon: { background: "#111111", text: "#f6e7cf", caption: "PhotoBlast" },
+  classic: { background: "#f6e7cf", text: "#111111", caption: "BoothBop" },
+  orange: { background: "#e85a1a", text: "#f6e7cf", caption: "BoothBop" },
+  teal: { background: "#3e7c78", text: "#f6e7cf", caption: "BoothBop" },
+  mustard: { background: "#d9a441", text: "#111111", caption: "BoothBop" },
+  olive: { background: "#6e7551", text: "#f6e7cf", caption: "BoothBop" },
+  carbon: { background: "#111111", text: "#f6e7cf", caption: "BoothBop" },
 };
 
 // Strip layout constants (px). Shared by the geometry math and the renderer.
