@@ -3,7 +3,7 @@ import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
 import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
-import { canShareFiles, probeShareFiles } from "./lib/platform";
+import { canShareFiles, isIOS, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
   canvasToBlob,
@@ -39,6 +39,12 @@ const COUNTDOWN_COLOR: Record<number, string> = {
 
 const CAMERA_MSG = "PhotoBlast requires camera permission. Please try again.";
 
+// The Chromium "install app" event (Android / desktop). Not in lib.dom.
+interface InstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
@@ -69,6 +75,26 @@ export default function App() {
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
+
+  // Capture the Chromium install prompt for a real one-tap "Add to Home
+  // Screen" button (Android / desktop). iOS has no such event — handled with
+  // visual steps instead.
+  const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(
+    null,
+  );
+  useEffect(() => {
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      setInstallPrompt(e as InstallPromptEvent);
+    };
+    const onInstalled = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener("appinstalled", onInstalled);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener("appinstalled", onInstalled);
+    };
+  }, []);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -337,6 +363,7 @@ export default function App() {
         <IdleScreen
           onStart={openCamera}
           onOpenGallery={() => setShowGallery(true)}
+          installPrompt={installPrompt}
           error={error}
         />
       )}
@@ -369,7 +396,6 @@ export default function App() {
           shareFilesOk={shareFilesOk}
           onShare={shareCurrent}
           onDownload={downloadCurrent}
-          onOpenGallery={() => setShowGallery(true)}
           onRetake={retake}
         />
       )}
@@ -410,7 +436,7 @@ function TopBar({
           onClick={onAlbum}
           className="border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
         >
-          🖼 Album
+          🖼 My Photos
         </button>
       )}
     </header>
@@ -427,10 +453,12 @@ const btnSecondary =
 function IdleScreen({
   onStart,
   onOpenGallery,
+  installPrompt,
   error,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
+  installPrompt: InstallPromptEvent | null;
   error: string | null;
 }) {
   return (
@@ -438,12 +466,15 @@ function IdleScreen({
       <img src={LOGO} alt="PhotoBlast" className="w-full max-w-xs" />
 
       <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
-        Your phone is the photo booth. Hit start, strike four poses back to back,
-        then grab your strip, GIF, or video.
+        Your phone is the photo booth. Tap the button, strike four poses, and
+        grab your photo strip!
       </p>
 
-      <button onClick={onStart} className={`mt-7 w-full max-w-xs px-8 py-4 ${btnPrimary}`}>
-        Insert Coin — Start
+      <button
+        onClick={onStart}
+        className={`mt-7 w-full max-w-xs px-8 py-5 text-3xl ${btnPrimary}`}
+      >
+        📸 Take Photos
       </button>
 
       <button
@@ -453,23 +484,17 @@ function IdleScreen({
         🖼️ My Photos
       </button>
 
-      <ol className="mt-10 space-y-1 font-sans text-sm uppercase tracking-wide text-brown/80">
-        <li>1 — Allow camera access</li>
-        <li>2 — Prop up your phone, selfie mode</li>
-        <li>3 — Strike a pose on each countdown</li>
-      </ol>
+      <InstallCard installPrompt={installPrompt} />
 
-      <p className="mt-6 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
+      <p className="mt-8 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
         No accounts · No uploads · No cloud
       </p>
 
       {error && (
-        <p className="mt-6 border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
+        <p className="mt-6 max-w-xs border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
           {error}
         </p>
       )}
-
-      <InstallHint />
     </div>
   );
 }
@@ -483,60 +508,90 @@ function isStandalone() {
   );
 }
 
-function InstallHint() {
-  const [open, setOpen] = useState(false);
+/**
+ * Prominent, benefit-led nudge to install the app. One-tap on Chromium
+ * (Android/desktop) via the captured prompt; simple, browser-agnostic steps
+ * everywhere else (notably iOS, which has no install event). Never blocks
+ * browser use, and disappears once installed.
+ */
+function InstallCard({
+  installPrompt,
+}: {
+  installPrompt: InstallPromptEvent | null;
+}) {
+  const [showSteps, setShowSteps] = useState(false);
 
-  // Already installed? Nothing to prompt.
-  if (isStandalone()) return null;
+  if (isStandalone()) return null; // already installed — don't nag
 
-  const isIOSDevice = /iphone|ipad|ipod/i.test(navigator.userAgent);
+  async function oneTapInstall() {
+    if (!installPrompt) return;
+    await installPrompt.prompt();
+    await installPrompt.userChoice;
+  }
 
   return (
-    <div className="mt-10 w-full max-w-xs border-2 border-ink bg-paper p-4 text-left">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between font-display text-lg uppercase tracking-wide"
-      >
-        <span>📲 Install as an app</span>
-        <span className="text-brown">{open ? "▾" : "▸"}</span>
-      </button>
+    <div className="mt-8 w-full max-w-xs border-2 border-ink bg-orange/15 p-4 text-left">
+      <p className="font-display text-2xl uppercase tracking-wide text-ink">
+        ⭐ Get the full app
+      </p>
+      <p className="mt-1 font-sans text-sm text-brown">
+        Add PhotoBlast to your home screen — it opens full-screen, loads
+        instantly, and works with no signal. No app store, free.
+      </p>
 
-      {open && (
-        <div className="mt-3 space-y-2 font-sans text-sm text-brown">
-          {isIOSDevice ? (
-            <ol className="space-y-1.5">
-              <li>
-                1. Tap the <strong>Share</strong> button{" "}
-                <span className="text-warmgray">(square with an ↑)</span> in
-                Safari's toolbar.
-              </li>
-              <li>
-                2. Scroll down and tap <strong>Add to Home Screen</strong>.
-              </li>
-              <li>
-                3. Tap <strong>Add</strong> — PhotoBlast lands on your home
-                screen and opens fullscreen, like a real app.
-              </li>
-            </ol>
-          ) : (
-            <ol className="space-y-1.5">
-              <li>
-                1. Open your browser menu{" "}
-                <span className="text-warmgray">(⋮ or the address bar)</span>.
-              </li>
-              <li>
-                2. Choose <strong>Install app</strong> /{" "}
-                <strong>Add to Home Screen</strong>.
-              </li>
-              <li>3. Launch it anytime from your home screen.</li>
-            </ol>
-          )}
-          <p className="pt-1 text-xs text-warmgray">
-            Once installed it works offline — no connection needed.
-          </p>
-        </div>
+      {installPrompt ? (
+        <button
+          onClick={oneTapInstall}
+          className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+        >
+          📲 Add to Home Screen
+        </button>
+      ) : (
+        <>
+          <button
+            onClick={() => setShowSteps((v) => !v)}
+            className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+          >
+            📲 Add to Home Screen
+          </button>
+          {showSteps && <InstallSteps />}
+        </>
       )}
     </div>
+  );
+}
+
+function InstallSteps() {
+  const ios = isIOS();
+  return (
+    <ol className="mt-3 space-y-1.5 font-sans text-sm text-brown">
+      {ios ? (
+        <>
+          <li>
+            1. Tap the <strong>Share</strong> button — the square with an arrow
+            pointing up — in your browser's toolbar.
+          </li>
+          <li>
+            2. Tap <strong>Add to Home Screen</strong>.
+          </li>
+          <li>
+            3. Tap <strong>Add</strong>. Done!
+          </li>
+        </>
+      ) : (
+        <>
+          <li>
+            1. Open your browser's menu (the <strong>⋮</strong> or{" "}
+            <strong>⋯</strong> icon).
+          </li>
+          <li>
+            2. Tap <strong>Install app</strong> or{" "}
+            <strong>Add to Home screen</strong>.
+          </li>
+          <li>3. Open PhotoBlast from your home screen anytime.</li>
+        </>
+      )}
+    </ol>
   );
 }
 
@@ -619,14 +674,14 @@ function CameraScreen({
           <>
             <div className="mb-3 flex items-center justify-center gap-2">
               <span className="font-display text-lg uppercase tracking-wide text-brown">
-                Timer
+                Countdown
               </span>
-              <div className="flex border-2 border-ink">
+              <div className="flex divide-x-2 divide-ink border-2 border-ink">
                 {[1, 2, 3].map((n) => (
                   <button
                     key={n}
                     onClick={() => setDelay(n)}
-                    className={`px-3 py-1 font-display text-lg uppercase ${
+                    className={`px-4 py-2 font-display text-lg uppercase ${
                       delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
                     }`}
                   >
@@ -635,12 +690,15 @@ function CameraScreen({
                 ))}
               </div>
             </div>
-            <button onClick={onStart} className={`w-full px-8 py-4 ${btnPrimary}`}>
-              Take 4 Photos
+            <button
+              onClick={onStart}
+              className={`w-full px-8 py-5 text-3xl ${btnPrimary}`}
+            >
+              📸 Take Photos
             </button>
           </>
         ) : (
-          <p className="font-display text-2xl uppercase tracking-wide text-orange">
+          <p className="font-display text-3xl uppercase tracking-wide text-orange">
             Strike a pose!
           </p>
         )}
@@ -663,7 +721,6 @@ function ReviewScreen({
   shareFilesOk,
   onShare,
   onDownload,
-  onOpenGallery,
   onRetake,
 }: {
   format: Format;
@@ -679,7 +736,6 @@ function ReviewScreen({
   shareFilesOk: boolean;
   onShare: () => void;
   onDownload: () => void;
-  onOpenGallery: () => void;
   onRetake: () => void;
 }) {
   const videoOk = isVideoSupported();
@@ -693,13 +749,13 @@ function ReviewScreen({
   return (
     <div className="flex flex-1 flex-col items-center py-4">
       {/* Format tabs */}
-      <div className="flex w-full border-2 border-ink bg-paper">
+      <div className="flex w-full divide-x-2 divide-ink border-2 border-ink bg-paper">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => onSelectFormat(t.id)}
             disabled={t.disabled}
-            className={`flex-1 py-2 font-display text-xl uppercase tracking-wide transition disabled:opacity-30 ${
+            className={`flex-1 py-3 font-display text-xl uppercase tracking-wide transition disabled:opacity-30 ${
               format === t.id ? "bg-orange text-cream" : "text-ink"
             }`}
           >
@@ -737,68 +793,92 @@ function ReviewScreen({
       {/* Strip-only styling controls */}
       {format === "strip" ? (
         <>
-          <div className="mt-4 flex border-2 border-ink bg-paper">
-            {(["4x1", "2x2"] as Layout[]).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLayout(l)}
-                className={`px-6 py-2 font-display text-lg uppercase tracking-wide transition ${
-                  layout === l ? "bg-orange text-cream" : "text-ink"
-                }`}
-              >
-                {l === "4x1" ? "Strip" : "Grid"}
-              </button>
-            ))}
+          <div className="mt-4">
+            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
+              Layout
+            </p>
+            <div className="mx-auto flex w-max divide-x-2 divide-ink border-2 border-ink bg-paper">
+              {(["4x1", "2x2"] as Layout[]).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLayout(l)}
+                  className={`px-6 py-2 font-display text-lg uppercase tracking-wide transition ${
+                    layout === l ? "bg-orange text-cream" : "text-ink"
+                  }`}
+                >
+                  {l === "4x1" ? "Strip" : "Grid"}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="mt-4 flex gap-3">
-            {Object.entries(THEMES).map(([key, theme]) => (
-              <button
-                key={key}
-                onClick={() => setThemeKey(key)}
-                aria-label={key}
-                className={`h-9 w-9 border-2 border-ink transition ${
-                  themeKey === key ? "ring-2 ring-ink ring-offset-2 ring-offset-cream" : ""
-                }`}
-                style={{ background: theme.background }}
-              />
-            ))}
+          <div className="mt-3">
+            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
+              Color
+            </p>
+            <div className="flex justify-center gap-3">
+              {Object.entries(THEMES).map(([key, theme]) => (
+                <button
+                  key={key}
+                  onClick={() => setThemeKey(key)}
+                  aria-label={key}
+                  className={`h-11 w-11 border-2 border-ink transition ${
+                    themeKey === key
+                      ? "ring-4 ring-ink ring-offset-2 ring-offset-cream"
+                      : ""
+                  }`}
+                  style={{ background: theme.background }}
+                />
+              ))}
+            </div>
           </div>
         </>
       ) : (
         <p className="mt-3 text-center font-sans text-xs uppercase tracking-wide text-warmgray">
-          {format === "gif" ? "GIF" : "Video"} uses your four photos in sequence.
+          {format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.
         </p>
       )}
 
-      {/* Share + Save */}
-      <div className="mt-5 grid w-full grid-cols-2 gap-3">
-        {shareFilesOk && (
+      {/* Actions: one dominant primary, clear secondaries */}
+      {shareFilesOk ? (
+        <>
           <button
             onClick={onShare}
             disabled={isBusy || !previewUrl}
-            className={`px-6 py-4 ${btnPrimary}`}
+            className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
           >
-            Share
+            📤 Share
           </button>
-        )}
-        <button
-          onClick={onDownload}
-          disabled={isBusy || !previewUrl}
-          className={`px-6 py-4 ${shareFilesOk ? btnSecondary : btnPrimary} ${
-            shareFilesOk ? "" : "col-span-2"
-          }`}
-        >
-          Save
-        </button>
-      </div>
-
-      <button
-        onClick={onOpenGallery}
-        className="mt-3 w-full border-2 border-ink bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-ink transition active:bg-cream active:translate-y-px"
-      >
-        🖼️ Go to Album
-      </button>
+          <div className="mt-3 grid w-full grid-cols-2 gap-3">
+            <button
+              onClick={onDownload}
+              disabled={isBusy || !previewUrl}
+              className={`px-6 py-4 ${btnSecondary}`}
+            >
+              ⬇️ Save
+            </button>
+            <button onClick={onRetake} className={`px-6 py-4 ${btnSecondary}`}>
+              ↻ Again
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <button
+            onClick={onDownload}
+            disabled={isBusy || !previewUrl}
+            className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
+          >
+            ⬇️ Save Photo
+          </button>
+          <button
+            onClick={onRetake}
+            className={`mt-3 w-full px-6 py-4 ${btnSecondary}`}
+          >
+            ↻ Take Again
+          </button>
+        </>
+      )}
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
@@ -807,13 +887,6 @@ function ReviewScreen({
       <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
         Photos stay on this device. PhotoBlast never uploads or stores them.
       </p>
-
-      <button
-        onClick={onRetake}
-        className="mt-5 font-sans text-sm font-semibold uppercase tracking-wide text-brown underline-offset-4 hover:underline"
-      >
-        ↻ Retake
-      </button>
 
       {error && (
         <p className="mt-4 border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
@@ -926,9 +999,9 @@ function GalleryScreen({
             </div>
             <button
               onClick={clearAll}
-              className="mt-6 w-full font-sans text-sm font-bold uppercase tracking-wide text-orange-dark underline-offset-4 hover:underline"
+              className="mt-6 w-full border-2 border-orange-dark bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
             >
-              Clear all
+              🗑 Clear all
             </button>
           </>
         )}
@@ -986,9 +1059,9 @@ function GalleryScreen({
             </div>
             <button
               onClick={removeSelected}
-              className="mt-3 font-sans text-sm font-bold uppercase tracking-wide text-orange underline-offset-4 hover:underline"
+              className="mt-3 w-full border-2 border-orange bg-transparent px-6 py-3 font-display text-lg uppercase tracking-wide text-orange transition active:translate-y-px"
             >
-              Delete
+              🗑 Delete
             </button>
           </div>
         </div>
