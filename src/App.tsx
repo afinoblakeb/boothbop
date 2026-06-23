@@ -5,6 +5,13 @@ import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
+type Format = "strip" | "gif" | "video";
+
+interface MediaResult {
+  url: string;
+  blob: Blob;
+  filename: string;
+}
 
 const SHOTS = 4;
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -17,7 +24,11 @@ export default function App() {
   const [layout, setLayout] = useState<Layout>("4x1");
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState<null | "gif" | "video">(null);
+
+  const [format, setFormat] = useState<Format>("strip");
+  const [generating, setGenerating] = useState<null | "gif" | "video">(null);
+  const [gifResult, setGifResult] = useState<MediaResult | null>(null);
+  const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -34,6 +45,11 @@ export default function App() {
 
   // Release the camera when the component goes away.
   useEffect(() => () => stopCamera(streamRef.current), []);
+
+  function clearResults() {
+    setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
+    setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
+  }
 
   async function openCamera() {
     setError(null);
@@ -77,11 +93,14 @@ export default function App() {
 
     stopCamera(streamRef.current);
     streamRef.current = null;
+    setFormat("strip");
     setPhase("review");
   }
 
   function retake() {
+    clearResults();
     setFrames([]);
+    setFormat("strip");
     openCamera();
   }
 
@@ -96,7 +115,60 @@ export default function App() {
     [frames],
   );
 
-  function download(blob: Blob, name: string) {
+  // Switching format lazily generates the GIF / video the first time.
+  async function selectFormat(f: Format) {
+    setFormat(f);
+    setError(null);
+    if (f === "gif" && !gifResult) await ensureGif();
+    if (f === "video" && !videoResult) await ensureVideo();
+  }
+
+  async function ensureGif() {
+    setGenerating("gif");
+    try {
+      await wait(30); // let the spinner paint before the (sync) encode
+      const blob = encodeGif(frames);
+      setGifResult({
+        url: URL.createObjectURL(blob),
+        blob,
+        filename: `photoblast-${stamp()}.gif`,
+      });
+    } catch {
+      setError("Couldn't create the GIF.");
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  async function ensureVideo() {
+    if (!isVideoSupported()) {
+      setError("Video recording isn't supported in this browser.");
+      return;
+    }
+    setGenerating("video");
+    try {
+      const { blob, extension } = await encodeVideo(frames);
+      setVideoResult({
+        url: URL.createObjectURL(blob),
+        blob,
+        filename: `photoblast-${stamp()}.${extension}`,
+      });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't record the video.");
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  // Resolve the blob + filename for whatever format is currently shown.
+  async function currentMedia(): Promise<MediaResult | null> {
+    if (format === "gif") return gifResult;
+    if (format === "video") return videoResult;
+    const blob = await stripBlob(frames, layout, THEMES[themeKey]);
+    return { url: "", blob, filename: `photoblast-${stamp()}.png` };
+  }
+
+  function triggerDownload(blob: Blob, name: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -107,33 +179,41 @@ export default function App() {
     setTimeout(() => URL.revokeObjectURL(url), 4000);
   }
 
-  function downloadStrip() {
-    composeStrip(frames, layout, THEMES[themeKey]).toBlob((blob) => {
-      if (blob) download(blob, `photoblast-${stamp()}.png`);
-    }, "image/png");
-  }
-
-  async function downloadGif() {
-    setBusy("gif");
+  async function shareCurrent() {
+    const media = await currentMedia();
+    if (!media) return;
+    const file = new File([media.blob], media.filename, {
+      type: media.blob.type,
+    });
+    const nav = navigator as Navigator & {
+      canShare?: (data?: ShareData) => boolean;
+    };
     try {
-      await wait(30); // let the spinner paint
-      download(encodeGif(frames), `photoblast-${stamp()}.gif`);
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function downloadVideo() {
-    setBusy("video");
-    try {
-      const { blob, extension } = await encodeVideo(frames);
-      download(blob, `photoblast-${stamp()}.${extension}`);
+      if (nav.canShare?.({ files: [file] })) {
+        await nav.share({ files: [file], title: "PhotoBlast" });
+      } else {
+        // No file-sharing support (e.g. desktop) — fall back to a download.
+        triggerDownload(media.blob, media.filename);
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't record the video.");
-    } finally {
-      setBusy(null);
+      // The user dismissing the share sheet throws AbortError — ignore that.
+      if ((e as Error)?.name !== "AbortError") {
+        setError("Couldn't open the share sheet.");
+      }
     }
   }
+
+  async function downloadCurrent() {
+    const media = await currentMedia();
+    if (media) triggerDownload(media.blob, media.filename);
+  }
+
+  const previewUrl =
+    format === "strip"
+      ? stripUrl
+      : format === "gif"
+        ? (gifResult?.url ?? null)
+        : (videoResult?.url ?? null);
 
   return (
     <div className="mx-auto flex min-h-full max-w-md flex-col px-4">
@@ -150,18 +230,19 @@ export default function App() {
         />
       )}
 
-      {phase === "review" && stripUrl && (
+      {phase === "review" && (
         <ReviewScreen
-          stripUrl={stripUrl}
+          format={format}
+          onSelectFormat={selectFormat}
+          previewUrl={previewUrl}
+          generating={generating}
           layout={layout}
           setLayout={setLayout}
           themeKey={themeKey}
           setThemeKey={setThemeKey}
-          busy={busy}
           error={error}
-          onDownloadStrip={downloadStrip}
-          onDownloadGif={downloadGif}
-          onDownloadVideo={downloadVideo}
+          onShare={shareCurrent}
+          onDownload={downloadCurrent}
           onRetake={retake}
         />
       )}
@@ -204,6 +285,74 @@ function IdleScreen({
         <p className="mt-6 rounded-lg bg-red-500/15 px-4 py-3 text-sm text-red-200">
           {error}
         </p>
+      )}
+
+      <InstallHint />
+    </div>
+  );
+}
+
+/** Detect whether we're already running as an installed (standalone) app. */
+function isStandalone() {
+  return (
+    window.matchMedia?.("(display-mode: standalone)").matches ||
+    // iOS Safari exposes this non-standard flag
+    (navigator as Navigator & { standalone?: boolean }).standalone === true
+  );
+}
+
+function InstallHint() {
+  const [open, setOpen] = useState(false);
+
+  // Already installed? Nothing to prompt.
+  if (isStandalone()) return null;
+
+  const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+
+  return (
+    <div className="mt-10 w-full max-w-xs rounded-2xl border border-white/10 bg-white/5 p-4 text-left">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between text-sm font-semibold"
+      >
+        <span>📲 Install as an app</span>
+        <span className="text-white/40">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open && (
+        <div className="mt-3 space-y-2 text-sm text-white/60">
+          {isIOS ? (
+            <ol className="space-y-1.5">
+              <li>
+                1. Tap the <strong>Share</strong> button{" "}
+                <span className="text-white/40">(square with an ↑)</span> in
+                Safari's toolbar.
+              </li>
+              <li>
+                2. Scroll down and tap <strong>Add to Home Screen</strong>.
+              </li>
+              <li>
+                3. Tap <strong>Add</strong> — PhotoBlast lands on your home
+                screen and opens fullscreen, like a real app.
+              </li>
+            </ol>
+          ) : (
+            <ol className="space-y-1.5">
+              <li>
+                1. Open your browser menu{" "}
+                <span className="text-white/40">(⋮ or the address bar)</span>.
+              </li>
+              <li>
+                2. Choose <strong>Install app</strong> /{" "}
+                <strong>Add to Home Screen</strong>.
+              </li>
+              <li>3. Launch it anytime from your home screen.</li>
+            </ol>
+          )}
+          <p className="pt-1 text-xs text-white/40">
+            Once installed it works offline — no connection needed.
+          </p>
+        </div>
       )}
     </div>
   );
@@ -290,91 +439,136 @@ function CameraScreen({
 }
 
 function ReviewScreen({
-  stripUrl,
+  format,
+  onSelectFormat,
+  previewUrl,
+  generating,
   layout,
   setLayout,
   themeKey,
   setThemeKey,
-  busy,
   error,
-  onDownloadStrip,
-  onDownloadGif,
-  onDownloadVideo,
+  onShare,
+  onDownload,
   onRetake,
 }: {
-  stripUrl: string;
+  format: Format;
+  onSelectFormat: (f: Format) => void;
+  previewUrl: string | null;
+  generating: null | "gif" | "video";
   layout: Layout;
   setLayout: (l: Layout) => void;
   themeKey: keyof typeof THEMES;
   setThemeKey: (k: keyof typeof THEMES) => void;
-  busy: null | "gif" | "video";
   error: string | null;
-  onDownloadStrip: () => void;
-  onDownloadGif: () => void;
-  onDownloadVideo: () => void;
+  onShare: () => void;
+  onDownload: () => void;
   onRetake: () => void;
 }) {
   const videoOk = isVideoSupported();
+  const tabs: { id: Format; label: string; disabled?: boolean }[] = [
+    { id: "strip", label: "🖼️ Strip" },
+    { id: "gif", label: "🎞️ GIF" },
+    { id: "video", label: "🎬 Video", disabled: !videoOk },
+  ];
+  const isBusy = generating !== null;
+
   return (
     <div className="flex flex-1 flex-col items-center py-4">
-      <img
-        src={stripUrl}
-        alt="Your photo strip"
-        className="max-h-[52vh] w-auto rounded-2xl shadow-2xl"
-      />
-
-      {/* Layout toggle */}
-      <div className="mt-5 flex gap-2 rounded-full bg-white/5 p-1">
-        {(["4x1", "2x2"] as Layout[]).map((l) => (
+      {/* Format tabs */}
+      <div className="flex w-full gap-1 rounded-full bg-white/5 p-1">
+        {tabs.map((t) => (
           <button
-            key={l}
-            onClick={() => setLayout(l)}
-            className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
-              layout === l ? "bg-pink-500" : "text-white/60"
+            key={t.id}
+            onClick={() => onSelectFormat(t.id)}
+            disabled={t.disabled}
+            className={`flex-1 rounded-full py-2 text-sm font-semibold transition disabled:opacity-30 ${
+              format === t.id ? "bg-pink-500" : "text-white/60"
             }`}
           >
-            {l === "4x1" ? "Strip" : "Grid"}
+            {t.label}
           </button>
         ))}
       </div>
 
-      {/* Theme swatches */}
-      <div className="mt-4 flex gap-3">
-        {Object.entries(THEMES).map(([key, theme]) => (
-          <button
-            key={key}
-            onClick={() => setThemeKey(key)}
-            aria-label={key}
-            className={`h-9 w-9 rounded-full border-2 transition ${
-              themeKey === key ? "border-white scale-110" : "border-white/20"
-            }`}
-            style={{ background: theme.background }}
+      {/* Live preview of the selected output */}
+      <div className="mt-4 flex min-h-[48vh] w-full items-center justify-center">
+        {isBusy ? (
+          <div className="flex flex-col items-center gap-3 text-white/60">
+            <span className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-pink-500" />
+            {generating === "gif" ? "Making your GIF…" : "Recording your video…"}
+          </div>
+        ) : format === "video" && previewUrl ? (
+          <video
+            src={previewUrl}
+            className="max-h-[48vh] w-auto rounded-2xl shadow-2xl"
+            autoPlay
+            loop
+            muted
+            playsInline
+            controls
           />
-        ))}
+        ) : previewUrl ? (
+          <img
+            src={previewUrl}
+            alt={`Your ${format}`}
+            className="max-h-[48vh] w-auto rounded-2xl shadow-2xl"
+          />
+        ) : null}
       </div>
 
-      {/* Downloads */}
-      <div className="mt-6 grid w-full grid-cols-2 gap-3">
+      {/* Strip-only styling controls */}
+      {format === "strip" ? (
+        <>
+          <div className="mt-4 flex gap-2 rounded-full bg-white/5 p-1">
+            {(["4x1", "2x2"] as Layout[]).map((l) => (
+              <button
+                key={l}
+                onClick={() => setLayout(l)}
+                className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                  layout === l ? "bg-pink-500" : "text-white/60"
+                }`}
+              >
+                {l === "4x1" ? "Strip" : "Grid"}
+              </button>
+            ))}
+          </div>
+
+          <div className="mt-3 flex gap-3">
+            {Object.entries(THEMES).map(([key, theme]) => (
+              <button
+                key={key}
+                onClick={() => setThemeKey(key)}
+                aria-label={key}
+                className={`h-9 w-9 rounded-full border-2 transition ${
+                  themeKey === key ? "border-white scale-110" : "border-white/20"
+                }`}
+                style={{ background: theme.background }}
+              />
+            ))}
+          </div>
+        </>
+      ) : (
+        <p className="mt-3 text-center text-xs text-white/40">
+          {format === "gif" ? "GIF" : "Video"} uses your four photos in sequence.
+        </p>
+      )}
+
+      {/* Share + download */}
+      <div className="mt-5 grid w-full grid-cols-2 gap-3">
         <button
-          onClick={onDownloadStrip}
-          className="col-span-2 rounded-2xl bg-pink-500 py-3.5 font-bold transition active:scale-95"
+          onClick={onShare}
+          disabled={isBusy || !previewUrl}
+          className="rounded-2xl bg-pink-500 py-3.5 font-bold transition active:scale-95 disabled:opacity-50"
         >
-          ⬇️ Download Photo Strip
+          📤 Share
         </button>
         <button
-          onClick={onDownloadGif}
-          disabled={busy !== null}
+          onClick={onDownload}
+          disabled={isBusy || !previewUrl}
           className="rounded-2xl bg-white/10 py-3.5 font-semibold transition active:scale-95 disabled:opacity-50"
         >
-          {busy === "gif" ? "Making GIF…" : "🎞️ GIF"}
-        </button>
-        <button
-          onClick={onDownloadVideo}
-          disabled={busy !== null || !videoOk}
-          title={videoOk ? "" : "Video recording isn't supported in this browser"}
-          className="rounded-2xl bg-white/10 py-3.5 font-semibold transition active:scale-95 disabled:opacity-50"
-        >
-          {busy === "video" ? "Recording…" : "🎬 Video"}
+          ⬇️ Save
         </button>
       </div>
 
@@ -396,9 +590,19 @@ function ReviewScreen({
 
 /* ----------------------------------------------------------------- helpers */
 
+function stripBlob(
+  frames: HTMLCanvasElement[],
+  layout: Layout,
+  theme: (typeof THEMES)[keyof typeof THEMES],
+): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    composeStrip(frames, layout, theme).toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
+      "image/png",
+    );
+  });
+}
+
 function stamp() {
-  return new Date()
-    .toISOString()
-    .replace(/[:T]/g, "-")
-    .replace(/\..+/, "");
+  return new Date().toISOString().replace(/[:T]/g, "-").replace(/\..+/, "");
 }

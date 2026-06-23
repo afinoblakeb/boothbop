@@ -18,6 +18,21 @@ no uploads, no server. Your photos never leave your device.
 - 📱 Mobile-first, front-facing (selfie) camera support
 - 🔒 100% client-side — nothing is uploaded
 
+## Install it like an app (and use it offline)
+
+PhotoBlast is a PWA, so you can add it to your home screen and it runs
+fullscreen with its own icon.
+
+- **iPhone (Safari):** tap **Share** → **Add to Home Screen** → **Add**.
+- **Android / desktop Chrome:** browser menu → **Install app** / **Add to
+  Home Screen**.
+
+A service worker precaches the whole app on first visit, so after that it
+**works offline** — no connection required to take photos or export a strip,
+GIF, or video. (The very first load needs internet to download the app, and an
+internet connection is only needed again to pick up future updates.) Everything
+runs on-device; nothing is ever uploaded.
+
 ## Tech
 
 - [Vite](https://vitejs.dev) + [React](https://react.dev) + TypeScript
