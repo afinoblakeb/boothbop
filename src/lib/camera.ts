@@ -20,8 +20,11 @@ export async function startCamera(): Promise<MediaStream> {
       },
       audio: false,
     });
-  } catch {
-    // Some devices reject the ideal constraints — retry with the basics.
+  } catch (e) {
+    const name = (e as Error)?.name;
+    // Permission denied: don't retry, surface it so the UI can explain.
+    if (name === "NotAllowedError" || name === "SecurityError") throw e;
+    // Otherwise the ideal constraints were too strict — retry with basics.
     return await tryGet({ video: true, audio: false });
   }
 }
