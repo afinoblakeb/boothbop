@@ -106,6 +106,17 @@ export default function App() {
     }
   }, []);
 
+  // A migrated user gets a dedicated install-only landing (no photo UI) whose
+  // sole job is to convert them to the new app. "Continue" is an escape hatch.
+  const [migrationDismissed, setMigrationDismissed] = useState(
+    () => localStorage.getItem("bb.migrationDismissed") === "1",
+  );
+  const showMigration = migrated && !migrationDismissed;
+  function dismissMigration() {
+    localStorage.setItem("bb.migrationDismissed", "1");
+    setMigrationDismissed(true);
+  }
+
   // Capture the Chromium install prompt for a real one-tap "Add to Home
   // Screen" button (Android / desktop). iOS has no such event — handled with
   // visual steps instead.
@@ -404,18 +415,20 @@ export default function App() {
       <TopBar
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}
-        showAlbum={phase !== "capturing"}
+        showAlbum={phase !== "capturing" && !showMigration}
       />
 
-      {phase === "idle" && (
-        <IdleScreen
-          onStart={openCamera}
-          onOpenGallery={() => setShowGallery(true)}
-          installPrompt={installPrompt}
-          migrated={migrated}
-          error={error}
-        />
-      )}
+      {phase === "idle" &&
+        (showMigration ? (
+          <MigrationScreen onContinue={dismissMigration} />
+        ) : (
+          <IdleScreen
+            onStart={openCamera}
+            onOpenGallery={() => setShowGallery(true)}
+            installPrompt={installPrompt}
+            error={error}
+          />
+        ))}
 
       {(phase === "preview" || phase === "capturing") && (
         <CameraScreen
@@ -503,19 +516,15 @@ function IdleScreen({
   onStart,
   onOpenGallery,
   installPrompt,
-  migrated,
   error,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
   installPrompt: InstallPromptEvent | null;
-  migrated: boolean;
   error: string | null;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
-      {migrated && <MigrationNotice />}
-
       <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
 
       <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
@@ -539,9 +548,7 @@ function IdleScreen({
         My Photos
       </button>
 
-      {/* Migrated users get install steps inside the welcome banner, so skip
-          the separate card to avoid duplicating them. */}
-      {!migrated && <InstallCard installPrompt={installPrompt} />}
+      <InstallCard installPrompt={installPrompt} />
 
       <p className="mt-8 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
         No accounts · No uploads · No cloud
@@ -557,44 +564,37 @@ function IdleScreen({
 }
 
 /**
- * Welcome-back banner for users who arrived from the retired PhotoBlast app
- * (via boothbop.com/?from=photoblast). Gives the two steps they need to finish
- * moving over. Shown whenever `migrated` is set — deliberately NOT gated on
- * display-mode, because the old iOS PWA opens the link in an in-app browser
- * that reports as standalone, which is exactly where the banner is needed.
- * Dismissal is persisted so it never nags again.
+ * Dedicated landing for users arriving from the retired PhotoBlast app
+ * (boothbop.com/?from=photoblast). Its only job is to convert them to the new
+ * app, so it shows no photo-taking UI — just the logo, the install steps, and
+ * the delete-the-old-icon reminder. The quiet "Continue" link is an escape
+ * hatch into the normal app; tapping it persists so the landing never returns.
  */
-function MigrationNotice() {
-  const [dismissed, setDismissed] = useState(
-    () => localStorage.getItem("bb.migrationDismissed") === "1",
-  );
-  if (dismissed) return null;
-  const dismiss = () => {
-    localStorage.setItem("bb.migrationDismissed", "1");
-    setDismissed(true);
-  };
+function MigrationScreen({ onContinue }: { onContinue: () => void }) {
   return (
-    <div className="relative mb-6 w-full max-w-xs border-2 border-ink bg-mustard/25 p-4 text-left">
+    <div className="flex flex-1 flex-col items-center justify-center text-center">
+      <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
+      <div className="mt-4 w-full max-w-xs border-2 border-ink bg-mustard/25 p-4 text-left">
+        <p className="font-display text-2xl uppercase tracking-wide text-ink">
+          Welcome back!
+        </p>
+        <p className="mt-1 font-sans text-sm text-brown">
+          PhotoBlast is now{" "}
+          <span className="font-bold text-orange">BoothBop</span> — same booth,
+          new name. To keep it on your phone:
+        </p>
+        <InstallSteps />
+        <p className="mt-3 font-sans text-sm text-brown">
+          Then <strong>delete the old PhotoBlast icon</strong> — it's retired
+          and won't update.
+        </p>
+      </div>
       <button
-        onClick={dismiss}
-        aria-label="Dismiss"
-        className="absolute right-2 top-1 px-1 text-xl text-brown"
+        onClick={onContinue}
+        className="mt-6 font-sans text-xs uppercase tracking-widest text-warmgray underline"
       >
-        ✕
+        Continue to BoothBop
       </button>
-      <p className="font-display text-2xl uppercase tracking-wide text-ink">
-        Welcome back!
-      </p>
-      <p className="mt-1 font-sans text-sm text-brown">
-        PhotoBlast is now{" "}
-        <span className="font-bold text-orange">BoothBop</span> — same booth,
-        new name. To keep it on your phone:
-      </p>
-      <InstallSteps />
-      <p className="mt-3 font-sans text-sm text-brown">
-        Then <strong>delete the old PhotoBlast icon</strong> — it's retired and
-        won't update.
-      </p>
     </div>
   );
 }
