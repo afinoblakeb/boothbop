@@ -26,13 +26,13 @@ export default defineConfig({
         scope: ".",
         display: "standalone",
         orientation: "portrait",
-        background_color: "#0b0b12",
-        theme_color: "#0b0b12",
+        background_color: "#f6e7cf",
+        theme_color: "#f6e7cf",
         icons: [
           { src: "icon-192.png", sizes: "192x192", type: "image/png" },
           { src: "icon-512.png", sizes: "512x512", type: "image/png" },
           {
-            src: "icon-512.png",
+            src: "icon-512-maskable.png",
             sizes: "512x512",
             type: "image/png",
             purpose: "maskable",
@@ -41,7 +41,8 @@ export default defineConfig({
       },
       workbox: {
         // Precache the whole built app so it runs fully offline after first load.
-        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest}"],
+        globPatterns: ["**/*.{js,css,html,png,svg,webmanifest,woff2}"],
+        globIgnores: ["**/og-image.png"], // social preview only; not needed offline
         navigateFallback: "index.html",
       },
     }),

@@ -31,29 +31,19 @@ or — with a tiny one-time Shortcut — drop it straight into a dedicated
 > albums directly. A user-installed Shortcut bridges that gap. There is no cloud
 > and no server — the Shortcut saves on-device to your own Photos app.
 
-**The Shortcut creates the album for you**, so onboarding is just:
+Once the Shortcut is installed, onboarding is just **Install → Add Shortcut →
+Done**, and every save is two taps.
 
-1. Tap **Install the Save Shortcut**
-2. Tap **Add Shortcut**
-3. Done — the first save makes the *Photoblast* album automatically
+**You build and publish the Shortcut once** — see
+[`docs/SHORTCUT.md`](docs/SHORTCUT.md) for the exact ~60-second recipe. In short:
+in the **Shortcuts** app, add a **Save to Photo Album** action targeting a
+**Photoblast** album, enable **Show in Share Sheet** (Images only), name it
+**Save to Photoblast Album**, then **Share → Copy iCloud Link**. Paste that link
+into `VITE_SHORTCUT_URL` (see below) to light up the in-app install button.
 
-Recommended Shortcut logic (build it in the **Shortcuts** app, enable *Show in
-Share Sheet* with *Images* input, and share it via iCloud):
-
-```
-Find Albums  where Name is "Photoblast"
-If  (count of result is 0)
-    Create Album  "Photoblast"
-End If
-Save  Shortcut Input  to the "Photoblast" album
-```
-
-Then publish the iCloud link and point the app at it via `VITE_SHORTCUT_URL`
-(see below). Without a link configured, the in-app help walks users through
-building the Shortcut themselves. The **Create Album** action requires a recent
-iOS; on current versions no manual album creation is needed. If file sharing
-isn't available (e.g. desktop browsers), the button falls back to a normal
-download.
+Without a link configured, the in-app help walks users through building the
+Shortcut themselves. If file sharing isn't available (e.g. desktop browsers),
+the button falls back to a normal download.
 
 ## Private on-device gallery
 
