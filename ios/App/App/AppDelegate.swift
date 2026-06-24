@@ -48,6 +48,7 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "checkAccess", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "requestAccess", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "save", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "openSettings", returnType: CAPPluginReturnPromise),
     ]
 
     private static let albumName = "BoothBop"
@@ -80,6 +81,19 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
         let level = phLevel(call.getString("level") ?? "addOnly")
         PHPhotoLibrary.requestAuthorization(for: level) { [weak self] status in
             call.resolve(["status": self?.statusString(status) ?? "denied"])
+        }
+    }
+
+    // Open BoothBop's page in iOS Settings, so the user can change Photos access
+    // when iOS won't re-prompt (already-denied / limited).
+    @objc func openSettings(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            guard let url = URL(string: UIApplication.openSettingsURLString) else {
+                return call.reject("No settings URL")
+            }
+            UIApplication.shared.open(url, options: [:]) { opened in
+                call.resolve(["opened": opened])
+            }
         }
     }
 

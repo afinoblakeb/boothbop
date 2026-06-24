@@ -46,6 +46,7 @@ import {
 } from "./lib/settings";
 import {
   ensurePhotosPermission,
+  openIosSettings,
   saveToPhotos,
   type PermissionResult,
 } from "./lib/photosAlbum";
@@ -548,11 +549,7 @@ export default function App() {
       gif: false,
       video: false,
     });
-    setAutosaveError(
-      next.dest === "album"
-        ? "Auto-save needs Full Photos Access. Turn on “All Photos” for BoothBop in iOS Settings (or pick Camera Roll), then enable it again."
-        : "Photos access is off. Allow it for BoothBop in iOS Settings, then enable it again.",
-    );
+    setAutosaveError(autosaveAccessMessage(next.dest, status));
   }
 
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
@@ -753,6 +750,7 @@ export default function App() {
           error={autosaveError}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
+          onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />
       )}
@@ -853,17 +851,17 @@ function IdleScreen({
         No accounts · No uploads · No cloud
       </p>
       <p className="mt-2 font-sans text-xs text-warmgray">
-        <a href="/privacy/" className="underline">
+        <button onClick={() => openLegalPage("privacy")} className="underline">
           Privacy
-        </a>{" "}
+        </button>{" "}
         ·{" "}
-        <a href="/terms/" className="underline">
+        <button onClick={() => openLegalPage("terms")} className="underline">
           Terms
-        </a>{" "}
+        </button>{" "}
         ·{" "}
-        <a href="/support/" className="underline">
+        <button onClick={() => openLegalPage("support")} className="underline">
           Support
-        </a>
+        </button>
       </p>
 
       {error && (
@@ -1358,6 +1356,7 @@ function SettingsScreen({
   error,
   onDest,
   onToggle,
+  onOpenIosSettings,
   onClose,
 }: {
   settings: AutosaveSettings;
@@ -1366,6 +1365,7 @@ function SettingsScreen({
   error: string | null;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
+  onOpenIosSettings: () => void;
   onClose: () => void;
 }) {
   const formats: { key: AutosaveFormat; label: string; disabled?: boolean }[] =
@@ -1455,9 +1455,15 @@ function SettingsScreen({
             </p>
 
             {error && (
-              <p className="mt-3 border-2 border-orange-dark bg-orange/10 px-3 py-2 font-sans text-xs text-orange-dark">
-                {error}
-              </p>
+              <div className="mt-3 border-2 border-orange-dark bg-orange/10 px-3 py-2">
+                <p className="font-sans text-xs text-orange-dark">{error}</p>
+                <button
+                  onClick={onOpenIosSettings}
+                  className="mt-2 inline-flex items-center border-2 border-orange-dark bg-paper px-3 py-1.5 font-display text-sm uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
+                >
+                  Open iOS Settings
+                </button>
+              </div>
             )}
           </>
         )}
@@ -1625,6 +1631,32 @@ async function stripBlob(
       "image/png",
     );
   });
+}
+
+// Open a legal/support page. In the native app a raw <a href> navigation leaves
+// the WKWebView and strands the user (no browser chrome / back button), so open
+// the live page in an escapable in-app Safari view. On web, navigate normally.
+// The actionable message when auto-save can't run because Photos access isn't
+// sufficient — tailored to the destination and the exact access state.
+function autosaveAccessMessage(
+  dest: AutosaveDest,
+  status: PermissionResult,
+): string {
+  if (dest === "album") {
+    return status === "limited"
+      ? "BoothBop has limited Photos access. Saving to an album needs Full Access — set Photos to “All Photos” in iOS Settings, then turn auto-save on again."
+      : "Saving to a BoothBop album needs Full Photos Access. Allow it in iOS Settings (or switch to Camera Roll), then turn auto-save on again.";
+  }
+  return "Photos access is off. Allow it in iOS Settings, then turn auto-save on again.";
+}
+
+async function openLegalPage(slug: "privacy" | "terms" | "support") {
+  if (isNativeShell()) {
+    const { Browser } = await import("@capacitor/browser");
+    await Browser.open({ url: `https://boothbop.com/${slug}/` });
+  } else {
+    window.location.href = `${import.meta.env.BASE_URL}${slug}/`;
+  }
 }
 
 function stamp() {

@@ -42,7 +42,7 @@ export async function encodeVideo(
   {
     size = 720,
     frameMs = 600,
-    loops = 1,
+    loops = 2,
     watermark = true,
     watermarkImg = null,
   }: VideoOptions = {},

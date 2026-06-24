@@ -23,6 +23,8 @@ export interface BoothBopPhotosPlugin {
     /** true → the dedicated BoothBop album (full access); false → camera roll. */
     album: boolean;
   }): Promise<{ assetId: string }>;
+  /** Open BoothBop's page in iOS Settings (to change Photos access). */
+  openSettings(): Promise<{ opened: boolean }>;
 }
 
 export const BoothBopPhotos =

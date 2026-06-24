@@ -61,3 +61,9 @@ export async function ensurePhotosPermission(
   if (status === "limited") return "limited";
   return "denied";
 }
+
+/** Open BoothBop's page in iOS Settings so the user can change Photos access. */
+export async function openIosSettings(): Promise<void> {
+  if (!isNativeShell()) return;
+  await BoothBopPhotos.openSettings();
+}
