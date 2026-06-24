@@ -12,7 +12,7 @@ export interface GifOptions {
 export function encodeGif(
   frames: HTMLCanvasElement[],
   {
-    size = 480,
+    size = 640,
     delay = 450,
     watermark = true,
     watermarkImg = null,
@@ -30,7 +30,8 @@ export function encodeGif(
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
     if (watermark) drawWatermark(ctx, size, size, watermarkImg);
     const { data } = ctx.getImageData(0, 0, size, size);
-    const palette = quantize(data, 256);
+    // oklab = perceptual palette → better color fidelity than the default.
+    const palette = quantize(data, 256, { oklab: true });
     const index = applyPalette(data, palette);
     gif.writeFrame(index, size, size, { palette, delay });
   }
