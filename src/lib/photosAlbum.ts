@@ -1,75 +1,32 @@
-// Auto-save BoothBop outputs to the iOS Photos app — either a dedicated
-// "BoothBop" album (full Photos access) or the camera roll (add-only access).
-// This is a native-only capability: a web PWA can't create albums or save
-// silently, so every function no-ops on web. Mirrors src/lib/nativeShare.ts.
+// Auto-save BoothBop outputs to the iOS Photos app via our own native plugin
+// (BoothBopPhotos, in AppDelegate.swift). Either a dedicated "BoothBop" album
+// (full access) or the camera roll (add-only). No-ops on web.
+//
+// Replaces @capacitor-community/media, whose native class never registered under
+// Capacitor 8 + SPM (calls hung silently). Our plugin registers deterministically.
 
-import type { MediaAlbum, MediaPlugin } from "@capacitor-community/media";
 import { isNativeShell } from "./platform";
 import type { AlbumSaveKind, AutosaveDest } from "./settings";
-
-const ALBUM_NAME = "BoothBop";
+import { BoothBopPhotos } from "./boothBopPhotosPlugin";
 
 export type PermissionResult = "granted" | "denied" | "unsupported";
 
-// Cached identifier of the BoothBop album, plus the in-flight lookup so the four
-// concurrent first-saves of one capture don't each create a duplicate album.
-let albumId: string | null = null;
-let albumPromise: Promise<string> | null = null;
-
-async function loadMedia(): Promise<MediaPlugin> {
-  console.log("[BoothBop] loadMedia: importing @capacitor-community/media…");
-  const { Media } = await import("@capacitor-community/media");
-  console.log("[BoothBop] loadMedia: imported, Media =", typeof Media);
-  return Media;
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
+function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
+    reader.onloadend = () => {
+      const s = reader.result as string;
+      resolve(s.slice(s.indexOf(",") + 1)); // strip the "data:...;base64," prefix
+    };
     reader.onerror = () => reject(reader.error ?? new Error("read failed"));
     reader.readAsDataURL(blob);
   });
 }
 
-function isDeniedError(e: unknown): boolean {
-  const msg = (e as Error)?.message ?? String(e);
-  return /denied|not authorized|permission|access/i.test(msg);
-}
-
-// Resolve (creating if needed) the BoothBop album identifier. Requires full
-// Photos access; the first getAlbums()/createAlbum() call triggers the prompt.
-async function ensureAlbum(Media: MediaPlugin): Promise<string> {
-  if (albumId) return albumId;
-  if (albumPromise) return albumPromise;
-  const find = (albums: MediaAlbum[]) =>
-    albums.find((a) => a.name === ALBUM_NAME)?.identifier;
-  albumPromise = (async () => {
-    console.log("[BoothBop] ensureAlbum: calling Media.getAlbums()…");
-    let id = find((await Media.getAlbums()).albums);
-    console.log("[BoothBop] ensureAlbum: existing album id =", id);
-    if (!id) {
-      console.log("[BoothBop] ensureAlbum: creating album…");
-      await Media.createAlbum({ name: ALBUM_NAME });
-      // createAlbum resolves void on iOS — re-query to read the new identifier.
-      id = find((await Media.getAlbums()).albums);
-      console.log("[BoothBop] ensureAlbum: created, new id =", id);
-    }
-    if (!id) throw new Error("could not resolve BoothBop album");
-    albumId = id;
-    return id;
-  })();
-  try {
-    return await albumPromise;
-  } finally {
-    albumPromise = null;
-  }
-}
-
 /**
  * Save one blob to Photos. Returns true if saved, false on web (no-op). Throws
- * on permission denial / plugin failure so the caller can react (the capture
- * orchestrator swallows it so the flow is never broken).
+ * on permission denial / native failure so the caller can react (the capture
+ * orchestrator swallows so the flow is never broken).
  */
 export async function saveToPhotos(
   blob: Blob,
@@ -77,50 +34,22 @@ export async function saveToPhotos(
   dest: AutosaveDest,
 ): Promise<boolean> {
   if (!isNativeShell()) return false;
-  const Media = await loadMedia();
-  const path = await blobToDataUrl(blob);
-
-  const save = (albumIdentifier?: string) =>
-    kind === "video"
-      ? Media.saveVideo({ path, albumIdentifier })
-      : Media.savePhoto({ path, albumIdentifier });
-
-  if (dest === "cameraRoll") {
-    await save();
-    return true;
-  }
-
-  try {
-    await save(await ensureAlbum(Media));
-  } catch (e) {
-    // If the album was deleted out from under us, drop the stale id and retry
-    // once. A permission denial is re-thrown for the caller to handle.
-    if (isDeniedError(e)) throw e;
-    albumId = null;
-    await save(await ensureAlbum(Media));
-  }
+  const base64 = await blobToBase64(blob);
+  const type = kind === "video" ? "video" : "image";
+  const mime = blob.type || (type === "video" ? "video/mp4" : "image/png");
+  await BoothBopPhotos.save({ base64, type, mime, album: dest === "album" });
   return true;
 }
 
 /**
- * Proactively request the access the chosen destination needs, so a settings
- * toggle can revert if the user declines. Album → full access (probed via
- * getAlbums); camera roll → add-only, which iOS requests lazily at first save,
- * so we report "granted" and let that prompt happen then.
+ * Request the access the chosen destination needs (album → full read/write,
+ * camera roll → add-only), so a settings toggle can revert if the user declines.
  */
 export async function ensurePhotosPermission(
   dest: AutosaveDest,
 ): Promise<PermissionResult> {
   if (!isNativeShell()) return "unsupported";
-  if (dest === "cameraRoll") return "granted";
-  try {
-    await ensureAlbum(await loadMedia());
-    return "granted";
-  } catch (e) {
-    if (isDeniedError(e)) return "denied";
-    // A non-permission failure (e.g. the native plugin isn't linked) is a real
-    // bug — don't mask it as "granted"; surface it to the caller.
-    console.error("[BoothBop] Photos album access failed:", e);
-    throw e instanceof Error ? e : new Error(String(e));
-  }
+  const level = dest === "album" ? "readWrite" : "addOnly";
+  const { status } = await BoothBopPhotos.requestAccess({ level });
+  return status === "granted" ? "granted" : "denied";
 }

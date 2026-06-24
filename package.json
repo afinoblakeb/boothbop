@@ -24,7 +24,6 @@
     "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs"
   },
   "dependencies": {
-    "@capacitor-community/media": "^9.1.0",
     "@capacitor/core": "^8.4.1",
     "@capacitor/filesystem": "^8.1.2",
     "@capacitor/haptics": "^8.0.2",
