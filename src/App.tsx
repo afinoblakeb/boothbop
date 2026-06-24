@@ -29,6 +29,7 @@ import {
 } from "./icons";
 import { loadWatermark } from "./lib/watermark";
 import {
+  anyAutosaveOn,
   loadAutosave,
   planAutosaveTasks,
   saveAutosaveDest,
@@ -96,9 +97,18 @@ export default function App() {
   // Auto-save-to-Photos settings (native iOS feature; opt-in, persisted).
   const [autosave, setAutosave] = useState<AutosaveSettings>(loadAutosave);
   const [showSettings, setShowSettings] = useState(false);
+  const [autosaveStatus, setAutosaveStatus] = useState<string | null>(null);
   const [autosaveTipSeen, setAutosaveTipSeen] = useState(
     () => localStorage.getItem("bb.autosave.tipSeen") === "1",
   );
+
+  // On launch (native): if auto-save is already on, make sure the Photos
+  // album + permission are actually set up — don't wait for a toggle change.
+  useEffect(() => {
+    if (isNativeShell()) void ensureAutosaveReady(loadAutosave());
+    // ensureAutosaveReady only touches stable setters; a one-time run is right.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
@@ -403,6 +413,7 @@ export default function App() {
   function openSettings() {
     setShowSettings(true);
     dismissAutosaveTip();
+    if (isNativeShell()) void ensureAutosaveReady(loadAutosave());
   }
 
   function dismissAutosaveTip() {
@@ -413,27 +424,44 @@ export default function App() {
 
   function changeAutosaveDest(dest: AutosaveDest) {
     saveAutosaveDest(dest);
-    setAutosave((s) => ({ ...s, dest }));
+    const next = { ...autosave, dest };
+    setAutosave(next);
+    void ensureAutosaveReady(next);
   }
 
-  // Turning a format on may surface that the user declined Photos access — in
-  // which case we revert the toggle so it never lies about its state.
-  async function toggleAutosaveFormat(format: AutosaveFormat, on: boolean) {
+  function toggleAutosaveFormat(format: AutosaveFormat, on: boolean) {
     saveAutosaveFormat(format, on);
-    setAutosave((s) => ({ ...s, [format]: on }));
-    if (!on || !isNativeShell()) return;
+    const next = { ...autosave, [format]: on };
+    setAutosave(next);
+    void ensureAutosaveReady(next);
+  }
+
+  // Make sure the Photos album + permission are set up for the current
+  // settings — creating the "BoothBop" album (and triggering the iOS permission
+  // prompt) the first time it's needed. Reports status/errors to the Settings
+  // screen so a failure is never silent.
+  async function ensureAutosaveReady(settings: AutosaveSettings) {
+    if (!isNativeShell() || !anyAutosaveOn(settings)) {
+      setAutosaveStatus(null);
+      return;
+    }
     try {
-      if ((await ensurePhotosPermission(autosave.dest)) === "denied") {
-        saveAutosaveFormat(format, false);
-        setAutosave((s) => ({ ...s, [format]: false }));
-        setNote(
-          "Photos access is off — turn it on in Settings ▸ BoothBop ▸ Photos.",
+      const result = await ensurePhotosPermission(settings.dest);
+      if (result === "denied") {
+        setAutosaveStatus(
+          "Photos access is off — allow it in iOS Settings ▸ BoothBop ▸ Photos.",
+        );
+      } else {
+        setAutosaveStatus(
+          settings.dest === "album"
+            ? "Ready — saving to your BoothBop album."
+            : "Ready — saving to your camera roll.",
         );
       }
     } catch (e) {
-      // Plugin/native failure — leave the toggle on; the next capture surfaces
-      // the real error on the review screen.
-      console.error("[BoothBop] permission check failed:", e);
+      setAutosaveStatus(
+        `Couldn't set up auto-save: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -638,6 +666,7 @@ export default function App() {
           settings={autosave}
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
+          status={autosaveStatus}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onClose={() => setShowSettings(false)}
@@ -1242,6 +1271,7 @@ function SettingsScreen({
   settings,
   native,
   videoSupported,
+  status,
   onDest,
   onToggle,
   onClose,
@@ -1249,6 +1279,7 @@ function SettingsScreen({
   settings: AutosaveSettings;
   native: boolean;
   videoSupported: boolean;
+  status: string | null;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onClose: () => void;
@@ -1338,6 +1369,12 @@ function SettingsScreen({
               BoothBop only adds your own creations — it never reads or uploads
               your library.
             </p>
+
+            {status && (
+              <p className="mt-3 border-2 border-ink/30 bg-paper px-3 py-2 font-sans text-xs text-ink">
+                {status}
+              </p>
+            )}
           </>
         )}
       </div>
