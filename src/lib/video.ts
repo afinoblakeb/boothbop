@@ -1,8 +1,11 @@
 // Record the 4 frames into a short looping video via canvas + MediaRecorder.
+// (On native iOS the AVAssetWriter plugin is preferred — see videoNative.ts.)
 import { drawWatermark } from "./watermark";
+import { isNativeShell } from "./platform";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
+  bitrate?: number; // target video bitrate (bits/sec)
   frameMs?: number; // how long each photo stays on screen
   loops?: number; // how many times to cycle through the 4 photos
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
@@ -29,7 +32,7 @@ export function pickMimeType(): { mimeType: string; extension: string } | null {
   return null;
 }
 
-export function isVideoSupported(): boolean {
+function webVideoSupported(): boolean {
   return (
     typeof MediaRecorder !== "undefined" &&
     typeof HTMLCanvasElement.prototype.captureStream === "function" &&
@@ -37,10 +40,17 @@ export function isVideoSupported(): boolean {
   );
 }
 
+export function isVideoSupported(): boolean {
+  // Native iOS always supports video via the AVAssetWriter plugin; the web path
+  // depends on MediaRecorder + canvas.captureStream.
+  return isNativeShell() || webVideoSupported();
+}
+
 export async function encodeVideo(
   frames: HTMLCanvasElement[],
   {
     size = 720,
+    bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
     watermark = true,
@@ -65,7 +75,7 @@ export async function encodeVideo(
   const stream = canvas.captureStream(30);
   const recorder = new MediaRecorder(stream, {
     mimeType: picked.mimeType,
-    videoBitsPerSecond: 6_000_000,
+    videoBitsPerSecond: bitrate,
   });
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);

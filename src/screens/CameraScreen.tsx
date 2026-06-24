@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { BrandIcon } from "../icons";
-import { btnPrimary } from "../ui";
+import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
 import type { Phase } from "../types";
 
@@ -43,10 +43,14 @@ export function CameraScreen({
         />
 
         {phase === "capturing" && (
-          <div className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 font-display text-lg uppercase tracking-wide text-ink">
+          <Heading
+            as="div"
+            size="sm"
+            className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 text-ink"
+          >
             <span className="pulse inline-block h-2.5 w-2.5 rounded-full bg-orange" />
             {thumbs.length}/{SHOTS}
-          </div>
+          </Heading>
         )}
 
         {countdown !== null && (
@@ -90,36 +94,30 @@ export function CameraScreen({
         {phase === "preview" ? (
           <>
             <div className="mb-3 flex items-center justify-center gap-2">
-              <span className="font-display text-lg uppercase tracking-wide text-brown">
+              <Heading as="span" size="sm" className="text-brown">
                 Countdown
-              </span>
-              <div className="flex divide-x-2 divide-ink border-2 border-ink">
-                {[1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setDelay(n)}
-                    aria-pressed={delay === n}
-                    className={`flex min-h-[44px] items-center justify-center px-4 py-2.5 font-display text-lg uppercase ${
-                      delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
-                    }`}
-                  >
-                    {n}s
-                  </button>
-                ))}
-              </div>
+              </Heading>
+              <SegmentedControl
+                label="Countdown seconds"
+                value={delay}
+                onChange={setDelay}
+                options={[
+                  { value: 1, label: "1s" },
+                  { value: 2, label: "2s" },
+                  { value: 3, label: "3s" },
+                ]}
+                itemClassName="flex min-h-[44px] items-center justify-center px-4 py-2.5 text-lg"
+              />
             </div>
-            <button
-              onClick={onStart}
-              className={`w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
-            >
-              <BrandIcon name="camera" className="h-8 w-8" />
+            <Button variant="primary" size="lg" fullWidth onClick={onStart}>
+              <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
               Take Photos
-            </button>
+            </Button>
           </>
         ) : (
-          <p className="font-display text-3xl uppercase tracking-wide text-orange">
+          <Heading as="p" size="xl" className="text-orange">
             Strike a pose!
-          </p>
+          </Heading>
         )}
       </div>
     </div>

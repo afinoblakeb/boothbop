@@ -1,5 +1,6 @@
 import { LOGO } from "../constants";
 import { InstallSteps } from "../components/InstallCard";
+import { Callout, Heading } from "../ui";
 
 /**
  * Dedicated landing for users arriving from the retired PhotoBlast app
@@ -12,10 +13,10 @@ export function MigrationScreen({ onContinue }: { onContinue: () => void }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
       <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
-      <div className="mt-4 w-full max-w-xs border-2 border-ink bg-mustard/25 p-4 text-left">
-        <p className="font-display text-2xl uppercase tracking-wide text-ink">
+      <Callout tone="warning" className="mt-4 w-full max-w-xs p-4 text-left">
+        <Heading as="p" size="lg" className="text-ink">
           Welcome back!
-        </p>
+        </Heading>
         <p className="mt-1 font-sans text-sm text-brown">
           PhotoBlast is now{" "}
           <span className="font-bold text-orange">BoothBop</span> — same booth,
@@ -26,7 +27,7 @@ export function MigrationScreen({ onContinue }: { onContinue: () => void }) {
           Then <strong>delete the old PhotoBlast icon</strong> — it's retired
           and won't update.
         </p>
-      </div>
+      </Callout>
       <button
         onClick={onContinue}
         className="mt-6 font-sans text-xs uppercase tracking-widest text-warmgray underline"

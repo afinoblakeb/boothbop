@@ -78,15 +78,15 @@ Gallery and Settings are overlays, orthogonal to phase.
 
 **Where things live:**
 
-| Path                        | What                                                                                                                     |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `App.tsx`                   | the orchestrator: phase state machine, capture/encode/share flow, screen wiring                                          |
-| `screens/`                  | one file per screen — `IdleScreen`, `CameraScreen`, `ReviewScreen`, `GalleryScreen`, `SettingsScreen`, `MigrationScreen` |
-| `components/`               | shared widgets — `TopBar`, `InstallCard`                                                                                 |
-| `hooks/`                    | `useAutosave` — auto-save settings + Photos-permission logic (see `docs/PERMISSIONS.md`)                                 |
-| `ui.tsx`                    | shared presentational atoms: `btnPrimary`/`btnSecondary` styles, the `Toggle` switch                                     |
-| `types.ts` · `constants.ts` | shared UI types (`Phase`, `Format`) and constants (`SHOTS`, `LOGO`)                                                      |
-| `lib/`                      | all real, React-free logic (see below)                                                                                   |
+| Path                        | What                                                                                                                                                                                                              |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `App.tsx`                   | the orchestrator: phase state machine, capture/encode/share flow, screen wiring                                                                                                                                   |
+| `screens/`                  | one file per screen — `IdleScreen`, `CameraScreen`, `ReviewScreen`, `GalleryScreen`, `SettingsScreen`, `MigrationScreen`                                                                                          |
+| `components/`               | shared widgets — `TopBar`, `InstallCard`, `LegalFooter` (Privacy/Terms/Support), `ZoomableImage` (tap-to-zoom preview)                                                                                            |
+| `hooks/`                    | `useAutosave` — auto-save settings + Photos-permission logic (see `docs/PERMISSIONS.md`)                                                                                                                          |
+| `ui/`                       | the custom design-system primitives — compose these, don't hand-type classes: `Button`, `IconButton`, `SegmentedControl`, `Toggle`, `Callout`, `Heading`, `SectionLabel`, `OverlayScreen` (barrel: `ui/index.ts`) |
+| `types.ts` · `constants.ts` | shared UI types (`Phase`, `Format`) and constants (`SHOTS`, `LOGO`)                                                                                                                                               |
+| `lib/`                      | all real, React-free logic (see below)                                                                                                                                                                            |
 
 - `runSequence()` (in App.tsx) is the heart: the 4-shot capture loop
   (countdown → flash → `captureSquareFrame` → push canvas to `frames[]`). An

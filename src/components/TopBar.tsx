@@ -1,4 +1,5 @@
 import { BrandIcon, GearIcon } from "../icons";
+import { Button, IconButton } from "../ui";
 
 /** Sticky top bar: brand wordmark (home) + My Photos and Settings. */
 export function TopBar({
@@ -23,20 +24,18 @@ export function TopBar({
       </button>
       {showActions && (
         <div className="flex items-center gap-2">
-          <button
-            onClick={onAlbum}
-            className="inline-flex items-center gap-1.5 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
-          >
+          <Button variant="secondary" size="sm" onClick={onAlbum}>
             <BrandIcon name="gallery" className="h-5 w-5" />
             My Photos
-          </button>
-          <button
-            onClick={onSettings}
+          </Button>
+          <IconButton
+            compact
             aria-label="Settings"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border-2 border-ink bg-paper p-1.5 text-ink transition active:translate-y-px active:bg-cream"
+            onClick={onSettings}
+            className="h-10 w-10 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream"
           >
             <GearIcon className="h-5 w-5" />
-          </button>
+          </IconButton>
         </div>
       )}
     </header>

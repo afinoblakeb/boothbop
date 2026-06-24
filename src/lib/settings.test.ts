@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTOSAVE_DEFAULTS,
+  QUALITY_DEFAULTS,
   anyAutosaveOn,
   loadAutosave,
+  loadQuality,
   planAutosaveTasks,
   saveAutosaveDest,
   saveAutosaveFormat,
+  saveQuality,
   type AutosaveSettings,
 } from "./settings";
 
@@ -70,5 +73,25 @@ describe("planAutosaveTasks", () => {
   it("omits video when it isn't supported", () => {
     const tasks = planAutosaveTasks(all, { videoSupported: false });
     expect(tasks.map((t) => t.format)).toEqual(["strip", "grid", "gif"]);
+  });
+});
+
+describe("export quality persistence", () => {
+  it("defaults every media type to standard when storage is empty", () => {
+    expect(loadQuality()).toEqual(QUALITY_DEFAULTS);
+  });
+
+  it("round-trips a per-media quality tier", () => {
+    saveQuality("photo", "high");
+    saveQuality("gif", "low");
+    const q = loadQuality();
+    expect(q.photo).toBe("high");
+    expect(q.gif).toBe("low");
+    expect(q.video).toBe("standard");
+  });
+
+  it("treats an unknown stored tier as standard", () => {
+    localStorage.setItem("bb.quality.video", "ultra");
+    expect(loadQuality().video).toBe("standard");
   });
 });

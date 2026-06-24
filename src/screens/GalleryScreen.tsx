@@ -6,6 +6,7 @@ import {
   type Session,
 } from "../lib/gallery";
 import { BrandIcon, TrashIcon } from "../icons";
+import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 
 /** Full-screen overlay of past booth sessions; tap one to reopen it. */
 export function GalleryScreen({
@@ -34,62 +35,50 @@ export function GalleryScreen({
   }
 
   return (
-    <div className="fixed inset-0 z-40 overflow-y-auto bg-cream text-ink">
-      <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-3xl uppercase tracking-wide">
-            My Photos
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-2xl text-brown"
-          >
-            ✕
-          </button>
-        </div>
+    <OverlayScreen title="My Photos" onClose={onClose}>
+      <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+        Tap a set to get its strip, GIF, or video. Saved on this device only.
+      </p>
 
-        <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-          Tap a set to get its strip, GIF, or video. Saved on this device only.
+      {sessions === null ? (
+        <p className="mt-16 text-center font-display text-xl uppercase text-brown">
+          Loading…
         </p>
-
-        {sessions === null ? (
-          <p className="mt-16 text-center font-display text-xl uppercase text-brown">
-            Loading…
+      ) : sessions.length === 0 ? (
+        <div className="mt-16 flex flex-col items-center text-center text-brown">
+          <BrandIcon name="gallery" className="h-16 w-16" />
+          <Heading as="p" size="lg" className="mt-3">
+            No photos yet
+          </Heading>
+          <p className="font-sans text-sm text-warmgray">
+            Your booth sessions are saved here automatically.
           </p>
-        ) : sessions.length === 0 ? (
-          <div className="mt-16 flex flex-col items-center text-center text-brown">
-            <BrandIcon name="gallery" className="h-16 w-16" />
-            <p className="mt-3 font-display text-2xl uppercase tracking-wide">
-              No photos yet
-            </p>
-            <p className="font-sans text-sm text-warmgray">
-              Your booth sessions are saved here automatically.
-            </p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-4 grid grid-cols-3 gap-2">
+            {sessions.map((s) => (
+              <Cover
+                key={s.id}
+                blob={s.photos[0]}
+                onOpen={() => onOpen(s)}
+                onDelete={() => remove(s.id)}
+              />
+            ))}
           </div>
-        ) : (
-          <>
-            <div className="mt-4 grid grid-cols-3 gap-2">
-              {sessions.map((s) => (
-                <Cover
-                  key={s.id}
-                  blob={s.photos[0]}
-                  onOpen={() => onOpen(s)}
-                  onDelete={() => remove(s.id)}
-                />
-              ))}
-            </div>
-            <button
-              onClick={clearAll}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 border-2 border-orange-dark bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
-            >
-              <TrashIcon className="h-5 w-5" />
-              Clear all
-            </button>
-          </>
-        )}
-      </div>
-    </div>
+          <Button
+            variant="danger"
+            size="md"
+            fullWidth
+            onClick={clearAll}
+            className="mt-6"
+          >
+            <TrashIcon className="h-5 w-5" />
+            Clear all
+          </Button>
+        </>
+      )}
+    </OverlayScreen>
   );
 }
 
@@ -117,15 +106,15 @@ function Cover({
       >
         {url && <img src={url} alt="" className="h-full w-full object-cover" />}
       </button>
-      <button
-        onClick={onDelete}
+      <IconButton
         aria-label="Delete"
-        className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center"
+        onClick={onDelete}
+        className="absolute right-0 top-0"
       >
         <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
           <TrashIcon className="h-4 w-4" />
         </span>
-      </button>
+      </IconButton>
     </div>
   );
 }

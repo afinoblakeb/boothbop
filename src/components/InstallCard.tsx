@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { isIOS, isNativeShell } from "../lib/platform";
 import { BrandIcon, ShareIcon } from "../icons";
-import { btnPrimary } from "../ui";
+import { Button, Callout, Heading } from "../ui";
 import type { InstallPromptEvent } from "../types";
 
 /** Detect whether we're already running as an installed (standalone) app. */
@@ -37,37 +37,43 @@ export function InstallCard({
   }
 
   return (
-    <div className="mt-8 w-full max-w-xs border-2 border-ink bg-orange/15 p-4 text-left">
-      <p className="flex items-center gap-2 font-display text-2xl uppercase tracking-wide text-ink">
+    <Callout tone="highlight" className="mt-8 w-full max-w-xs p-4 text-left">
+      <Heading as="p" size="lg" className="flex items-center gap-2 text-ink">
         <BrandIcon name="install" className="h-7 w-7" />
         Get the full app
-      </p>
+      </Heading>
       <p className="mt-1 font-sans text-sm text-brown">
         Add BoothBop to your home screen — it opens full-screen, loads
         instantly, and works with no signal. No app store, free.
       </p>
 
       {installPrompt ? (
-        <button
+        <Button
+          variant="primary"
+          size="md"
+          fullWidth
           onClick={oneTapInstall}
-          className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+          className="mt-3"
         >
           <BrandIcon name="install" className="h-6 w-6" />
           Add to Home Screen
-        </button>
+        </Button>
       ) : (
         <>
-          <button
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
             onClick={() => setShowSteps((v) => !v)}
-            className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+            className="mt-3"
           >
             <BrandIcon name="install" className="h-6 w-6" />
             Add to Home Screen
-          </button>
+          </Button>
           {showSteps && <InstallSteps />}
         </>
       )}
-    </div>
+    </Callout>
   );
 }
 

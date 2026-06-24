@@ -1,14 +1,21 @@
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
 import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
-import { btnPrimary, btnSecondary } from "../ui";
+import {
+  Button,
+  Callout,
+  IconButton,
+  SectionLabel,
+  SegmentedControl,
+} from "../ui";
+import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
 
 // Human-readable names for the strip color themes (for screen readers — the
 // swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
 const THEME_LABELS: Record<string, string> = {
   classic: "Cream",
-  orange: "Orange",
+  rust: "Rust",
   teal: "Teal",
   mustard: "Mustard",
   olive: "Olive",
@@ -69,24 +76,14 @@ export function ReviewScreen({
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center py-4">
       {/* Format tabs */}
-      <div
-        role="tablist"
-        className="flex w-full divide-x-2 divide-ink border-2 border-ink bg-paper"
-      >
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            role="tab"
-            aria-selected={format === t.id}
-            onClick={() => onSelectFormat(t.id)}
-            className={`flex-1 py-3 font-display text-xl uppercase tracking-wide transition ${
-              format === t.id ? "bg-orange text-cream" : "text-ink"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <SegmentedControl
+        ariaRole="tab"
+        fullWidth
+        value={format}
+        onChange={onSelectFormat}
+        options={tabs.map((t) => ({ value: t.id, label: t.label }))}
+        itemClassName="py-3 text-xl"
+      />
 
       {/* Live preview of the selected output */}
       <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
@@ -106,7 +103,7 @@ export function ReviewScreen({
             controls
           />
         ) : previewUrl ? (
-          <img
+          <ZoomableImage
             src={previewUrl}
             alt={`Your ${format}`}
             className="max-h-full w-auto border-2 border-ink"
@@ -118,29 +115,22 @@ export function ReviewScreen({
       {format === "strip" ? (
         <>
           <div className="mt-4">
-            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
-              Layout
-            </p>
-            <div className="mx-auto flex w-max divide-x-2 divide-ink border-2 border-ink bg-paper">
-              {(["4x1", "2x2"] as Layout[]).map((l) => (
-                <button
-                  key={l}
-                  onClick={() => setLayout(l)}
-                  aria-pressed={layout === l}
-                  className={`flex min-h-[44px] items-center justify-center px-6 py-2 font-display text-lg uppercase tracking-wide transition ${
-                    layout === l ? "bg-orange text-cream" : "text-ink"
-                  }`}
-                >
-                  {l === "4x1" ? "Strip" : "Grid"}
-                </button>
-              ))}
-            </div>
+            <SectionLabel className="mb-1 text-center">Layout</SectionLabel>
+            <SegmentedControl
+              className="mx-auto"
+              label="Strip layout"
+              value={layout}
+              onChange={setLayout}
+              options={[
+                { value: "4x1", label: "Strip" },
+                { value: "2x2", label: "Grid" },
+              ]}
+              itemClassName="flex min-h-[44px] items-center justify-center px-6 py-2 text-lg"
+            />
           </div>
 
           <div className="mt-3">
-            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
-              Color
-            </p>
+            <SectionLabel className="mb-1 text-center">Color</SectionLabel>
             <div className="flex justify-center gap-3">
               {Object.entries(THEMES).map(([key, theme]) => (
                 <button
@@ -167,7 +157,10 @@ export function ReviewScreen({
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
       {autosaveTip && (
-        <div className="mt-4 flex w-full items-center gap-2 border-2 border-teal bg-teal/10 px-3 py-2 text-left">
+        <Callout
+          tone="info"
+          className="mt-4 flex w-full items-center gap-2 px-3 py-2 text-left"
+        >
           <p className="flex-1 font-sans text-xs text-ink">
             New: auto-save your photos to a BoothBop album.{" "}
             <button
@@ -177,54 +170,52 @@ export function ReviewScreen({
               Open Settings
             </button>
           </p>
-          <button
-            onClick={onDismissTip}
+          <IconButton
             aria-label="Dismiss"
-            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center text-lg leading-none text-brown"
+            onClick={onDismissTip}
+            className="shrink-0 text-lg leading-none text-brown"
           >
             ✕
-          </button>
-        </div>
+          </IconButton>
+        </Callout>
       )}
 
       {/* Actions: one dominant primary, clear secondaries */}
       {shareFilesOk ? (
-        <>
-          <button
-            onClick={onShare}
-            disabled={isBusy || !previewUrl}
-            className={`mt-4 w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
-          >
-            <ShareIcon className="h-7 w-7" />
-            Save / Share
-          </button>
-          <button
-            onClick={onRetake}
-            className={`mt-3 w-full px-6 py-3 ${btnSecondary}`}
-          >
-            <RefreshIcon className="h-6 w-6" />
-            Take Again
-          </button>
-        </>
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          onClick={onShare}
+          disabled={isBusy || !previewUrl}
+          className="mt-4"
+        >
+          <ShareIcon className="h-7 w-7" />
+          Save / Share
+        </Button>
       ) : (
-        <>
-          <button
-            onClick={onDownload}
-            disabled={isBusy || !previewUrl}
-            className={`mt-4 w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
-          >
-            <DownloadIcon className="h-7 w-7" />
-            {saveLabel}
-          </button>
-          <button
-            onClick={onRetake}
-            className={`mt-3 w-full px-6 py-3 ${btnSecondary}`}
-          >
-            <RefreshIcon className="h-6 w-6" />
-            Take Again
-          </button>
-        </>
+        <Button
+          variant="primary"
+          size="lg"
+          fullWidth
+          onClick={onDownload}
+          disabled={isBusy || !previewUrl}
+          className="mt-4"
+        >
+          <DownloadIcon className="h-7 w-7" />
+          {saveLabel}
+        </Button>
       )}
+      <Button
+        variant="secondary"
+        size="md"
+        fullWidth
+        onClick={onRetake}
+        className="mt-3"
+      >
+        <RefreshIcon className="h-6 w-6" />
+        Take Again
+      </Button>
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
@@ -235,9 +226,13 @@ export function ReviewScreen({
       </p>
 
       {error && (
-        <p className="mt-4 border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
+        <Callout
+          as="p"
+          tone="error"
+          className="mt-4 px-4 py-3 font-sans text-sm text-orange-dark"
+        >
           {error}
-        </p>
+        </Callout>
       )}
     </div>
   );

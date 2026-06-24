@@ -15,7 +15,9 @@ export interface StripTheme {
 // Atomic-age strip borders. Captions render in the condensed display face.
 export const THEMES: Record<string, StripTheme> = {
   classic: { background: "#f6e7cf", text: "#111111", caption: "BoothBop" },
-  orange: { background: "#e85a1a", text: "#f6e7cf", caption: "BoothBop" },
+  // Deep burnt-sienna, not the logo's bright orange — the footer wordmark (which
+  // contains that bright orange) would otherwise clash on a same-orange border.
+  rust: { background: "#8f3b1e", text: "#f6e7cf", caption: "BoothBop" },
   teal: { background: "#3e7c78", text: "#f6e7cf", caption: "BoothBop" },
   mustard: { background: "#d9a441", text: "#111111", caption: "BoothBop" },
   olive: { background: "#6e7551", text: "#f6e7cf", caption: "BoothBop" },
@@ -42,8 +44,15 @@ export interface StripGeometry {
  * Pure layout math for a strip — canvas size and where each photo goes. Kept
  * separate from drawing so it can be unit-tested without a real canvas.
  */
-export function stripGeometry(layout: Layout): StripGeometry {
-  const { cell, gap, footer } = STRIP;
+export function stripGeometry(
+  layout: Layout,
+  cell: number = STRIP.cell,
+): StripGeometry {
+  // Everything but the photo cell scales with it, so a higher-quality strip
+  // keeps the same proportions. `cell === STRIP.cell` reproduces the base layout.
+  const scale = cell / STRIP.cell;
+  const gap = Math.round(STRIP.gap * scale);
+  const footer = Math.round(STRIP.footer * scale);
   const cols = layout === "2x2" ? 2 : 1;
   const rows = layout === "2x2" ? 2 : 4;
 
@@ -72,9 +81,11 @@ export function composeStrip(
   layout: Layout,
   theme: StripTheme,
   logo: HTMLImageElement | null = null,
+  cell: number = STRIP.cell,
 ): HTMLCanvasElement {
-  const { cell, footer } = STRIP;
-  const { width, height, cells } = stripGeometry(layout);
+  const scale = cell / STRIP.cell;
+  const footer = Math.round(STRIP.footer * scale);
+  const { width, height, cells } = stripGeometry(layout, cell);
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -95,10 +106,10 @@ export function composeStrip(
     // Brand logo centered, with a soft light halo so the dark parts stay
     // legible on the dark themes (carbon) — same treatment as the watermark,
     // invisible on the light themes.
-    const logoH = 64;
+    const logoH = 64 * scale;
     const logoW = logoH * (logo.width / logo.height);
     const lx = (width - logoW) / 2;
-    const ly = footerY + 20;
+    const ly = footerY + 20 * scale;
     ctx.save();
     ctx.shadowColor = "rgba(255,255,255,0.85)";
     ctx.shadowBlur = Math.max(4, width * 0.012);
@@ -108,7 +119,7 @@ export function composeStrip(
     ctx.drawImage(logo, lx, ly, logoW, logoH); // crisp logo on top
     ctx.restore();
 
-    drawDate(ctx, width, ly + logoH + 22, theme.text);
+    drawDate(ctx, width, ly + logoH + 22 * scale, theme.text, scale);
     return canvas;
   }
 
@@ -117,17 +128,17 @@ export function composeStrip(
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   try {
-    ctx.letterSpacing = "3px";
+    ctx.letterSpacing = `${3 * scale}px`;
   } catch {
     /* older browsers: no canvas letter-spacing */
   }
-  ctx.font = "400 72px 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif";
+  ctx.font = `400 ${72 * scale}px 'Bebas Neue', 'Oswald', 'Arial Narrow', sans-serif`;
   ctx.fillText(
     theme.caption.toUpperCase(),
     width / 2,
-    footerY + footer / 2 - 14,
+    footerY + footer / 2 - 14 * scale,
   );
-  drawDate(ctx, width, footerY + footer / 2 + 34, theme.text);
+  drawDate(ctx, width, footerY + footer / 2 + 34 * scale, theme.text, scale);
 
   return canvas;
 }
@@ -138,16 +149,17 @@ function drawDate(
   width: number,
   y: number,
   color: string,
+  scale: number,
 ) {
   ctx.fillStyle = color;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   try {
-    ctx.letterSpacing = "1px";
+    ctx.letterSpacing = `${1 * scale}px`;
   } catch {
     /* no-op */
   }
-  ctx.font = "500 26px 'Oswald', 'Arial Narrow', sans-serif";
+  ctx.font = `500 ${26 * scale}px 'Oswald', 'Arial Narrow', sans-serif`;
   ctx.globalAlpha = 0.75;
   ctx.fillText(formatDate(new Date()).toUpperCase(), width / 2, y);
   ctx.globalAlpha = 1;
@@ -169,10 +181,11 @@ export async function stripBlob(
   frames: HTMLCanvasElement[],
   layout: Layout,
   theme: StripTheme,
+  cell: number = STRIP.cell,
 ): Promise<Blob> {
   const logo = await loadWatermark();
   return new Promise((resolve, reject) => {
-    composeStrip(frames, layout, theme, logo).toBlob(
+    composeStrip(frames, layout, theme, logo, cell).toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
       "image/png",
     );
