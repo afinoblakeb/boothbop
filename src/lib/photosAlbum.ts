@@ -111,6 +111,10 @@ export async function ensurePhotosPermission(
     await ensureAlbum(await loadMedia());
     return "granted";
   } catch (e) {
-    return isDeniedError(e) ? "denied" : "granted";
+    if (isDeniedError(e)) return "denied";
+    // A non-permission failure (e.g. the native plugin isn't linked) is a real
+    // bug — don't mask it as "granted"; surface it to the caller.
+    console.error("[BoothBop] Photos album access failed:", e);
+    throw e instanceof Error ? e : new Error(String(e));
   }
 }

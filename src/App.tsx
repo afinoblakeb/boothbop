@@ -422,12 +422,18 @@ export default function App() {
     saveAutosaveFormat(format, on);
     setAutosave((s) => ({ ...s, [format]: on }));
     if (!on || !isNativeShell()) return;
-    if ((await ensurePhotosPermission(autosave.dest)) === "denied") {
-      saveAutosaveFormat(format, false);
-      setAutosave((s) => ({ ...s, [format]: false }));
-      setNote(
-        "Photos access is off — turn it on in Settings ▸ BoothBop ▸ Photos.",
-      );
+    try {
+      if ((await ensurePhotosPermission(autosave.dest)) === "denied") {
+        saveAutosaveFormat(format, false);
+        setAutosave((s) => ({ ...s, [format]: false }));
+        setNote(
+          "Photos access is off — turn it on in Settings ▸ BoothBop ▸ Photos.",
+        );
+      }
+    } catch (e) {
+      // Plugin/native failure — leave the toggle on; the next capture surfaces
+      // the real error on the review screen.
+      console.error("[BoothBop] permission check failed:", e);
     }
   }
 
@@ -456,15 +462,28 @@ export default function App() {
       videoSupported: isVideoSupported(),
     });
     if (!tasks.length) return;
-    if ((await ensurePhotosPermission(settings.dest)) === "denied") return;
+
+    const reason = (e: unknown) => (e instanceof Error ? e.message : String(e));
+
+    try {
+      if ((await ensurePhotosPermission(settings.dest)) === "denied") {
+        setNote("Photos access is off — enable it in iOS Settings ▸ BoothBop.");
+        return;
+      }
+    } catch (e) {
+      setNote(`Auto-save unavailable: ${reason(e)}`);
+      return;
+    }
 
     let savedAny = false;
+    let firstError: unknown;
     for (const task of tasks) {
       try {
         const blob = await renderForAutosave(captured, task);
         if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
-      } catch {
-        /* per-task best-effort; never break the flow */
+      } catch (e) {
+        firstError ??= e;
+        console.error(`[BoothBop] auto-save failed (${task.format}):`, e);
       }
     }
     if (savedAny) {
@@ -473,6 +492,8 @@ export default function App() {
           ? "Saved to your BoothBop album"
           : "Saved to Photos",
       );
+    } else if (firstError) {
+      setNote(`Auto-save failed: ${reason(firstError)}`);
     }
   }
 
