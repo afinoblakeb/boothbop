@@ -20,7 +20,8 @@
     "gen:assets": "node scripts/gen-assets.mjs",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:open": "npx cap open ios",
-    "ios": "npm run ios:sync && npm run ios:open"
+    "ios": "npm run ios:sync && npm run ios:open",
+    "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs"
   },
   "dependencies": {
     "@capacitor/core": "^8.4.1",
