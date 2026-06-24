@@ -60,12 +60,17 @@ export function stripGeometry(layout: Layout): StripGeometry {
 
 /**
  * Draw the 4 frames onto a single canvas in the requested layout, with a
- * classic photo-booth border and a footer caption.
+ * classic photo-booth border and a footer.
+ *
+ * The footer carries the horizontal BoothBop logo (same mark used to watermark
+ * the GIF/video exports) over the date. If the logo image isn't available it
+ * falls back to the wordmark rendered as text, so the strip is always branded.
  */
 export function composeStrip(
   frames: HTMLCanvasElement[],
   layout: Layout,
   theme: StripTheme,
+  logo: HTMLImageElement | null = null,
 ): HTMLCanvasElement {
   const { cell, footer } = STRIP;
   const { width, height, cells } = stripGeometry(layout);
@@ -83,8 +88,30 @@ export function composeStrip(
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, cell, cell);
   });
 
-  // Footer: caption + date, in the condensed display face.
   const footerY = height - footer;
+
+  if (logo) {
+    // Brand logo centered, with a soft light halo so the dark parts stay
+    // legible on the dark themes (carbon) — same treatment as the watermark,
+    // invisible on the light themes.
+    const logoH = 64;
+    const logoW = logoH * (logo.width / logo.height);
+    const lx = (width - logoW) / 2;
+    const ly = footerY + 20;
+    ctx.save();
+    ctx.shadowColor = "rgba(255,255,255,0.85)";
+    ctx.shadowBlur = Math.max(4, width * 0.012);
+    ctx.drawImage(logo, lx, ly, logoW, logoH);
+    ctx.drawImage(logo, lx, ly, logoW, logoH); // second pass strengthens the halo
+    ctx.shadowBlur = 0;
+    ctx.drawImage(logo, lx, ly, logoW, logoH); // crisp logo on top
+    ctx.restore();
+
+    drawDate(ctx, width, ly + logoH + 22, theme.text);
+    return canvas;
+  }
+
+  // Fallback: render the wordmark as text in the condensed display face.
   ctx.fillStyle = theme.text;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
@@ -99,7 +126,21 @@ export function composeStrip(
     width / 2,
     footerY + footer / 2 - 14,
   );
+  drawDate(ctx, width, footerY + footer / 2 + 34, theme.text);
 
+  return canvas;
+}
+
+// The date line, in the condensed face, shared by both footer variants.
+function drawDate(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  y: number,
+  color: string,
+) {
+  ctx.fillStyle = color;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
   try {
     ctx.letterSpacing = "1px";
   } catch {
@@ -107,14 +148,8 @@ export function composeStrip(
   }
   ctx.font = "500 26px 'Oswald', 'Arial Narrow', sans-serif";
   ctx.globalAlpha = 0.75;
-  ctx.fillText(
-    formatDate(new Date()).toUpperCase(),
-    width / 2,
-    footerY + footer / 2 + 34,
-  );
+  ctx.fillText(formatDate(new Date()).toUpperCase(), width / 2, y);
   ctx.globalAlpha = 1;
-
-  return canvas;
 }
 
 function formatDate(d: Date): string {
