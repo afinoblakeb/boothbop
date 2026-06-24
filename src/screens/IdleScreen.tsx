@@ -1,6 +1,6 @@
 import { isNativeShell } from "../lib/platform";
 import { BrandIcon } from "../icons";
-import { btnPrimary, btnSecondary } from "../ui";
+import { Button } from "../ui";
 import { LOGO } from "../constants";
 import { InstallCard } from "../components/InstallCard";
 import type { InstallPromptEvent } from "../types";
@@ -42,21 +42,27 @@ export function IdleScreen({
         grab your photo strip!
       </p>
 
-      <button
+      <Button
+        variant="primary"
+        size="lg"
+        fullWidth
         onClick={onStart}
-        className={`mt-4 w-full max-w-xs px-6 py-3.5 text-2xl ${btnPrimary}`}
+        className="mt-4 max-w-xs"
       >
         <BrandIcon name="camera" className="h-8 w-8" />
         Take Photos
-      </button>
+      </Button>
 
-      <button
+      <Button
+        variant="secondary"
+        size="md"
+        fullWidth
         onClick={onOpenGallery}
-        className={`mt-3 w-full max-w-xs px-6 py-3 ${btnSecondary}`}
+        className="mt-3 max-w-xs"
       >
         <BrandIcon name="gallery" className="h-7 w-7" />
         My Photos
-      </button>
+      </Button>
 
       <InstallCard installPrompt={installPrompt} />
 

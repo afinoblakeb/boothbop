@@ -3,7 +3,7 @@ import {
   type AutosaveFormat,
   type AutosaveSettings,
 } from "../lib/settings";
-import { Toggle } from "../ui";
+import { Button, IconButton, Toggle } from "../ui";
 
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
 export function SettingsScreen({
@@ -40,13 +40,13 @@ export function SettingsScreen({
           <h2 className="font-display text-3xl uppercase tracking-wide">
             Settings
           </h2>
-          <button
-            onClick={onClose}
+          <IconButton
             aria-label="Close"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-2xl text-brown"
+            onClick={onClose}
+            className="px-2 text-2xl text-brown"
           >
             ✕
-          </button>
+          </IconButton>
         </div>
 
         <h3 className="mt-6 font-display text-2xl uppercase tracking-wide">
@@ -118,12 +118,14 @@ export function SettingsScreen({
             {error && (
               <div className="mt-3 border-2 border-orange-dark bg-orange/10 px-3 py-2">
                 <p className="font-sans text-xs text-orange-dark">{error}</p>
-                <button
+                <Button
+                  variant="danger"
+                  size="sm"
                   onClick={onOpenIosSettings}
-                  className="mt-2 inline-flex items-center border-2 border-orange-dark bg-paper px-3 py-1.5 font-display text-sm uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
+                  className="mt-2"
                 >
                   Open iOS Settings
-                </button>
+                </Button>
               </div>
             )}
           </>

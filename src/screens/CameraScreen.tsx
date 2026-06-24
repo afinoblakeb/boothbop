@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { BrandIcon } from "../icons";
-import { btnPrimary } from "../ui";
+import { Button, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
 import type { Phase } from "../types";
 
@@ -93,28 +93,22 @@ export function CameraScreen({
               <span className="font-display text-lg uppercase tracking-wide text-brown">
                 Countdown
               </span>
-              <div className="flex divide-x-2 divide-ink border-2 border-ink">
-                {[1, 2, 3].map((n) => (
-                  <button
-                    key={n}
-                    onClick={() => setDelay(n)}
-                    aria-pressed={delay === n}
-                    className={`flex min-h-[44px] items-center justify-center px-4 py-2.5 font-display text-lg uppercase ${
-                      delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
-                    }`}
-                  >
-                    {n}s
-                  </button>
-                ))}
-              </div>
+              <SegmentedControl
+                label="Countdown seconds"
+                value={delay}
+                onChange={setDelay}
+                options={[
+                  { value: 1, label: "1s" },
+                  { value: 2, label: "2s" },
+                  { value: 3, label: "3s" },
+                ]}
+                itemClassName="flex min-h-[44px] items-center justify-center px-4 py-2.5 text-lg"
+              />
             </div>
-            <button
-              onClick={onStart}
-              className={`w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
-            >
+            <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8" />
               Take Photos
-            </button>
+            </Button>
           </>
         ) : (
           <p className="font-display text-3xl uppercase tracking-wide text-orange">

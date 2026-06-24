@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { isIOS, isNativeShell } from "../lib/platform";
 import { BrandIcon, ShareIcon } from "../icons";
-import { btnPrimary } from "../ui";
+import { Button } from "../ui";
 import type { InstallPromptEvent } from "../types";
 
 /** Detect whether we're already running as an installed (standalone) app. */
@@ -48,22 +48,28 @@ export function InstallCard({
       </p>
 
       {installPrompt ? (
-        <button
+        <Button
+          variant="primary"
+          size="md"
+          fullWidth
           onClick={oneTapInstall}
-          className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+          className="mt-3"
         >
           <BrandIcon name="install" className="h-6 w-6" />
           Add to Home Screen
-        </button>
+        </Button>
       ) : (
         <>
-          <button
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
             onClick={() => setShowSteps((v) => !v)}
-            className={`mt-3 w-full px-6 py-3 text-xl ${btnPrimary}`}
+            className="mt-3"
           >
             <BrandIcon name="install" className="h-6 w-6" />
             Add to Home Screen
-          </button>
+          </Button>
           {showSteps && <InstallSteps />}
         </>
       )}

@@ -6,6 +6,7 @@ import {
   type Session,
 } from "../lib/gallery";
 import { BrandIcon, TrashIcon } from "../icons";
+import { Button, IconButton } from "../ui";
 
 /** Full-screen overlay of past booth sessions; tap one to reopen it. */
 export function GalleryScreen({
@@ -40,13 +41,13 @@ export function GalleryScreen({
           <h2 className="font-display text-3xl uppercase tracking-wide">
             My Photos
           </h2>
-          <button
-            onClick={onClose}
+          <IconButton
             aria-label="Close"
-            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-2xl text-brown"
+            onClick={onClose}
+            className="px-2 text-2xl text-brown"
           >
             ✕
-          </button>
+          </IconButton>
         </div>
 
         <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
@@ -79,13 +80,16 @@ export function GalleryScreen({
                 />
               ))}
             </div>
-            <button
+            <Button
+              variant="danger"
+              size="md"
+              fullWidth
               onClick={clearAll}
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 border-2 border-orange-dark bg-paper px-6 py-3 font-display text-lg uppercase tracking-wide text-orange-dark transition active:translate-y-px active:bg-cream"
+              className="mt-6"
             >
               <TrashIcon className="h-5 w-5" />
               Clear all
-            </button>
+            </Button>
           </>
         )}
       </div>
@@ -117,15 +121,15 @@ function Cover({
       >
         {url && <img src={url} alt="" className="h-full w-full object-cover" />}
       </button>
-      <button
-        onClick={onDelete}
+      <IconButton
         aria-label="Delete"
-        className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center"
+        onClick={onDelete}
+        className="absolute right-0 top-0"
       >
         <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
           <TrashIcon className="h-4 w-4" />
         </span>
-      </button>
+      </IconButton>
     </div>
   );
 }
