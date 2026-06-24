@@ -2,27 +2,47 @@ import {
   type AutosaveDest,
   type AutosaveFormat,
   type AutosaveSettings,
+  type Quality,
+  type QualityMedia,
+  type QualitySettings,
 } from "../lib/settings";
-import { Button, Callout, Heading, OverlayScreen, Toggle } from "../ui";
+import {
+  Button,
+  Callout,
+  Heading,
+  OverlayScreen,
+  SegmentedControl,
+  Toggle,
+} from "../ui";
 import { LegalFooter } from "../components/LegalFooter";
+
+const QUALITY_OPTIONS: { value: Quality; label: string }[] = [
+  { value: "low", label: "Low" },
+  { value: "standard", label: "Standard" },
+  { value: "high", label: "High" },
+];
 
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
 export function SettingsScreen({
   settings,
+  quality,
   native,
   videoSupported,
   error,
   onDest,
   onToggle,
+  onQuality,
   onOpenIosSettings,
   onClose,
 }: {
   settings: AutosaveSettings;
+  quality: QualitySettings;
   native: boolean;
   videoSupported: boolean;
   error: string | null;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
+  onQuality: (media: QualityMedia, q: Quality) => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
 }) {
@@ -33,6 +53,14 @@ export function SettingsScreen({
       { key: "gif", label: "Animated GIF" },
       { key: "video", label: "Looping video", disabled: !videoSupported },
     ];
+
+  const qualityRows: { key: QualityMedia; label: string }[] = [
+    { key: "photo", label: "Photo strip" },
+    { key: "gif", label: "Animated GIF" },
+    ...(videoSupported
+      ? [{ key: "video" as QualityMedia, label: "Looping video" }]
+      : []),
+  ];
 
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
@@ -128,6 +156,32 @@ export function SettingsScreen({
           )}
         </>
       )}
+
+      <Heading as="h3" size="lg" className="mt-8">
+        Export quality
+      </Heading>
+      <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+        Higher quality is sharper but makes bigger files to save and share.
+      </p>
+
+      <div className="mt-4 space-y-4">
+        {qualityRows.map((row) => (
+          <div key={row.key}>
+            <Heading as="p" size="sm" className="text-brown">
+              {row.label}
+            </Heading>
+            <SegmentedControl
+              fullWidth
+              className="mt-1.5"
+              label={`${row.label} quality`}
+              value={quality[row.key]}
+              onChange={(q) => onQuality(row.key, q)}
+              options={QUALITY_OPTIONS}
+              itemClassName="py-2 text-sm"
+            />
+          </div>
+        ))}
+      </div>
 
       <LegalFooter className="mt-10 text-center" />
     </OverlayScreen>

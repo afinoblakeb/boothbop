@@ -82,3 +82,65 @@ export function planAutosaveTasks(
     tasks.push({ format: "video", kind: "video" });
   return tasks;
 }
+
+// ───────────────────────── Export quality ─────────────────────────
+// Each export type (photo strip, GIF, video) has its own Low/Standard/High
+// tier. "standard" is a sensible balanced default; "high" trades file size for
+// sharpness. Persisted under `bb.quality.*`, mirroring the autosave keys.
+
+export type Quality = "low" | "standard" | "high";
+export type QualityMedia = "photo" | "gif" | "video";
+
+export type QualitySettings = Record<QualityMedia, Quality>;
+
+export const QUALITY_DEFAULTS: QualitySettings = {
+  photo: "standard",
+  gif: "standard",
+  video: "standard",
+};
+
+const QUALITY_KEYS: Record<QualityMedia, string> = {
+  photo: "bb.quality.photo",
+  gif: "bb.quality.gif",
+  video: "bb.quality.video",
+};
+
+function readQuality(key: string): Quality {
+  const v = localStorage.getItem(key);
+  return v === "low" || v === "high" ? v : "standard";
+}
+
+export function loadQuality(): QualitySettings {
+  return {
+    photo: readQuality(QUALITY_KEYS.photo),
+    gif: readQuality(QUALITY_KEYS.gif),
+    video: readQuality(QUALITY_KEYS.video),
+  };
+}
+
+export function saveQuality(media: QualityMedia, q: Quality): void {
+  localStorage.setItem(QUALITY_KEYS[media], q);
+}
+
+// Pipeline parameters per tier. The photo tier drives the square capture
+// resolution (the ceiling everything downstream samples from) and the strip
+// cell size; GIF and video carry their own size/bitrate so file size stays
+// controllable independently.
+export const PHOTO_CAPTURE: Record<Quality, number> = {
+  low: 640,
+  standard: 900,
+  high: 1280,
+};
+
+export const GIF_SIZE: Record<Quality, number> = {
+  low: 400,
+  standard: 540,
+  high: 720,
+};
+
+export const VIDEO_PROFILE: Record<Quality, { size: number; bitrate: number }> =
+  {
+    low: { size: 540, bitrate: 3_000_000 },
+    standard: { size: 720, bitrate: 6_000_000 },
+    high: { size: 1080, bitrate: 10_000_000 },
+  };

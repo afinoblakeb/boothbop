@@ -25,9 +25,17 @@ import {
   type Session,
 } from "./lib/gallery";
 import {
+  GIF_SIZE,
+  PHOTO_CAPTURE,
+  VIDEO_PROFILE,
+  loadQuality,
   planAutosaveTasks,
+  saveQuality,
   type AutosaveSettings,
   type AutosaveTask,
+  type Quality,
+  type QualityMedia,
+  type QualitySettings,
 } from "./lib/settings";
 import {
   ensurePhotosPermission,
@@ -73,6 +81,13 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+
+  // Export quality per media type (photo strip / GIF / video), persisted.
+  const [quality, setQuality] = useState<QualitySettings>(loadQuality);
+  function changeQuality(media: QualityMedia, q: Quality) {
+    saveQuality(media, q);
+    setQuality((prev) => ({ ...prev, [media]: q }));
+  }
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -107,7 +122,9 @@ export default function App() {
   }>({});
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
     return (mediaCache.current.gif ??= loadWatermark()
-      .then((watermarkImg) => encodeGif(src, { watermarkImg }))
+      .then((watermarkImg) =>
+        encodeGif(src, { watermarkImg, size: GIF_SIZE[quality.gif] }),
+      )
       .catch((e) => {
         mediaCache.current.gif = undefined; // let a re-tap retry
         throw e;
@@ -115,7 +132,9 @@ export default function App() {
   }
   function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
     return (mediaCache.current.video ??= loadWatermark()
-      .then((watermarkImg) => encodeVideo(src, { watermarkImg }))
+      .then((watermarkImg) =>
+        encodeVideo(src, { watermarkImg, ...VIDEO_PROFILE[quality.video] }),
+      )
       .catch((e) => {
         mediaCache.current.video = undefined; // let a re-tap retry
         throw e;
@@ -314,7 +333,7 @@ export default function App() {
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
-      const frame = captureSquareFrame(video);
+      const frame = captureSquareFrame(video, PHOTO_CAPTURE[quality.photo]);
       captured.push(frame);
       setFrames([...captured]);
       await wait(240);
@@ -402,10 +421,14 @@ export default function App() {
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(frames, layout, THEMES[themeKey], brandLogo).toDataURL(
-      "image/png",
-    );
-  }, [frames, layout, themeKey, brandLogo]);
+    return composeStrip(
+      frames,
+      layout,
+      THEMES[themeKey],
+      brandLogo,
+      PHOTO_CAPTURE[quality.photo],
+    ).toDataURL("image/png");
+  }, [frames, layout, themeKey, brandLogo, quality.photo]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
@@ -473,7 +496,8 @@ export default function App() {
     task: AutosaveTask,
     theme: StripTheme,
   ): Promise<Blob> {
-    if (task.layout) return stripBlob(src, task.layout, theme);
+    if (task.layout)
+      return stripBlob(src, task.layout, theme, PHOTO_CAPTURE[quality.photo]);
     if (task.format === "gif") return getGifBlob(src);
     return (await getVideoResult(src)).blob;
   }
@@ -524,7 +548,12 @@ export default function App() {
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
     if (format === "video") return videoResult;
-    const blob = await stripBlob(frames, layout, THEMES[themeKey]);
+    const blob = await stripBlob(
+      frames,
+      layout,
+      THEMES[themeKey],
+      PHOTO_CAPTURE[quality.photo],
+    );
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
@@ -671,11 +700,13 @@ export default function App() {
       {showSettings && (
         <SettingsScreen
           settings={autosave}
+          quality={quality}
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
           error={autosaveError}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
+          onQuality={changeQuality}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />

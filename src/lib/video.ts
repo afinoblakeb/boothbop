@@ -3,6 +3,7 @@ import { drawWatermark } from "./watermark";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
+  bitrate?: number; // target video bitrate (bits/sec)
   frameMs?: number; // how long each photo stays on screen
   loops?: number; // how many times to cycle through the 4 photos
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
@@ -41,6 +42,7 @@ export async function encodeVideo(
   frames: HTMLCanvasElement[],
   {
     size = 720,
+    bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
     watermark = true,
@@ -65,7 +67,7 @@ export async function encodeVideo(
   const stream = canvas.captureStream(30);
   const recorder = new MediaRecorder(stream, {
     mimeType: picked.mimeType,
-    videoBitsPerSecond: 6_000_000,
+    videoBitsPerSecond: bitrate,
   });
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
