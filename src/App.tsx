@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
 import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
-import { encodeVideo, isVideoSupported } from "./lib/video";
+import { encodeVideo, isVideoSupported, type VideoResult } from "./lib/video";
 import {
   canShareFiles,
   isIOS,
@@ -39,7 +39,11 @@ import {
   type AutosaveSettings,
   type AutosaveTask,
 } from "./lib/settings";
-import { ensurePhotosPermission, saveToPhotos } from "./lib/photosAlbum";
+import {
+  ensurePhotosPermission,
+  saveToPhotos,
+  type PermissionResult,
+} from "./lib/photosAlbum";
 import { nativeShareFile } from "./lib/nativeShare";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
@@ -97,18 +101,37 @@ export default function App() {
   // Auto-save-to-Photos settings (native iOS feature; opt-in, persisted).
   const [autosave, setAutosave] = useState<AutosaveSettings>(loadAutosave);
   const [showSettings, setShowSettings] = useState(false);
-  const [autosaveStatus, setAutosaveStatus] = useState<string | null>(null);
+  // An actionable problem to show in Settings (e.g. access not granted); null
+  // when auto-save is fine.
+  const [autosaveError, setAutosaveError] = useState<string | null>(null);
   const [autosaveTipSeen, setAutosaveTipSeen] = useState(
     () => localStorage.getItem("bb.autosave.tipSeen") === "1",
   );
 
-  // On launch (native): if auto-save is already on, make sure the Photos
-  // album + permission are actually set up — don't wait for a toggle change.
+  // On launch (native): if auto-save is already on, verify access is still
+  // granted WITHOUT prompting; if it was revoked, switch auto-save off.
   useEffect(() => {
-    if (isNativeShell()) void ensureAutosaveReady(loadAutosave());
-    // ensureAutosaveReady only touches stable setters; a one-time run is right.
+    if (isNativeShell()) void applyAutosave(loadAutosave(), false);
+    // applyAutosave only touches stable setters; a one-time run is right.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // GIF/video blobs for the current capture, encoded at most once and shared by
+  // the review tabs and the auto-save path. Reset by clearResults().
+  const mediaCache = useRef<{
+    gif?: Promise<Blob>;
+    video?: Promise<VideoResult>;
+  }>({});
+  function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
+    return (mediaCache.current.gif ??= loadWatermark().then((watermarkImg) =>
+      encodeGif(src, { watermarkImg }),
+    ));
+  }
+  function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
+    return (mediaCache.current.video ??= loadWatermark().then((watermarkImg) =>
+      encodeVideo(src, { watermarkImg }),
+    ));
+  }
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
@@ -242,6 +265,7 @@ export default function App() {
   function clearResults() {
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
+    mediaCache.current = {};
   }
 
   async function openCamera() {
@@ -285,6 +309,7 @@ export default function App() {
 
     abortRef.current = false;
     setPhase("capturing");
+    clearResults();
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -318,11 +343,48 @@ export default function App() {
       /* storage is best-effort — never block the flow on it */
     }
 
-    // Native: auto-save the enabled formats to Photos in the background.
+    // Start GIF + video encoding right now (foreground) so the review tabs are
+    // instant and the short video finishes before the user can navigate away (a
+    // backgrounded MediaRecorder stretches the clip). Then auto-save, also in
+    // the background. Neither blocks the review screen.
+    pregenerate(captured);
     void autoSaveToAlbum(captured, autosave);
 
     setFormat("strip");
     setPhase("review");
+  }
+
+  // Warm the GIF/video cache and populate the review results so switching tabs
+  // is instant. Best-effort; never throws into the capture flow.
+  function pregenerate(src: HTMLCanvasElement[]) {
+    getGifBlob(src)
+      .then((blob) =>
+        setGifResult((r) =>
+          r
+            ? r
+            : {
+                url: URL.createObjectURL(blob),
+                blob,
+                filename: `boothbop-${stamp()}.gif`,
+              },
+        ),
+      )
+      .catch(() => {});
+    if (isVideoSupported()) {
+      getVideoResult(src)
+        .then(({ blob, extension }) =>
+          setVideoResult((r) =>
+            r
+              ? r
+              : {
+                  url: URL.createObjectURL(blob),
+                  blob,
+                  filename: `boothbop-${stamp()}.${extension}`,
+                },
+          ),
+        )
+        .catch(() => {});
+    }
   }
 
   function retake() {
@@ -372,14 +434,17 @@ export default function App() {
   async function ensureGif() {
     setGenerating("gif");
     try {
-      const watermarkImg = await loadWatermark();
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = encodeGif(frames, { watermarkImg });
-      setGifResult({
-        url: URL.createObjectURL(blob),
-        blob,
-        filename: `boothbop-${stamp()}.gif`,
-      });
+      const blob = await getGifBlob(frames);
+      setGifResult((r) =>
+        r
+          ? r
+          : {
+              url: URL.createObjectURL(blob),
+              blob,
+              filename: `boothbop-${stamp()}.gif`,
+            },
+      );
     } catch {
       setError("Couldn't create the GIF.");
     } finally {
@@ -394,13 +459,16 @@ export default function App() {
     }
     setGenerating("video");
     try {
-      const watermarkImg = await loadWatermark();
-      const { blob, extension } = await encodeVideo(frames, { watermarkImg });
-      setVideoResult({
-        url: URL.createObjectURL(blob),
-        blob,
-        filename: `boothbop-${stamp()}.${extension}`,
-      });
+      const { blob, extension } = await getVideoResult(frames);
+      setVideoResult((r) =>
+        r
+          ? r
+          : {
+              url: URL.createObjectURL(blob),
+              blob,
+              filename: `boothbop-${stamp()}.${extension}`,
+            },
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : "Couldn't record the video.");
     } finally {
@@ -413,7 +481,7 @@ export default function App() {
   function openSettings() {
     setShowSettings(true);
     dismissAutosaveTip();
-    if (isNativeShell()) void ensureAutosaveReady(loadAutosave());
+    if (isNativeShell()) void applyAutosave(loadAutosave(), false);
   }
 
   function dismissAutosaveTip() {
@@ -424,81 +492,67 @@ export default function App() {
 
   function changeAutosaveDest(dest: AutosaveDest) {
     saveAutosaveDest(dest);
-    const next = { ...autosave, dest };
-    setAutosave(next);
-    void ensureAutosaveReady(next);
+    void applyAutosave({ ...autosave, dest }, true);
   }
 
   function toggleAutosaveFormat(format: AutosaveFormat, on: boolean) {
     saveAutosaveFormat(format, on);
-    const next = { ...autosave, [format]: on };
-    setAutosave(next);
-    void ensureAutosaveReady(next);
+    // Turning a format on prompts for access; turning off just re-verifies.
+    void applyAutosave({ ...autosave, [format]: on }, on);
   }
 
-  // Make sure the Photos album + permission are set up for the current
-  // settings — creating the "BoothBop" album (and triggering the iOS permission
-  // prompt) the first time it's needed. Reports status/errors to the Settings
-  // screen so a failure is never silent.
-  async function ensureAutosaveReady(settings: AutosaveSettings) {
-    console.log(
-      "[BoothBop] ensureAutosaveReady: native=",
-      isNativeShell(),
-      "settings=",
-      JSON.stringify(settings),
-    );
-    if (!isNativeShell() || !anyAutosaveOn(settings)) {
-      setAutosaveStatus(null);
+  // Auto-save requires the right Photos access — FULL access for the album,
+  // add-only for the camera roll. If it isn't granted (including "limited"),
+  // switch every auto-save toggle back off and explain how to fix it: we never
+  // auto-save without proper permission. `prompt` shows the iOS dialog (on a
+  // toggle); on launch we only re-check, so we never prompt unbidden.
+  async function applyAutosave(next: AutosaveSettings, prompt: boolean) {
+    setAutosave(next);
+    if (!isNativeShell() || !anyAutosaveOn(next)) {
+      setAutosaveError(null);
       return;
     }
-    setAutosaveStatus("Setting up Photos access…");
+    let status: PermissionResult;
     try {
-      // Race a timeout: if the native plugin isn't compiled in, the bridge call
-      // hangs forever with no error. Surface that instead of an endless spinner.
-      const result = await Promise.race([
-        ensurePhotosPermission(settings.dest),
-        new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("__timeout__")), 8000),
-        ),
-      ]);
-      console.log("[BoothBop] ensureAutosaveReady: permission =", result);
-      if (result === "denied") {
-        setAutosaveStatus(
-          "Photos access is off — allow it in iOS Settings ▸ BoothBop ▸ Photos.",
-        );
-      } else {
-        setAutosaveStatus(
-          settings.dest === "album"
-            ? "Ready — saving to your BoothBop album."
-            : "Ready — saving to your camera roll.",
-        );
-      }
-    } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setAutosaveStatus(
-        m === "__timeout__"
-          ? "Photos didn't respond — the Media plugin isn't built into this app yet. A full clean rebuild is needed."
-          : `Couldn't set up auto-save: ${m}`,
-      );
+      status = await ensurePhotosPermission(next.dest, prompt);
+    } catch {
+      status = "denied";
     }
+    if (status === "granted") {
+      setAutosaveError(null);
+      return;
+    }
+    // Not enough access → turn auto-save off everywhere and explain.
+    (["strip", "grid", "gif", "video"] as AutosaveFormat[]).forEach((f) =>
+      saveAutosaveFormat(f, false),
+    );
+    setAutosave({
+      ...next,
+      strip: false,
+      grid: false,
+      gif: false,
+      video: false,
+    });
+    setAutosaveError(
+      next.dest === "album"
+        ? "Auto-save needs Full Photos Access. Turn on “All Photos” for BoothBop in iOS Settings (or pick Camera Roll), then enable it again."
+        : "Photos access is off. Allow it for BoothBop in iOS Settings, then enable it again.",
+    );
   }
 
-  // Encode one format's blob for auto-saving. Independent of the review-screen
-  // encoders — this is opt-in background work, so a rare double-encode (if the
-  // user also opens that tab) is acceptable.
+  // The blob for one auto-save task. Reuses the shared GIF/video cache so they
+  // are never encoded twice (the review tabs draw from the same cache).
   async function renderForAutosave(
-    captured: HTMLCanvasElement[],
+    src: HTMLCanvasElement[],
     task: AutosaveTask,
   ): Promise<Blob> {
-    if (task.layout) return stripBlob(captured, task.layout, THEMES[themeKey]);
-    const watermarkImg = await loadWatermark();
-    if (task.format === "gif") return encodeGif(captured, { watermarkImg });
-    const { blob } = await encodeVideo(captured, { watermarkImg });
-    return blob;
+    if (task.layout) return stripBlob(src, task.layout, THEMES[themeKey]);
+    if (task.format === "gif") return getGifBlob(src);
+    return (await getVideoResult(src)).blob;
   }
 
   // Fire-and-forget after a capture: save the enabled formats to Photos. Best-
-  // effort throughout — never blocks or breaks the capture/review flow.
+  // effort — never blocks or breaks the capture/review flow.
   async function autoSaveToAlbum(
     captured: HTMLCanvasElement[],
     settings: AutosaveSettings,
@@ -508,28 +562,23 @@ export default function App() {
       videoSupported: isVideoSupported(),
     });
     if (!tasks.length) return;
-
-    const reason = (e: unknown) => (e instanceof Error ? e.message : String(e));
-
+    // Access was granted when the toggle was enabled; re-check WITHOUT prompting
+    // (the user may have revoked it in iOS Settings since).
+    let status: PermissionResult;
     try {
-      if ((await ensurePhotosPermission(settings.dest)) === "denied") {
-        setNote("Photos access is off — enable it in iOS Settings ▸ BoothBop.");
-        return;
-      }
-    } catch (e) {
-      setNote(`Auto-save unavailable: ${reason(e)}`);
-      return;
+      status = await ensurePhotosPermission(settings.dest, false);
+    } catch {
+      status = "denied";
     }
+    if (status !== "granted") return;
 
     let savedAny = false;
-    let firstError: unknown;
     for (const task of tasks) {
       try {
         const blob = await renderForAutosave(captured, task);
         if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
-      } catch (e) {
-        firstError ??= e;
-        console.error(`[BoothBop] auto-save failed (${task.format}):`, e);
+      } catch {
+        /* per-task best-effort */
       }
     }
     if (savedAny) {
@@ -538,8 +587,6 @@ export default function App() {
           ? "Saved to your BoothBop album"
           : "Saved to Photos",
       );
-    } else if (firstError) {
-      setNote(`Auto-save failed: ${reason(firstError)}`);
     }
   }
 
@@ -634,7 +681,6 @@ export default function App() {
             onOpenGallery={() => setShowGallery(true)}
             installPrompt={installPrompt}
             error={error}
-            autosaveStatus={autosaveStatus}
           />
         ))}
 
@@ -685,7 +731,7 @@ export default function App() {
           settings={autosave}
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
-          status={autosaveStatus}
+          error={autosaveError}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onClose={() => setShowSettings(false)}
@@ -751,13 +797,11 @@ function IdleScreen({
   onOpenGallery,
   installPrompt,
   error,
-  autosaveStatus,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
-  autosaveStatus: string | null;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -767,12 +811,6 @@ function IdleScreen({
         Your phone is the photo booth. Tap the button, strike four poses, and
         grab your photo strip!
       </p>
-
-      {autosaveStatus && (
-        <p className="mt-3 max-w-xs border-2 border-ink/30 bg-paper px-3 py-2 font-sans text-xs text-ink">
-          Auto-save: {autosaveStatus}
-        </p>
-      )}
 
       <button
         onClick={onStart}
@@ -1298,7 +1336,7 @@ function SettingsScreen({
   settings,
   native,
   videoSupported,
-  status,
+  error,
   onDest,
   onToggle,
   onClose,
@@ -1306,7 +1344,7 @@ function SettingsScreen({
   settings: AutosaveSettings;
   native: boolean;
   videoSupported: boolean;
-  status: string | null;
+  error: string | null;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onClose: () => void;
@@ -1397,9 +1435,9 @@ function SettingsScreen({
               your library.
             </p>
 
-            {status && (
-              <p className="mt-3 border-2 border-ink/30 bg-paper px-3 py-2 font-sans text-xs text-ink">
-                {status}
+            {error && (
+              <p className="mt-3 border-2 border-orange-dark bg-orange/10 px-3 py-2 font-sans text-xs text-orange-dark">
+                {error}
               </p>
             )}
           </>

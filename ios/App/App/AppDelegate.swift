@@ -58,7 +58,8 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
 
     private func statusString(_ s: PHAuthorizationStatus) -> String {
         switch s {
-        case .authorized, .limited: return "granted"
+        case .authorized: return "granted"
+        case .limited: return "limited"
         case .denied, .restricted: return "denied"
         case .notDetermined: return "notDetermined"
         @unknown default: return "denied"

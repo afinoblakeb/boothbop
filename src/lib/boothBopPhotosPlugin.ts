@@ -7,7 +7,7 @@ import { registerPlugin } from "@capacitor/core";
 // hang.
 
 export type AccessLevel = "addOnly" | "readWrite";
-export type AccessStatus = "granted" | "denied" | "notDetermined";
+export type AccessStatus = "granted" | "limited" | "denied" | "notDetermined";
 
 export interface BoothBopPhotosPlugin {
   checkAccess(options: {

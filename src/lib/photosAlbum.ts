@@ -9,7 +9,7 @@ import { isNativeShell } from "./platform";
 import type { AlbumSaveKind, AutosaveDest } from "./settings";
 import { BoothBopPhotos } from "./boothBopPhotosPlugin";
 
-export type PermissionResult = "granted" | "denied" | "unsupported";
+export type PermissionResult = "granted" | "limited" | "denied" | "unsupported";
 
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -42,14 +42,22 @@ export async function saveToPhotos(
 }
 
 /**
- * Request the access the chosen destination needs (album → full read/write,
- * camera roll → add-only), so a settings toggle can revert if the user declines.
+ * Resolve the Photos access the chosen destination needs (album → full
+ * read/write, camera roll → add-only). With `prompt` true it shows the iOS
+ * permission dialog (use on an explicit toggle); false just reads the current
+ * status (use on launch, so we never prompt out of the blue). "limited" (the
+ * user picked "Select Photos") is reported distinctly — it's not full access.
  */
 export async function ensurePhotosPermission(
   dest: AutosaveDest,
+  prompt = true,
 ): Promise<PermissionResult> {
   if (!isNativeShell()) return "unsupported";
   const level = dest === "album" ? "readWrite" : "addOnly";
-  const { status } = await BoothBopPhotos.requestAccess({ level });
-  return status === "granted" ? "granted" : "denied";
+  const { status } = prompt
+    ? await BoothBopPhotos.requestAccess({ level })
+    : await BoothBopPhotos.checkAccess({ level });
+  if (status === "granted") return "granted";
+  if (status === "limited") return "limited";
+  return "denied";
 }
