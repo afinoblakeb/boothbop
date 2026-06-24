@@ -74,6 +74,17 @@ const COUNTDOWN_COLOR: Record<number, string> = {
   1: "var(--color-orange)",
 };
 
+// Human-readable names for the strip color themes (for screen readers — the
+// swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
+const THEME_LABELS: Record<string, string> = {
+  classic: "Cream",
+  orange: "Orange",
+  teal: "Teal",
+  mustard: "Mustard",
+  olive: "Olive",
+  carbon: "Carbon",
+};
+
 const CAMERA_MSG = "BoothBop requires camera permission. Please try again.";
 
 // The Chromium "install app" event (Android / desktop). Not in lib.dom.
@@ -113,6 +124,14 @@ export default function App() {
   const [autosaveTipSeen, setAutosaveTipSeen] = useState(
     () => localStorage.getItem("bb.autosave.tipSeen") === "1",
   );
+
+  // Auto-dismiss the transient success/info note after a few seconds. The
+  // cleanup cancels the prior timer whenever `note` changes or on unmount.
+  useEffect(() => {
+    if (!note) return;
+    const id = setTimeout(() => setNote(null), 4000);
+    return () => clearTimeout(id);
+  }, [note]);
 
   // On launch (native): if auto-save is already on, verify access is still
   // granted WITHOUT prompting; if it was revoked, switch auto-save off.
@@ -334,6 +353,7 @@ export default function App() {
       if (abortRef.current) return;
       setCountdown(null);
 
+      void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
       const frame = captureSquareFrame(video);
       captured.push(frame);
@@ -614,6 +634,17 @@ export default function App() {
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
+  // Best-effort native haptic. No-ops on web; never blocks or throws into the flow.
+  async function tapHaptic(style: "Medium" | "Light" = "Medium") {
+    if (!isNativeShell()) return;
+    try {
+      const { Haptics, ImpactStyle } = await import("@capacitor/haptics");
+      await Haptics.impact({ style: ImpactStyle[style] });
+    } catch {
+      /* haptics are best-effort — never block the flow */
+    }
+  }
+
   function triggerDownload(blob: Blob, name: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -636,6 +667,7 @@ export default function App() {
     if (isNativeShell()) {
       try {
         await nativeShareFile(blob, filename);
+        void tapHaptic("Light");
       } catch (e) {
         const msg = (e as Error)?.message ?? "";
         if (/cancel/i.test(msg)) setNote("Share canceled.");
@@ -680,7 +712,7 @@ export default function App() {
         : (videoResult?.url ?? null);
 
   return (
-    <div className="mx-auto flex min-h-full max-w-md flex-col px-4">
+    <div className="mx-auto flex h-full max-w-md flex-col px-4">
       <TopBar
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}
@@ -792,7 +824,7 @@ function TopBar({
           <button
             onClick={onSettings}
             aria-label="Settings"
-            className="inline-flex items-center border-2 border-ink bg-paper p-1.5 text-ink transition active:translate-y-px active:bg-cream"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center border-2 border-ink bg-paper p-1.5 text-ink transition active:translate-y-px active:bg-cream"
           >
             <GearIcon className="h-5 w-5" />
           </button>
@@ -822,7 +854,11 @@ function IdleScreen({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
-      <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
+      <img
+        src={LOGO}
+        alt="BoothBop"
+        className="mx-auto max-h-32 w-auto max-w-xs"
+      />
 
       <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
         Your phone is the photo booth. Tap the button, strike four poses, and
@@ -831,7 +867,7 @@ function IdleScreen({
 
       <button
         onClick={onStart}
-        className={`mt-7 w-full max-w-xs px-8 py-5 text-3xl ${btnPrimary}`}
+        className={`mt-4 w-full max-w-xs px-6 py-3.5 text-2xl ${btnPrimary}`}
       >
         <BrandIcon name="camera" className="h-8 w-8" />
         Take Photos
@@ -839,7 +875,7 @@ function IdleScreen({
 
       <button
         onClick={onOpenGallery}
-        className={`mt-3 w-full max-w-xs px-8 py-4 ${btnSecondary}`}
+        className={`mt-3 w-full max-w-xs px-6 py-3 ${btnSecondary}`}
       >
         <BrandIcon name="gallery" className="h-7 w-7" />
         My Photos
@@ -847,7 +883,7 @@ function IdleScreen({
 
       <InstallCard installPrompt={installPrompt} />
 
-      <p className="mt-8 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
+      <p className="mt-5 font-sans text-xs font-semibold uppercase tracking-widest text-warmgray">
         No accounts · No uploads · No cloud
       </p>
       <p className="mt-2 font-sans text-xs text-warmgray">
@@ -1094,7 +1130,7 @@ function CameraScreen({
         ))}
       </div>
 
-      <div className="mt-auto pt-6 text-center">
+      <div className="mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
             <div className="mb-3 flex items-center justify-center gap-2">
@@ -1106,7 +1142,8 @@ function CameraScreen({
                   <button
                     key={n}
                     onClick={() => setDelay(n)}
-                    className={`px-4 py-2 font-display text-lg uppercase ${
+                    aria-pressed={delay === n}
+                    className={`flex min-h-[44px] items-center justify-center px-4 py-2.5 font-display text-lg uppercase ${
                       delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
                     }`}
                   >
@@ -1117,7 +1154,7 @@ function CameraScreen({
             </div>
             <button
               onClick={onStart}
-              className={`w-full px-8 py-5 text-3xl ${btnPrimary}`}
+              className={`w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
             >
               <BrandIcon name="camera" className="h-8 w-8" />
               Take Photos
@@ -1170,24 +1207,33 @@ function ReviewScreen({
   onDownload: () => void;
   onRetake: () => void;
 }) {
-  const videoOk = isVideoSupported();
-  const tabs: { id: Format; label: string; disabled?: boolean }[] = [
+  const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
     { id: "gif", label: "GIF" },
-    { id: "video", label: "Video", disabled: !videoOk },
+    ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
   ];
+  const saveLabel =
+    format === "video"
+      ? "Save Video"
+      : format === "gif"
+        ? "Save GIF"
+        : "Save Photo";
   const isBusy = generating !== null;
 
   return (
-    <div className="flex flex-1 flex-col items-center py-4">
+    <div className="flex min-h-0 flex-1 flex-col items-center py-4">
       {/* Format tabs */}
-      <div className="flex w-full divide-x-2 divide-ink border-2 border-ink bg-paper">
+      <div
+        role="tablist"
+        className="flex w-full divide-x-2 divide-ink border-2 border-ink bg-paper"
+      >
         {tabs.map((t) => (
           <button
             key={t.id}
+            role="tab"
+            aria-selected={format === t.id}
             onClick={() => onSelectFormat(t.id)}
-            disabled={t.disabled}
-            className={`flex-1 py-3 font-display text-xl uppercase tracking-wide transition disabled:opacity-30 ${
+            className={`flex-1 py-3 font-display text-xl uppercase tracking-wide transition ${
               format === t.id ? "bg-orange text-cream" : "text-ink"
             }`}
           >
@@ -1197,7 +1243,7 @@ function ReviewScreen({
       </div>
 
       {/* Live preview of the selected output */}
-      <div className="mt-4 flex min-h-[46vh] w-full items-center justify-center">
+      <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
         {isBusy ? (
           <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
@@ -1206,7 +1252,7 @@ function ReviewScreen({
         ) : format === "video" && previewUrl ? (
           <video
             src={previewUrl}
-            className="max-h-[46vh] w-auto border-2 border-ink"
+            className="max-h-full w-auto border-2 border-ink"
             autoPlay
             loop
             muted
@@ -1217,7 +1263,7 @@ function ReviewScreen({
           <img
             src={previewUrl}
             alt={`Your ${format}`}
-            className="max-h-[46vh] w-auto border-2 border-ink"
+            className="max-h-full w-auto border-2 border-ink"
           />
         ) : null}
       </div>
@@ -1234,7 +1280,8 @@ function ReviewScreen({
                 <button
                   key={l}
                   onClick={() => setLayout(l)}
-                  className={`px-6 py-2 font-display text-lg uppercase tracking-wide transition ${
+                  aria-pressed={layout === l}
+                  className={`flex min-h-[44px] items-center justify-center px-6 py-2 font-display text-lg uppercase tracking-wide transition ${
                     layout === l ? "bg-orange text-cream" : "text-ink"
                   }`}
                 >
@@ -1253,7 +1300,8 @@ function ReviewScreen({
                 <button
                   key={key}
                   onClick={() => setThemeKey(key)}
-                  aria-label={key}
+                  aria-label={THEME_LABELS[key]}
+                  aria-pressed={themeKey === key}
                   className={`h-11 w-11 border-2 border-ink transition ${
                     themeKey === key
                       ? "ring-4 ring-ink ring-offset-2 ring-offset-cream"
@@ -1286,7 +1334,7 @@ function ReviewScreen({
           <button
             onClick={onDismissTip}
             aria-label="Dismiss"
-            className="px-1 text-lg leading-none text-brown"
+            className="inline-flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center text-lg leading-none text-brown"
           >
             ✕
           </button>
@@ -1299,14 +1347,14 @@ function ReviewScreen({
           <button
             onClick={onShare}
             disabled={isBusy || !previewUrl}
-            className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
+            className={`mt-4 w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
           >
             <ShareIcon className="h-7 w-7" />
             Save / Share
           </button>
           <button
             onClick={onRetake}
-            className={`mt-3 w-full px-6 py-4 ${btnSecondary}`}
+            className={`mt-3 w-full px-6 py-3 ${btnSecondary}`}
           >
             <RefreshIcon className="h-6 w-6" />
             Take Again
@@ -1317,14 +1365,14 @@ function ReviewScreen({
           <button
             onClick={onDownload}
             disabled={isBusy || !previewUrl}
-            className={`mt-5 w-full px-8 py-5 text-3xl ${btnPrimary}`}
+            className={`mt-4 w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
           >
             <DownloadIcon className="h-7 w-7" />
-            Save Photo
+            {saveLabel}
           </button>
           <button
             onClick={onRetake}
-            className={`mt-3 w-full px-6 py-4 ${btnSecondary}`}
+            className={`mt-3 w-full px-6 py-3 ${btnSecondary}`}
           >
             <RefreshIcon className="h-6 w-6" />
             Take Again
@@ -1380,10 +1428,14 @@ function SettingsScreen({
     <div className="fixed inset-0 z-40 overflow-y-auto bg-cream text-ink">
       <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-4xl uppercase tracking-wide">
+          <h2 className="font-display text-3xl uppercase tracking-wide">
             Settings
           </h2>
-          <button onClick={onClose} className="px-2 text-2xl text-brown">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-2xl text-brown"
+          >
             ✕
           </button>
         </div>
@@ -1530,10 +1582,14 @@ function GalleryScreen({
     <div className="fixed inset-0 z-40 overflow-y-auto bg-cream text-ink">
       <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-4xl uppercase tracking-wide">
+          <h2 className="font-display text-3xl uppercase tracking-wide">
             My Photos
           </h2>
-          <button onClick={onClose} className="px-2 text-2xl text-brown">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center px-2 text-2xl text-brown"
+          >
             ✕
           </button>
         </div>
@@ -1609,9 +1665,11 @@ function Cover({
       <button
         onClick={onDelete}
         aria-label="Delete"
-        className="absolute right-1 top-1 flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink"
+        className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center"
       >
-        <TrashIcon className="h-4 w-4" />
+        <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
+          <TrashIcon className="h-4 w-4" />
+        </span>
       </button>
     </div>
   );

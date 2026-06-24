@@ -111,6 +111,7 @@ The exhaustive "are we actually ready?" list. Status: ✅ done · 🔲 to do ·
 
 - ⚠️ **[Me]** `aria-pressed`/selected state on format tabs, layout toggle, countdown, theme swatches (currently color-only — WCAG issue). _P1, pending._
 - ⚠️ **[Me]** Tap targets ≥ 44pt for ✕ close, gallery delete, gear, nudge-dismiss. _P1, pending._
+- ⚠️ **[Me]** No-scroll responsive layout: every screen (idle, camera, review, gallery, settings) fits with **no vertical scroll on ≥ iPhone 15 (393×852pt, safe-area-adjusted)**; verify `scrollHeight ≤ innerHeight` at 393×852 and 430×932. _P1._
 - 🔲 VoiceOver pass over the main flow; Dynamic Type doesn't break layouts; contrast check on the off-state toggle.
 
 ## 13 · App Review guideline self-audit
