@@ -14,7 +14,7 @@ import type { Format } from "../types";
 // swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
 const THEME_LABELS: Record<string, string> = {
   classic: "Cream",
-  orange: "Orange",
+  rust: "Rust",
   teal: "Teal",
   mustard: "Mustard",
   olive: "Olive",

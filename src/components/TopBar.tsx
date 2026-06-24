@@ -29,9 +29,10 @@ export function TopBar({
             My Photos
           </Button>
           <IconButton
+            compact
             aria-label="Settings"
             onClick={onSettings}
-            className="border-2 border-ink bg-paper p-1.5 text-ink transition active:translate-y-px active:bg-cream"
+            className="h-10 w-10 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream"
           >
             <GearIcon className="h-5 w-5" />
           </IconButton>

@@ -110,7 +110,7 @@ export function CameraScreen({
               />
             </div>
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
-              <BrandIcon name="camera" className="h-8 w-8" />
+              <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
               Take Photos
             </Button>
           </>

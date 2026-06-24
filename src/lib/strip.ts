@@ -15,7 +15,9 @@ export interface StripTheme {
 // Atomic-age strip borders. Captions render in the condensed display face.
 export const THEMES: Record<string, StripTheme> = {
   classic: { background: "#f6e7cf", text: "#111111", caption: "BoothBop" },
-  orange: { background: "#e85a1a", text: "#f6e7cf", caption: "BoothBop" },
+  // Deep burnt-sienna, not the logo's bright orange — the footer wordmark (which
+  // contains that bright orange) would otherwise clash on a same-orange border.
+  rust: { background: "#8f3b1e", text: "#f6e7cf", caption: "BoothBop" },
   teal: { background: "#3e7c78", text: "#f6e7cf", caption: "BoothBop" },
   mustard: { background: "#d9a441", text: "#111111", caption: "BoothBop" },
   olive: { background: "#6e7551", text: "#f6e7cf", caption: "BoothBop" },

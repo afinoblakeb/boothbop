@@ -4,6 +4,7 @@ import {
   type AutosaveSettings,
 } from "../lib/settings";
 import { Button, Callout, Heading, OverlayScreen, Toggle } from "../ui";
+import { LegalFooter } from "../components/LegalFooter";
 
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
 export function SettingsScreen({
@@ -105,6 +106,13 @@ export function SettingsScreen({
             your library.
           </p>
 
+          <button
+            onClick={onOpenIosSettings}
+            className="mt-3 font-sans text-xs text-warmgray underline"
+          >
+            Manage Photos permissions in iOS Settings →
+          </button>
+
           {error && (
             <Callout tone="error" className="mt-3 px-3 py-2">
               <p className="font-sans text-xs text-orange-dark">{error}</p>
@@ -120,6 +128,8 @@ export function SettingsScreen({
           )}
         </>
       )}
+
+      <LegalFooter className="mt-10 text-center" />
     </OverlayScreen>
   );
 }
