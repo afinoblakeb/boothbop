@@ -288,6 +288,46 @@ Contact: support@boothbop.com · Website: boothbop.com
 
 ---
 
+## Capacitor — done & the "when Xcode finishes" runbook
+
+**Done (web side, no Xcode needed):**
+
+- Capacitor 8 installed (`@capacitor/core`, `ios`, `cli`) + plugins
+  (`share`, `haptics`, `status-bar`, `splash-screen`)
+- `capacitor.config.ts` — `com.boothbop.app`, `webDir: dist`, **no `server.url`
+  (bundled assets only)**, brand background
+- npm scripts: `ios:sync`, `ios:open`, `ios`
+- R1 native-shell guard shipped (install/migration UI hidden in the native build)
+
+**Remaining — run once Xcode is installed (mostly [Me], then [You] in Xcode):**
+
+```bash
+# 1. CocoaPods (Capacitor iOS dependency manager)
+brew install cocoapods        # or: sudo gem install cocoapods
+
+# 2. Generate the native iOS project (creates ios/, runs pod install)
+npx cap add ios
+
+# 3. App icons + splash from the brand art (generates the iOS icon set)
+npx @capacitor/assets generate --ios
+
+# 4. Build the web app, copy it into the native project, open Xcode
+npm run ios
+```
+
+Then, **in Xcode [You]:** select Signing & Capabilities → your Team (Apple ID) →
+plug in your iPhone → press Run. First run: on the iPhone, trust the developer
+cert under Settings → General → VPN & Device Management.
+
+**Still to do in the native project (after `cap add ios`):**
+
+- `ios/App/App/Info.plist`: add `NSCameraUsageDescription` (and
+  `NSPhotoLibraryAddUsageDescription` if saving to Photos) +
+  `ITSAppUsesNonExemptEncryption = NO`
+- R4: route Save/Share through `@capacitor/share` (web `navigator.share` is
+  unreliable in WKWebView); add haptics on capture (R3 native feel)
+- R3/R5: verify camera + video on the real device (the on-device must-checks)
+
 ## Build notes (Phase 2)
 
 - **`NSCameraUsageDescription`** — e.g. "BoothBop uses the camera to take your
