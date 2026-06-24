@@ -453,7 +453,14 @@ export default function App() {
     }
     setAutosaveStatus("Setting up Photos access…");
     try {
-      const result = await ensurePhotosPermission(settings.dest);
+      // Race a timeout: if the native plugin isn't compiled in, the bridge call
+      // hangs forever with no error. Surface that instead of an endless spinner.
+      const result = await Promise.race([
+        ensurePhotosPermission(settings.dest),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error("__timeout__")), 8000),
+        ),
+      ]);
       console.log("[BoothBop] ensureAutosaveReady: permission =", result);
       if (result === "denied") {
         setAutosaveStatus(
@@ -467,8 +474,11 @@ export default function App() {
         );
       }
     } catch (e) {
+      const m = e instanceof Error ? e.message : String(e);
       setAutosaveStatus(
-        `Couldn't set up auto-save: ${e instanceof Error ? e.message : String(e)}`,
+        m === "__timeout__"
+          ? "Photos didn't respond — the Media plugin isn't built into this app yet. A full clean rebuild is needed."
+          : `Couldn't set up auto-save: ${m}`,
       );
     }
   }
