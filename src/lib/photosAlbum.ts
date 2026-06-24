@@ -17,7 +17,9 @@ let albumId: string | null = null;
 let albumPromise: Promise<string> | null = null;
 
 async function loadMedia(): Promise<MediaPlugin> {
+  console.log("[BoothBop] loadMedia: importing @capacitor-community/media…");
   const { Media } = await import("@capacitor-community/media");
+  console.log("[BoothBop] loadMedia: imported, Media =", typeof Media);
   return Media;
 }
 
@@ -43,11 +45,15 @@ async function ensureAlbum(Media: MediaPlugin): Promise<string> {
   const find = (albums: MediaAlbum[]) =>
     albums.find((a) => a.name === ALBUM_NAME)?.identifier;
   albumPromise = (async () => {
+    console.log("[BoothBop] ensureAlbum: calling Media.getAlbums()…");
     let id = find((await Media.getAlbums()).albums);
+    console.log("[BoothBop] ensureAlbum: existing album id =", id);
     if (!id) {
+      console.log("[BoothBop] ensureAlbum: creating album…");
       await Media.createAlbum({ name: ALBUM_NAME });
       // createAlbum resolves void on iOS — re-query to read the new identifier.
       id = find((await Media.getAlbums()).albums);
+      console.log("[BoothBop] ensureAlbum: created, new id =", id);
     }
     if (!id) throw new Error("could not resolve BoothBop album");
     albumId = id;

@@ -441,12 +441,20 @@ export default function App() {
   // prompt) the first time it's needed. Reports status/errors to the Settings
   // screen so a failure is never silent.
   async function ensureAutosaveReady(settings: AutosaveSettings) {
+    console.log(
+      "[BoothBop] ensureAutosaveReady: native=",
+      isNativeShell(),
+      "settings=",
+      JSON.stringify(settings),
+    );
     if (!isNativeShell() || !anyAutosaveOn(settings)) {
       setAutosaveStatus(null);
       return;
     }
+    setAutosaveStatus("Setting up Photos access…");
     try {
       const result = await ensurePhotosPermission(settings.dest);
+      console.log("[BoothBop] ensureAutosaveReady: permission =", result);
       if (result === "denied") {
         setAutosaveStatus(
           "Photos access is off — allow it in iOS Settings ▸ BoothBop ▸ Photos.",
@@ -616,6 +624,7 @@ export default function App() {
             onOpenGallery={() => setShowGallery(true)}
             installPrompt={installPrompt}
             error={error}
+            autosaveStatus={autosaveStatus}
           />
         ))}
 
@@ -732,11 +741,13 @@ function IdleScreen({
   onOpenGallery,
   installPrompt,
   error,
+  autosaveStatus,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
+  autosaveStatus: string | null;
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -746,6 +757,12 @@ function IdleScreen({
         Your phone is the photo booth. Tap the button, strike four poses, and
         grab your photo strip!
       </p>
+
+      {autosaveStatus && (
+        <p className="mt-3 max-w-xs border-2 border-ink/30 bg-paper px-3 py-2 font-sans text-xs text-ink">
+          Auto-save: {autosaveStatus}
+        </p>
+      )}
 
       <button
         onClick={onStart}
