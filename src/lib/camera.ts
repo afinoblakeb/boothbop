@@ -58,3 +58,36 @@ export function captureSquareFrame(
   ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
   return canvas;
 }
+
+export const CAMERA_MSG =
+  "BoothBop requires camera permission. Please try again.";
+
+/** Friendly message for a getUserMedia failure. */
+export function cameraError(e: unknown): string {
+  const name = (e as Error)?.name;
+  if (name === "NotAllowedError" || name === "SecurityError") return CAMERA_MSG;
+  if (name === "NotFoundError" || name === "OverconstrainedError") {
+    return "No camera found on this device.";
+  }
+  if (name === "NotReadableError") {
+    return "The camera is in use by another app. Close it and try again.";
+  }
+  return "Couldn't access the camera. Please try again.";
+}
+
+/** Resolve once the video has real pixels (so we never capture black). */
+export function videoReady(
+  video: HTMLVideoElement,
+  timeoutMs = 2500,
+): Promise<boolean> {
+  if (video.videoWidth > 0) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const deadline = Date.now() + timeoutMs;
+    const tick = () => {
+      if (video.videoWidth > 0) return resolve(true);
+      if (Date.now() > deadline) return resolve(false);
+      requestAnimationFrame(tick);
+    };
+    tick();
+  });
+}

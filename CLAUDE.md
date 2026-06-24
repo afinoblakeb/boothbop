@@ -65,23 +65,36 @@ export a **photo strip (PNG)**, **animated GIF**, or **looping video**. No
 backend, no accounts, no uploads — privacy is the product. Deploys to GitHub
 Pages on push to `main`.
 
-**`src/App.tsx` is the entire UI** — one stateful `App` component plus
-presentational sub-components in the same file. It's driven by a **4-phase state
-machine**:
+**`src/App.tsx` is the orchestrator** — it owns the state machine + capture/media
+flow and wires the screens together; it renders, but holds no screen markup
+itself. It's driven by a **4-phase state machine**:
 
 ```
 idle ──openCamera──▶ preview ──runSequence──▶ capturing ──▶ review
   ▲                     │                         │            │
   └──────── cancelToHome / failToHome ◀───────────┴────────────┘
-GalleryScreen is an overlay, orthogonal to phase.
+Gallery and Settings are overlays, orthogonal to phase.
 ```
+
+**Where things live:**
+
+| Path                        | What                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `App.tsx`                   | the orchestrator: phase state machine, capture/encode/share flow, screen wiring                                          |
+| `screens/`                  | one file per screen — `IdleScreen`, `CameraScreen`, `ReviewScreen`, `GalleryScreen`, `SettingsScreen`, `MigrationScreen` |
+| `components/`               | shared widgets — `TopBar`, `InstallCard`                                                                                 |
+| `hooks/`                    | `useAutosave` — auto-save settings + Photos-permission logic (see `docs/PERMISSIONS.md`)                                 |
+| `ui.tsx`                    | shared presentational atoms: `btnPrimary`/`btnSecondary` styles, the `Toggle` switch                                     |
+| `types.ts` · `constants.ts` | shared UI types (`Phase`, `Format`) and constants (`SHOTS`, `LOGO`)                                                      |
+| `lib/`                      | all real, React-free logic (see below)                                                                                   |
 
 - `runSequence()` (in App.tsx) is the heart: the 4-shot capture loop
   (countdown → flash → `captureSquareFrame` → push canvas to `frames[]`). An
   `abortRef` lets cancel / permission-loss bail out mid-sequence. On completion
   it stops the camera and auto-saves the session to IndexedDB (best-effort).
 - All real logic lives in **pure, React-free modules under `src/lib/`**. Keep it
-  that way: new logic goes in `src/lib/` with a unit test; `App.tsx` orchestrates.
+  that way: new logic goes in `src/lib/` with a unit test; screens are
+  presentational; `App.tsx` orchestrates.
 
 **`src/lib/` modules:**
 

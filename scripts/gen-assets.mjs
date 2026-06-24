@@ -123,10 +123,13 @@ async function watermark() {
     raw: { width: info.width, height: info.height, channels: ch },
   })
     .trim()
-    .resize({ width: 640 })
-    .png({ palette: true, effort: 10 })
+    // Full-colour (NOT palette) so the logo's anti-aliased edges stay crisp when
+    // composited onto the strip / GIF / video. Higher res gives headroom for the
+    // larger draws. (Palette quantization here was softening the strip + GIF.)
+    .resize({ width: 960 })
+    .png({ compressionLevel: 9 })
     .toFile(`${OUT}/watermark.png`);
-  console.log("wrote watermark.png");
+  console.log("wrote watermark.png (full-colour, w=960)");
 }
 
 await icon(512, "icon-512.png");

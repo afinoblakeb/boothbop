@@ -42,7 +42,7 @@ export async function encodeVideo(
   {
     size = 720,
     frameMs = 600,
-    loops = 3,
+    loops = 2,
     watermark = true,
     watermarkImg = null,
   }: VideoOptions = {},
@@ -80,16 +80,33 @@ export async function encodeVideo(
 
   recorder.start();
 
-  // Cycle through the frames a few times so the clip reads as a loop.
+  // Stretch guard: MediaRecorder is wall-clock timed, but a backgrounded app
+  // freezes the canvas and throttles timers — which would otherwise produce a
+  // tens-of-seconds clip of a frozen frame. Stop the instant we're hidden, and
+  // cap the total duration as a backstop.
+  let stopped = false;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (recorder.state !== "inactive") recorder.stop();
+  };
+  const onHidden = () => {
+    if (document.visibilityState === "hidden") stop();
+  };
+  document.addEventListener("visibilitychange", onHidden);
+  const deadline = setTimeout(stop, loops * frames.length * frameMs + 1500);
+
   const sequence: HTMLCanvasElement[] = [];
   for (let l = 0; l < loops; l++) sequence.push(...frames);
-
   for (const frame of sequence) {
+    if (stopped) break;
     draw(frame);
     await wait(frameMs);
   }
 
-  recorder.stop();
+  clearTimeout(deadline);
+  document.removeEventListener("visibilitychange", onHidden);
+  stop();
   return done;
 }
 

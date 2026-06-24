@@ -16,6 +16,11 @@ export default defineConfig({
       // Ship a fresh service worker automatically on each deploy (applies on
       // next close/reopen of the installed app).
       registerType: "autoUpdate",
+      // Registration is done manually in src/main.tsx so it can be skipped in
+      // the native (Capacitor) WKWebView shell, where a service worker is moot
+      // and only causes stale-asset/console noise. (null = no auto-injected
+      // registerSW script.)
+      injectRegister: null,
       // Static icons that aren't fingerprinted, so they must be precached too.
       includeAssets: ["apple-touch-icon.png", "favicon-32.png"],
       manifest: {
