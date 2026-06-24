@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { canShareFiles, isIOS, probeShareFiles } from "./platform";
+import {
+  canShareFiles,
+  isIOS,
+  isNativeShell,
+  probeShareFiles,
+} from "./platform";
 
 /** Replace navigator for one test; restored automatically in afterEach. */
 function stubNavigator(nav: Partial<Navigator>) {
@@ -7,6 +12,26 @@ function stubNavigator(nav: Partial<Navigator>) {
 }
 
 afterEach(() => vi.unstubAllGlobals());
+
+describe("isNativeShell", () => {
+  it("is false in a plain web browser (no Capacitor)", () => {
+    expect(isNativeShell()).toBe(false);
+  });
+
+  it("is true when Capacitor reports a native platform", () => {
+    vi.stubGlobal("window", {
+      Capacitor: { isNativePlatform: () => true },
+    });
+    expect(isNativeShell()).toBe(true);
+  });
+
+  it("is false when Capacitor reports web", () => {
+    vi.stubGlobal("window", {
+      Capacitor: { isNativePlatform: () => false },
+    });
+    expect(isNativeShell()).toBe(false);
+  });
+});
 
 describe("isIOS", () => {
   it("is true for an iPhone user agent", () => {

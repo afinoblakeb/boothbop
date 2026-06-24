@@ -3,7 +3,12 @@ import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
 import { composeStrip, THEMES, type Layout } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported } from "./lib/video";
-import { canShareFiles, isIOS, probeShareFiles } from "./lib/platform";
+import {
+  canShareFiles,
+  isIOS,
+  isNativeShell,
+  probeShareFiles,
+} from "./lib/platform";
 import {
   blobToCanvas,
   canvasToBlob,
@@ -111,7 +116,9 @@ export default function App() {
   const [migrationDismissed, setMigrationDismissed] = useState(
     () => localStorage.getItem("bb.migrationDismissed") === "1",
   );
-  const showMigration = migrated && !migrationDismissed;
+  // Never show the install nudge or the PhotoBlast migration landing inside the
+  // native App Store build — both point users to the web/PWA, which Apple rejects.
+  const showMigration = migrated && !migrationDismissed && !isNativeShell();
   function dismissMigration() {
     localStorage.setItem("bb.migrationDismissed", "1");
     setMigrationDismissed(true);
@@ -634,7 +641,9 @@ function InstallCard({
 }) {
   const [showSteps, setShowSteps] = useState(false);
 
-  if (isStandalone()) return null; // already installed — don't nag
+  // Hide in the native app (it's installed via the App Store — no "add to home
+  // screen / no app store" nudge allowed) and when already a standalone PWA.
+  if (isNativeShell() || isStandalone()) return null;
 
   async function oneTapInstall() {
     if (!installPrompt) return;
