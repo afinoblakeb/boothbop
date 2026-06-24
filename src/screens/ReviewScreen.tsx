@@ -8,6 +8,7 @@ import {
   SectionLabel,
   SegmentedControl,
 } from "../ui";
+import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
 
 // Human-readable names for the strip color themes (for screen readers — the
@@ -102,7 +103,7 @@ export function ReviewScreen({
             controls
           />
         ) : previewUrl ? (
-          <img
+          <ZoomableImage
             src={previewUrl}
             alt={`Your ${format}`}
             className="max-h-full w-auto border-2 border-ink"
