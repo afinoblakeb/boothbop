@@ -1,4 +1,5 @@
 // Compose the 4 captured frames into a downloadable photo strip.
+import { loadWatermark } from "./watermark";
 
 export type Layout = "4x1" | "2x2";
 
@@ -157,5 +158,23 @@ function formatDate(d: Date): string {
     year: "numeric",
     month: "short",
     day: "numeric",
+  });
+}
+
+/**
+ * Compose the strip and encode it as a PNG blob, loading the brand logo for the
+ * footer. The one-stop helper the UI uses to get a shareable/savable strip.
+ */
+export async function stripBlob(
+  frames: HTMLCanvasElement[],
+  layout: Layout,
+  theme: StripTheme,
+): Promise<Blob> {
+  const logo = await loadWatermark();
+  return new Promise((resolve, reject) => {
+    composeStrip(frames, layout, theme, logo).toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
+      "image/png",
+    );
   });
 }

@@ -1,0 +1,127 @@
+import type { RefObject } from "react";
+import { BrandIcon } from "../icons";
+import { btnPrimary } from "../ui";
+import { SHOTS } from "../constants";
+import type { Phase } from "../types";
+
+// Vintage countdown: Ready (teal) → Set (mustard) → Go (orange).
+const COUNTDOWN_COLOR: Record<number, string> = {
+  3: "var(--color-teal)",
+  2: "var(--color-mustard)",
+  1: "var(--color-orange)",
+};
+
+/** Live camera + countdown + filling photo slots, with the shutter controls. */
+export function CameraScreen({
+  videoRef,
+  phase,
+  countdown,
+  flash,
+  thumbs,
+  delay,
+  setDelay,
+  onStart,
+}: {
+  videoRef: RefObject<HTMLVideoElement | null>;
+  phase: Phase;
+  countdown: number | null;
+  flash: boolean;
+  thumbs: string[];
+  delay: number;
+  setDelay: (n: number) => void;
+  onStart: () => void;
+}) {
+  return (
+    <div className="flex flex-1 flex-col py-4">
+      <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
+        <video
+          ref={videoRef}
+          playsInline
+          muted
+          autoPlay
+          className="h-full w-full -scale-x-100 object-cover"
+        />
+
+        {phase === "capturing" && (
+          <div className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 font-display text-lg uppercase tracking-wide text-ink">
+            <span className="pulse inline-block h-2.5 w-2.5 rounded-full bg-orange" />
+            {thumbs.length}/{SHOTS}
+          </div>
+        )}
+
+        {countdown !== null && (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span
+              key={countdown}
+              className="countpop font-display text-[14rem] leading-none"
+              style={{
+                color: COUNTDOWN_COLOR[countdown] ?? "var(--color-orange)",
+                WebkitTextStroke: "5px var(--color-ink)",
+                paintOrder: "stroke fill",
+              }}
+            >
+              {countdown}
+            </span>
+          </div>
+        )}
+
+        {flash && <div className="flash absolute inset-0 bg-white" />}
+      </div>
+
+      {/* Filling photo slots */}
+      <div className="mt-4 grid grid-cols-4 gap-2">
+        {Array.from({ length: SHOTS }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-square overflow-hidden border-2 border-ink bg-paper"
+          >
+            {thumbs[i] && (
+              <img
+                src={thumbs[i]}
+                alt={`Shot ${i + 1}`}
+                className="h-full w-full object-cover"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-auto pt-4 text-center">
+        {phase === "preview" ? (
+          <>
+            <div className="mb-3 flex items-center justify-center gap-2">
+              <span className="font-display text-lg uppercase tracking-wide text-brown">
+                Countdown
+              </span>
+              <div className="flex divide-x-2 divide-ink border-2 border-ink">
+                {[1, 2, 3].map((n) => (
+                  <button
+                    key={n}
+                    onClick={() => setDelay(n)}
+                    aria-pressed={delay === n}
+                    className={`flex min-h-[44px] items-center justify-center px-4 py-2.5 font-display text-lg uppercase ${
+                      delay === n ? "bg-orange text-cream" : "bg-paper text-ink"
+                    }`}
+                  >
+                    {n}s
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              onClick={onStart}
+              className={`w-full px-6 py-3.5 text-2xl ${btnPrimary}`}
+            >
+              <BrandIcon name="camera" className="h-8 w-8" />
+              Take Photos
+            </button>
+          </>
+        ) : (
+          <p className="font-display text-3xl uppercase tracking-wide text-orange">
+            Strike a pose!
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
