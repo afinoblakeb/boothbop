@@ -27,6 +27,7 @@ import {
   TrashIcon,
 } from "./icons";
 import { loadWatermark } from "./lib/watermark";
+import { nativeShareFile } from "./lib/nativeShare";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
 type Format = "strip" | "gif" | "video";
@@ -88,6 +89,15 @@ export default function App() {
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
+
+  // Native app: hide the launch splash as soon as React has mounted, rather
+  // than letting it auto-hide on a timeout (which logs a warning).
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    import("@capacitor/splash-screen").then(({ SplashScreen }) => {
+      SplashScreen.hide().catch(() => {});
+    });
+  }, []);
 
   // Detect arrival from the retired PhotoBlast app — its migration page links to
   // boothbop.com/?from=photoblast. Persist it so the welcome-back guidance
@@ -382,6 +392,20 @@ export default function App() {
   async function shareMedia(blob: Blob, filename: string) {
     setError(null);
     setNote(null);
+
+    // Native app: use the Capacitor share sheet, which (unlike Web Share in a
+    // WKWebView) offers "Save Image" / "Save Video" to the Photos library.
+    if (isNativeShell()) {
+      try {
+        await nativeShareFile(blob, filename);
+      } catch (e) {
+        const msg = (e as Error)?.message ?? "";
+        if (/cancel/i.test(msg)) setNote("Share canceled.");
+        else setError("Couldn't open the share sheet.");
+      }
+      return;
+    }
+
     const file = new File([blob], filename, { type: blob.type });
 
     if (!canShareFiles(file)) {
