@@ -76,6 +76,10 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+  // The horizontal BoothBop logo drawn in the strip footer (same mark as the
+  // GIF/video watermark). Loaded once; the strip shows the text wordmark until
+  // it's ready, then re-renders with the logo.
+  const [brandLogo, setBrandLogo] = useState<HTMLImageElement | null>(null);
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
@@ -89,6 +93,10 @@ export default function App() {
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
+  // Preload the strip-footer logo.
+  useEffect(() => {
+    loadWatermark().then(setBrandLogo);
+  }, []);
 
   // Native app: hide the launch splash as soon as React has mounted, rather
   // than letting it auto-hide on a timeout (which logs a warning).
@@ -310,10 +318,10 @@ export default function App() {
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(frames, layout, THEMES[themeKey]).toDataURL(
+    return composeStrip(frames, layout, THEMES[themeKey], brandLogo).toDataURL(
       "image/png",
     );
-  }, [frames, layout, themeKey]);
+  }, [frames, layout, themeKey, brandLogo]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
@@ -1173,13 +1181,14 @@ function Cover({
 
 /* ----------------------------------------------------------------- helpers */
 
-function stripBlob(
+async function stripBlob(
   frames: HTMLCanvasElement[],
   layout: Layout,
   theme: (typeof THEMES)[keyof typeof THEMES],
 ): Promise<Blob> {
+  const logo = await loadWatermark();
   return new Promise((resolve, reject) => {
-    composeStrip(frames, layout, theme).toBlob(
+    composeStrip(frames, layout, theme, logo).toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
       "image/png",
     );
