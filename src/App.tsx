@@ -22,11 +22,23 @@ import {
 import {
   BrandIcon,
   DownloadIcon,
+  GearIcon,
   RefreshIcon,
   ShareIcon,
   TrashIcon,
 } from "./icons";
 import { loadWatermark } from "./lib/watermark";
+import {
+  loadAutosave,
+  planAutosaveTasks,
+  saveAutosaveDest,
+  saveAutosaveFormat,
+  type AutosaveDest,
+  type AutosaveFormat,
+  type AutosaveSettings,
+  type AutosaveTask,
+} from "./lib/settings";
+import { ensurePhotosPermission, saveToPhotos } from "./lib/photosAlbum";
 import { nativeShareFile } from "./lib/nativeShare";
 
 type Phase = "idle" | "preview" | "capturing" | "review";
@@ -80,6 +92,13 @@ export default function App() {
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
   const [brandLogo, setBrandLogo] = useState<HTMLImageElement | null>(null);
+
+  // Auto-save-to-Photos settings (native iOS feature; opt-in, persisted).
+  const [autosave, setAutosave] = useState<AutosaveSettings>(loadAutosave);
+  const [showSettings, setShowSettings] = useState(false);
+  const [autosaveTipSeen, setAutosaveTipSeen] = useState(
+    () => localStorage.getItem("bb.autosave.tipSeen") === "1",
+  );
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
@@ -289,6 +308,9 @@ export default function App() {
       /* storage is best-effort — never block the flow on it */
     }
 
+    // Native: auto-save the enabled formats to Photos in the background.
+    void autoSaveToAlbum(captured, autosave);
+
     setFormat("strip");
     setPhase("review");
   }
@@ -376,6 +398,84 @@ export default function App() {
     }
   }
 
+  // ---- Auto-save to Photos (native iOS) -----------------------------------
+
+  function openSettings() {
+    setShowSettings(true);
+    dismissAutosaveTip();
+  }
+
+  function dismissAutosaveTip() {
+    if (autosaveTipSeen) return;
+    localStorage.setItem("bb.autosave.tipSeen", "1");
+    setAutosaveTipSeen(true);
+  }
+
+  function changeAutosaveDest(dest: AutosaveDest) {
+    saveAutosaveDest(dest);
+    setAutosave((s) => ({ ...s, dest }));
+  }
+
+  // Turning a format on may surface that the user declined Photos access — in
+  // which case we revert the toggle so it never lies about its state.
+  async function toggleAutosaveFormat(format: AutosaveFormat, on: boolean) {
+    saveAutosaveFormat(format, on);
+    setAutosave((s) => ({ ...s, [format]: on }));
+    if (!on || !isNativeShell()) return;
+    if ((await ensurePhotosPermission(autosave.dest)) === "denied") {
+      saveAutosaveFormat(format, false);
+      setAutosave((s) => ({ ...s, [format]: false }));
+      setNote(
+        "Photos access is off — turn it on in Settings ▸ BoothBop ▸ Photos.",
+      );
+    }
+  }
+
+  // Encode one format's blob for auto-saving. Independent of the review-screen
+  // encoders — this is opt-in background work, so a rare double-encode (if the
+  // user also opens that tab) is acceptable.
+  async function renderForAutosave(
+    captured: HTMLCanvasElement[],
+    task: AutosaveTask,
+  ): Promise<Blob> {
+    if (task.layout) return stripBlob(captured, task.layout, THEMES[themeKey]);
+    const watermarkImg = await loadWatermark();
+    if (task.format === "gif") return encodeGif(captured, { watermarkImg });
+    const { blob } = await encodeVideo(captured, { watermarkImg });
+    return blob;
+  }
+
+  // Fire-and-forget after a capture: save the enabled formats to Photos. Best-
+  // effort throughout — never blocks or breaks the capture/review flow.
+  async function autoSaveToAlbum(
+    captured: HTMLCanvasElement[],
+    settings: AutosaveSettings,
+  ) {
+    if (!isNativeShell()) return;
+    const tasks = planAutosaveTasks(settings, {
+      videoSupported: isVideoSupported(),
+    });
+    if (!tasks.length) return;
+    if ((await ensurePhotosPermission(settings.dest)) === "denied") return;
+
+    let savedAny = false;
+    for (const task of tasks) {
+      try {
+        const blob = await renderForAutosave(captured, task);
+        if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
+      } catch {
+        /* per-task best-effort; never break the flow */
+      }
+    }
+    if (savedAny) {
+      setNote(
+        settings.dest === "album"
+          ? "Saved to your BoothBop album"
+          : "Saved to Photos",
+      );
+    }
+  }
+
   // Resolve the blob + filename for whatever format is currently shown.
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
@@ -454,7 +554,8 @@ export default function App() {
       <TopBar
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}
-        showAlbum={phase !== "capturing" && !showMigration}
+        onSettings={openSettings}
+        showActions={phase !== "capturing" && !showMigration}
       />
 
       {phase === "idle" &&
@@ -495,6 +596,9 @@ export default function App() {
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
+          autosaveTip={isNativeShell() && !autosaveTipSeen}
+          onOpenSettings={openSettings}
+          onDismissTip={dismissAutosaveTip}
           onShare={shareCurrent}
           onDownload={downloadCurrent}
           onRetake={retake}
@@ -507,6 +611,17 @@ export default function App() {
           onOpen={openSession}
         />
       )}
+
+      {showSettings && (
+        <SettingsScreen
+          settings={autosave}
+          native={isNativeShell()}
+          videoSupported={isVideoSupported()}
+          onDest={changeAutosaveDest}
+          onToggle={toggleAutosaveFormat}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
     </div>
   );
 }
@@ -516,11 +631,13 @@ export default function App() {
 function TopBar({
   onHome,
   onAlbum,
-  showAlbum,
+  onSettings,
+  showActions,
 }: {
   onHome: () => void;
   onAlbum: () => void;
-  showAlbum: boolean;
+  onSettings: () => void;
+  showActions: boolean;
 }) {
   return (
     <header className="sticky top-0 z-30 -mx-4 flex items-center justify-between border-b-2 border-ink bg-cream px-4 py-2">
@@ -531,14 +648,23 @@ function TopBar({
       >
         Booth<span className="text-orange">Bop</span>
       </button>
-      {showAlbum && (
-        <button
-          onClick={onAlbum}
-          className="inline-flex items-center gap-1.5 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
-        >
-          <BrandIcon name="gallery" className="h-5 w-5" />
-          My Photos
-        </button>
+      {showActions && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onAlbum}
+            className="inline-flex items-center gap-1.5 border-2 border-ink bg-paper px-3 py-1 font-display text-lg uppercase tracking-wide text-ink transition active:translate-y-px active:bg-cream"
+          >
+            <BrandIcon name="gallery" className="h-5 w-5" />
+            My Photos
+          </button>
+          <button
+            onClick={onSettings}
+            aria-label="Settings"
+            className="inline-flex items-center border-2 border-ink bg-paper p-1.5 text-ink transition active:translate-y-px active:bg-cream"
+          >
+            <GearIcon className="h-5 w-5" />
+          </button>
+        </div>
       )}
     </header>
   );
@@ -887,6 +1013,9 @@ function ReviewScreen({
   error,
   note,
   shareFilesOk,
+  autosaveTip,
+  onOpenSettings,
+  onDismissTip,
   onShare,
   onDownload,
   onRetake,
@@ -902,6 +1031,9 @@ function ReviewScreen({
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
+  autosaveTip: boolean;
+  onOpenSettings: () => void;
+  onDismissTip: () => void;
   onShare: () => void;
   onDownload: () => void;
   onRetake: () => void;
@@ -1007,6 +1139,28 @@ function ReviewScreen({
         </p>
       )}
 
+      {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
+      {autosaveTip && (
+        <div className="mt-4 flex w-full items-center gap-2 border-2 border-teal bg-teal/10 px-3 py-2 text-left">
+          <p className="flex-1 font-sans text-xs text-ink">
+            New: auto-save your photos to a BoothBop album.{" "}
+            <button
+              onClick={onOpenSettings}
+              className="font-semibold text-teal underline"
+            >
+              Open Settings
+            </button>
+          </p>
+          <button
+            onClick={onDismissTip}
+            aria-label="Dismiss"
+            className="px-1 text-lg leading-none text-brown"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Actions: one dominant primary, clear secondaries */}
       {shareFilesOk ? (
         <>
@@ -1060,6 +1214,142 @@ function ReviewScreen({
         </p>
       )}
     </div>
+  );
+}
+
+function SettingsScreen({
+  settings,
+  native,
+  videoSupported,
+  onDest,
+  onToggle,
+  onClose,
+}: {
+  settings: AutosaveSettings;
+  native: boolean;
+  videoSupported: boolean;
+  onDest: (dest: AutosaveDest) => void;
+  onToggle: (format: AutosaveFormat, on: boolean) => void;
+  onClose: () => void;
+}) {
+  const formats: { key: AutosaveFormat; label: string; disabled?: boolean }[] =
+    [
+      { key: "strip", label: "Photo strip" },
+      { key: "grid", label: "Grid (2×2)" },
+      { key: "gif", label: "Animated GIF" },
+      { key: "video", label: "Looping video", disabled: !videoSupported },
+    ];
+
+  return (
+    <div className="fixed inset-0 z-40 overflow-y-auto bg-cream text-ink">
+      <div className="mx-auto max-w-md px-4 pb-10 pt-[calc(env(safe-area-inset-top)+1rem)]">
+        <div className="flex items-center justify-between">
+          <h2 className="font-display text-4xl uppercase tracking-wide">
+            Settings
+          </h2>
+          <button onClick={onClose} className="px-2 text-2xl text-brown">
+            ✕
+          </button>
+        </div>
+
+        <h3 className="mt-6 font-display text-2xl uppercase tracking-wide">
+          Auto-save to Photos
+        </h3>
+        <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+          Save your booth creations to the iOS Photos app automatically.
+        </p>
+
+        {!native ? (
+          <p className="mt-4 border-2 border-ink/30 bg-paper px-4 py-3 font-sans text-sm text-brown">
+            Available in the BoothBop iOS app.
+          </p>
+        ) : (
+          <>
+            <div className="mt-4">
+              <p className="font-display text-lg uppercase tracking-wide text-brown">
+                Save to
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {(["album", "cameraRoll"] as AutosaveDest[]).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => onDest(d)}
+                    aria-pressed={settings.dest === d}
+                    className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                      settings.dest === d
+                        ? "bg-orange text-cream"
+                        : "bg-paper text-ink"
+                    }`}
+                  >
+                    {d === "album" ? "BoothBop album" : "Camera roll"}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1 font-sans text-xs text-warmgray">
+                {settings.dest === "album"
+                  ? "Creates a dedicated “BoothBop” album. Needs full Photos access — we only ever add to that album."
+                  : "Saves into your main camera roll."}
+              </p>
+            </div>
+
+            <ul className="mt-5 divide-y-2 divide-ink/10 border-2 border-ink bg-paper">
+              {formats.map((f) => (
+                <li
+                  key={f.key}
+                  className="flex items-center justify-between px-4 py-3"
+                >
+                  <span
+                    className={`font-display text-xl uppercase tracking-wide ${
+                      f.disabled ? "text-warmgray" : "text-ink"
+                    }`}
+                  >
+                    {f.label}
+                  </span>
+                  <Toggle
+                    on={settings[f.key]}
+                    disabled={f.disabled}
+                    onChange={(v) => onToggle(f.key, v)}
+                  />
+                </li>
+              ))}
+            </ul>
+            <p className="mt-3 font-sans text-xs text-warmgray">
+              BoothBop only adds your own creations — it never reads or uploads
+              your library.
+            </p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Small brand-styled on/off switch. */
+function Toggle({
+  on,
+  disabled,
+  onChange,
+}: {
+  on: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={on}
+      disabled={disabled}
+      onClick={() => onChange(!on)}
+      className={`relative h-7 w-12 shrink-0 border-2 border-ink transition disabled:opacity-40 ${
+        on ? "bg-orange" : "bg-cream"
+      }`}
+    >
+      <span
+        className={`absolute top-0.5 h-5 w-5 bg-ink transition-all ${
+          on ? "left-[1.375rem]" : "left-0.5"
+        }`}
+      />
+    </button>
   );
 }
 

@@ -30,6 +30,8 @@
 	<string>BoothBop uses the camera to take your photo-booth pictures.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>BoothBop saves your photo strips, GIFs, and videos to your Photos library.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>BoothBop creates a dedicated album and saves your photo strips, GIFs, and videos to your Photos library. It only adds your own creations and never reads or uploads your library.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
