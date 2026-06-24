@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { captureSquareFrame, startCamera, stopCamera } from "./lib/camera";
-import { composeStrip, THEMES, type Layout } from "./lib/strip";
+import {
+  composeStrip,
+  THEMES,
+  type Layout,
+  type StripTheme,
+} from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported, type VideoResult } from "./lib/video";
 import {
@@ -113,7 +118,6 @@ export default function App() {
   useEffect(() => {
     if (isNativeShell()) void applyAutosave(loadAutosave(), false);
     // applyAutosave only touches stable setters; a one-time run is right.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // GIF/video blobs for the current capture, encoded at most once and shared by
@@ -123,14 +127,20 @@ export default function App() {
     video?: Promise<VideoResult>;
   }>({});
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
-    return (mediaCache.current.gif ??= loadWatermark().then((watermarkImg) =>
-      encodeGif(src, { watermarkImg }),
-    ));
+    return (mediaCache.current.gif ??= loadWatermark()
+      .then((watermarkImg) => encodeGif(src, { watermarkImg }))
+      .catch((e) => {
+        mediaCache.current.gif = undefined; // let a re-tap retry
+        throw e;
+      }));
   }
   function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
-    return (mediaCache.current.video ??= loadWatermark().then((watermarkImg) =>
-      encodeVideo(src, { watermarkImg }),
-    ));
+    return (mediaCache.current.video ??= loadWatermark()
+      .then((watermarkImg) => encodeVideo(src, { watermarkImg }))
+      .catch((e) => {
+        mediaCache.current.video = undefined; // let a re-tap retry
+        throw e;
+      }));
   }
 
   // Shutter delay (seconds counted down before each shot), persisted.
@@ -518,7 +528,12 @@ export default function App() {
     } catch {
       status = "denied";
     }
-    if (status === "granted") {
+    // The album needs FULL access; the camera roll is fine with add-only, where
+    // "limited" (Select Photos) still allows adding.
+    const ok =
+      status === "granted" ||
+      (next.dest === "cameraRoll" && status === "limited");
+    if (ok) {
       setAutosaveError(null);
       return;
     }
@@ -545,8 +560,9 @@ export default function App() {
   async function renderForAutosave(
     src: HTMLCanvasElement[],
     task: AutosaveTask,
+    theme: StripTheme,
   ): Promise<Blob> {
-    if (task.layout) return stripBlob(src, task.layout, THEMES[themeKey]);
+    if (task.layout) return stripBlob(src, task.layout, theme);
     if (task.format === "gif") return getGifBlob(src);
     return (await getVideoResult(src)).blob;
   }
@@ -572,10 +588,13 @@ export default function App() {
     }
     if (status !== "granted") return;
 
+    // Snapshot the theme so a set saved over a few seconds stays consistent even
+    // if the user changes the color on the review screen mid-save.
+    const theme = THEMES[themeKey];
     let savedAny = false;
     for (const task of tasks) {
       try {
-        const blob = await renderForAutosave(captured, task);
+        const blob = await renderForAutosave(captured, task, theme);
         if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
       } catch {
         /* per-task best-effort */
