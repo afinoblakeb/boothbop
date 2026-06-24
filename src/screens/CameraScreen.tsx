@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
 import { BrandIcon } from "../icons";
-import { Button, SegmentedControl } from "../ui";
+import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
 import type { Phase } from "../types";
 
@@ -43,10 +43,14 @@ export function CameraScreen({
         />
 
         {phase === "capturing" && (
-          <div className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 font-display text-lg uppercase tracking-wide text-ink">
+          <Heading
+            as="div"
+            size="sm"
+            className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 text-ink"
+          >
             <span className="pulse inline-block h-2.5 w-2.5 rounded-full bg-orange" />
             {thumbs.length}/{SHOTS}
-          </div>
+          </Heading>
         )}
 
         {countdown !== null && (
@@ -90,9 +94,9 @@ export function CameraScreen({
         {phase === "preview" ? (
           <>
             <div className="mb-3 flex items-center justify-center gap-2">
-              <span className="font-display text-lg uppercase tracking-wide text-brown">
+              <Heading as="span" size="sm" className="text-brown">
                 Countdown
-              </span>
+              </Heading>
               <SegmentedControl
                 label="Countdown seconds"
                 value={delay}
@@ -111,9 +115,9 @@ export function CameraScreen({
             </Button>
           </>
         ) : (
-          <p className="font-display text-3xl uppercase tracking-wide text-orange">
+          <Heading as="p" size="xl" className="text-orange">
             Strike a pose!
-          </p>
+          </Heading>
         )}
       </div>
     </div>

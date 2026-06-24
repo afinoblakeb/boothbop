@@ -1,6 +1,6 @@
 import { isNativeShell } from "../lib/platform";
 import { BrandIcon } from "../icons";
-import { Button } from "../ui";
+import { Button, Callout } from "../ui";
 import { LOGO } from "../constants";
 import { InstallCard } from "../components/InstallCard";
 import type { InstallPromptEvent } from "../types";
@@ -84,9 +84,13 @@ export function IdleScreen({
       </p>
 
       {error && (
-        <p className="mt-6 max-w-xs border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
+        <Callout
+          as="p"
+          tone="error"
+          className="mt-6 max-w-xs px-4 py-3 font-sans text-sm text-orange-dark"
+        >
           {error}
-        </p>
+        </Callout>
       )}
     </div>
   );

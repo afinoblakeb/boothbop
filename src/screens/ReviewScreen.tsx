@@ -1,7 +1,13 @@
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
 import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
-import { Button, IconButton, SegmentedControl } from "../ui";
+import {
+  Button,
+  Callout,
+  IconButton,
+  SectionLabel,
+  SegmentedControl,
+} from "../ui";
 import type { Format } from "../types";
 
 // Human-readable names for the strip color themes (for screen readers — the
@@ -108,9 +114,7 @@ export function ReviewScreen({
       {format === "strip" ? (
         <>
           <div className="mt-4">
-            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
-              Layout
-            </p>
+            <SectionLabel className="mb-1 text-center">Layout</SectionLabel>
             <SegmentedControl
               className="mx-auto"
               label="Strip layout"
@@ -125,9 +129,7 @@ export function ReviewScreen({
           </div>
 
           <div className="mt-3">
-            <p className="mb-1 text-center font-sans text-xs font-bold uppercase tracking-widest text-warmgray">
-              Color
-            </p>
+            <SectionLabel className="mb-1 text-center">Color</SectionLabel>
             <div className="flex justify-center gap-3">
               {Object.entries(THEMES).map(([key, theme]) => (
                 <button
@@ -154,7 +156,10 @@ export function ReviewScreen({
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
       {autosaveTip && (
-        <div className="mt-4 flex w-full items-center gap-2 border-2 border-teal bg-teal/10 px-3 py-2 text-left">
+        <Callout
+          tone="info"
+          className="mt-4 flex w-full items-center gap-2 px-3 py-2 text-left"
+        >
           <p className="flex-1 font-sans text-xs text-ink">
             New: auto-save your photos to a BoothBop album.{" "}
             <button
@@ -171,7 +176,7 @@ export function ReviewScreen({
           >
             ✕
           </IconButton>
-        </div>
+        </Callout>
       )}
 
       {/* Actions: one dominant primary, clear secondaries */}
@@ -220,9 +225,13 @@ export function ReviewScreen({
       </p>
 
       {error && (
-        <p className="mt-4 border-2 border-orange-dark bg-orange/10 px-4 py-3 font-sans text-sm text-orange-dark">
+        <Callout
+          as="p"
+          tone="error"
+          className="mt-4 px-4 py-3 font-sans text-sm text-orange-dark"
+        >
           {error}
-        </p>
+        </Callout>
       )}
     </div>
   );
