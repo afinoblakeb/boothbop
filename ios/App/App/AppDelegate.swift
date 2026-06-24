@@ -1,6 +1,7 @@
 import UIKit
 import Capacitor
 import Photos
+import AVFoundation
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -186,10 +187,147 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
-// Custom bridge VC: registers our local plugin in code so it never depends on
+// MARK: - BoothBopVideo: assemble the 4 photos into an MP4 natively
+//
+// The web MediaRecorder/captureStream path records in real time (~5s) and is
+// unreliable in the iOS WKWebView (it tends to only finish on a user gesture).
+// AVAssetWriter encodes the held frames directly — sub-second, reliable, and
+// any resolution — so the looping video is ready the instant capture finishes.
+// Frames arrive already scaled + watermarked from JS (the paid-tier watermark
+// flag stays in JS); this plugin only muxes them. Registered in code below.
+@objc(BoothBopVideo)
+public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "BoothBopVideo"
+    public let jsName = "BoothBopVideo"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "make", returnType: CAPPluginReturnPromise)
+    ]
+
+    private enum VideoError: Error { case decode, writer, append }
+
+    // make({ images: [base64 jpeg], size, bitrate, frameMs, loops, fps }) -> { base64 }
+    @objc func make(_ call: CAPPluginCall) {
+        let images = call.getArray("images", String.self) ?? []
+        guard !images.isEmpty else {
+            return call.reject("No frames provided", "argumentError")
+        }
+        let size = call.getInt("size") ?? 720
+        let bitrate = call.getInt("bitrate") ?? 6_000_000
+        let frameMs = call.getInt("frameMs") ?? 600
+        let loops = max(1, call.getInt("loops") ?? 2)
+        let fps = max(1, call.getInt("fps") ?? 30)
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let data = try self.renderMP4(
+                    images: images, size: size, bitrate: bitrate,
+                    frameMs: frameMs, loops: loops, fps: fps)
+                call.resolve(["base64": data.base64EncodedString()])
+            } catch {
+                call.reject("Video render failed: \(error.localizedDescription)", "renderError")
+            }
+        }
+    }
+
+    private func renderMP4(
+        images: [String], size: Int, bitrate: Int,
+        frameMs: Int, loops: Int, fps: Int
+    ) throws -> Data {
+        let outURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("boothbop-\(UUID().uuidString).mp4")
+        try? FileManager.default.removeItem(at: outURL)
+
+        let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+        let settings: [String: Any] = [
+            AVVideoCodecKey: AVVideoCodecType.h264,
+            AVVideoWidthKey: size,
+            AVVideoHeightKey: size,
+            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate]
+        ]
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
+        input.expectsMediaDataInRealTime = false
+        let attrs: [String: Any] = [
+            kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
+            kCVPixelBufferWidthKey as String: size,
+            kCVPixelBufferHeightKey as String: size
+        ]
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input, sourcePixelBufferAttributes: attrs)
+        guard writer.canAdd(input) else { throw VideoError.writer }
+        writer.add(input)
+        guard writer.startWriting() else { throw writer.error ?? VideoError.writer }
+        writer.startSession(atSourceTime: .zero)
+
+        // Decode each frame to a pixel buffer once, then hold it for its slot.
+        let buffers = try images.map { try self.pixelBuffer(fromBase64: $0, size: size) }
+        let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
+        let timescale = CMTimeScale(fps)
+        var frameIndex: Int64 = 0
+
+        for _ in 0..<loops {
+            for buffer in buffers {
+                for _ in 0..<framesPerPhoto {
+                    while !input.isReadyForMoreMediaData { usleep(2000) }
+                    let time = CMTime(value: frameIndex, timescale: timescale)
+                    if !adaptor.append(buffer, withPresentationTime: time) {
+                        throw writer.error ?? VideoError.append
+                    }
+                    frameIndex += 1
+                }
+            }
+        }
+
+        input.markAsFinished()
+        let sem = DispatchSemaphore(value: 0)
+        writer.finishWriting { sem.signal() }
+        sem.wait()
+        guard writer.status == .completed else { throw writer.error ?? VideoError.writer }
+
+        let data = try Data(contentsOf: outURL)
+        try? FileManager.default.removeItem(at: outURL)
+        return data
+    }
+
+    private func pixelBuffer(fromBase64 base64: String, size: Int) throws -> CVPixelBuffer {
+        // Tolerate an optional "data:...;base64," prefix.
+        let raw = base64.contains(",") ? String(base64.split(separator: ",").last ?? "") : base64
+        guard let data = Data(base64Encoded: raw),
+              let image = UIImage(data: data)?.cgImage else {
+            throw VideoError.decode
+        }
+
+        let attrs: [String: Any] = [
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
+        ]
+        var pb: CVPixelBuffer?
+        let status = CVPixelBufferCreate(
+            kCFAllocatorDefault, size, size,
+            kCVPixelFormatType_32BGRA, attrs as CFDictionary, &pb)
+        guard status == kCVReturnSuccess, let buffer = pb else { throw VideoError.decode }
+
+        CVPixelBufferLockBaseAddress(buffer, [])
+        defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
+        guard let ctx = CGContext(
+            data: CVPixelBufferGetBaseAddress(buffer),
+            width: size, height: size,
+            bitsPerComponent: 8,
+            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                | CGBitmapInfo.byteOrder32Little.rawValue
+        ) else { throw VideoError.decode }
+
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: size, height: size))
+        return buffer
+    }
+}
+
+// Custom bridge VC: registers our local plugins in code so they never depend on
 // the SPM auto-registration path that failed for the third-party plugin.
 class BridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(BoothBopPhotos())
+        bridge?.registerPluginInstance(BoothBopVideo())
     }
 }

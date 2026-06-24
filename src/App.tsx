@@ -16,6 +16,7 @@ import {
 } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
 import { encodeVideo, isVideoSupported, type VideoResult } from "./lib/video";
+import { encodeVideoNative } from "./lib/videoNative";
 import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
@@ -132,9 +133,13 @@ export default function App() {
   }
   function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
     return (mediaCache.current.video ??= loadWatermark()
-      .then((watermarkImg) =>
-        encodeVideo(src, { watermarkImg, ...VIDEO_PROFILE[quality.video] }),
-      )
+      .then((watermarkImg) => {
+        const opts = { watermarkImg, ...VIDEO_PROFILE[quality.video] };
+        // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
+        return isNativeShell()
+          ? encodeVideoNative(src, opts)
+          : encodeVideo(src, opts);
+      })
       .catch((e) => {
         mediaCache.current.video = undefined; // let a re-tap retry
         throw e;

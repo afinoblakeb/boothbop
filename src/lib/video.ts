@@ -1,5 +1,7 @@
 // Record the 4 frames into a short looping video via canvas + MediaRecorder.
+// (On native iOS the AVAssetWriter plugin is preferred — see videoNative.ts.)
 import { drawWatermark } from "./watermark";
+import { isNativeShell } from "./platform";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
@@ -30,12 +32,18 @@ export function pickMimeType(): { mimeType: string; extension: string } | null {
   return null;
 }
 
-export function isVideoSupported(): boolean {
+function webVideoSupported(): boolean {
   return (
     typeof MediaRecorder !== "undefined" &&
     typeof HTMLCanvasElement.prototype.captureStream === "function" &&
     pickMimeType() !== null
   );
+}
+
+export function isVideoSupported(): boolean {
+  // Native iOS always supports video via the AVAssetWriter plugin; the web path
+  // depends on MediaRecorder + canvas.captureStream.
+  return isNativeShell() || webVideoSupported();
 }
 
 export async function encodeVideo(
