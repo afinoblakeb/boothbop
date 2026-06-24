@@ -3,6 +3,22 @@
 // Rule of thumb: drive *behaviour* off feature detection (can we share files?)
 // and use platform detection only to tailor *instructions/copy*.
 
+/**
+ * True when running inside the native app shell (Capacitor), as opposed to a
+ * web browser. Capacitor injects `window.Capacitor` and exposes
+ * `isNativePlatform()`. Use this to hide web-only UI — install/"Add to Home
+ * Screen" prompts, the PhotoBlast migration landing — that must NOT appear in
+ * the App Store build (Apple rejects apps that point users off-platform).
+ * Do NOT use `isStandalone()` for this: a Capacitor WKWebView does not report
+ * `display-mode: standalone`.
+ */
+export function isNativeShell(): boolean {
+  const w = window as Window & {
+    Capacitor?: { isNativePlatform?: () => boolean };
+  };
+  return w.Capacitor?.isNativePlatform?.() === true;
+}
+
 /** True for iPhone/iPad (including iPadOS, which masquerades as macOS). */
 export function isIOS(): boolean {
   const ua = navigator.userAgent || "";
