@@ -90,6 +90,15 @@ export default function App() {
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
 
+  // Native app: hide the launch splash as soon as React has mounted, rather
+  // than letting it auto-hide on a timeout (which logs a warning).
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    import("@capacitor/splash-screen").then(({ SplashScreen }) => {
+      SplashScreen.hide().catch(() => {});
+    });
+  }, []);
+
   // Detect arrival from the retired PhotoBlast app — its migration page links to
   // boothbop.com/?from=photoblast. Persist it so the welcome-back guidance
   // survives reloads until they've installed BoothBop.

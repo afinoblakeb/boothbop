@@ -6,6 +6,22 @@ BoothBop is developed entirely by AI agents (Claude + Codex). This file and
 the verification loop below are the contract that keeps that safe: make a
 change, then prove it with `npm run check` before considering the work done.
 
+## Quality bar — pristine, zero noise
+
+This project holds a **high quality bar**. Treat every warning and error as a
+defect to fix — **never dismiss it as "noise."** Apple/iOS strictness is a
+feature; match it.
+
+- `npm run check` stays green: 0 type/lint/test failures, **0 warnings**.
+- The Xcode build and the on-device console should be clean. When something
+  logs a warning, **eliminate the cause** (call `SplashScreen.hide()` when
+  ready, adopt the UIScene lifecycle, don't register the service worker in the
+  native shell, remove unreferenced assets) — don't explain it away.
+- When triaging device logs, attribute **every** line to its source: fix
+  anything our code emits; the rest is iOS/WebKit system output (LaunchServices
+  `LSD`, `WebContent`, CoreMedia) present in every app — name it precisely, never
+  hand-wave it.
+
 ## The verification loop (run this after every change)
 
 ```bash

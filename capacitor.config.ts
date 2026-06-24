@@ -3,6 +3,9 @@ import type { CapacitorConfig } from "@capacitor/cli";
 const config: CapacitorConfig = {
   appId: "com.boothbop.app",
   appName: "BoothBop",
+  // Keep the console clean — no Capacitor bridge call logging. (These were
+  // debug-only and never shipped, but we hold a zero-noise bar.)
+  loggingBehavior: "none",
   // The built web app. There is deliberately NO `server.url` here: the native
   // app loads only these bundled assets (capacitor://localhost) and never points
   // the web view at a remote website. This is core to passing App Store
