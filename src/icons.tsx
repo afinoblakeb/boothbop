@@ -84,6 +84,20 @@ export const RefreshIcon = ({ className }: { className?: string }) => (
   </Svg>
 );
 
+export const SlidersIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <path d="M4 6h9" />
+    <path d="M17 6h3" />
+    <circle cx="15" cy="6" r="2" />
+    <path d="M4 12h3" />
+    <path d="M11 12h9" />
+    <circle cx="9" cy="12" r="2" />
+    <path d="M4 18h11" />
+    <path d="M19 18h1" />
+    <circle cx="17" cy="18" r="2" />
+  </Svg>
+);
+
 export const ArrowLeftIcon = ({ className }: { className?: string }) => (
   <Svg className={className}>
     <path d="M19 12H5" />
