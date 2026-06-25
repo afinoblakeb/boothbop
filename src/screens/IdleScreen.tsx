@@ -9,11 +9,15 @@ import type { InstallPromptEvent } from "../types";
 export function IdleScreen({
   onStart,
   onOpenGallery,
+  demoSets = [],
+  onStartDemo,
   installPrompt,
   error,
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
+  demoSets?: readonly { id: number; label: string }[];
+  onStartDemo?: (setNum: number) => void;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
 }) {
@@ -52,6 +56,21 @@ export function IdleScreen({
           <BrandIcon name="gallery" className="h-8 w-8" />
           My Photos
         </Button>
+
+        {demoSets.length > 0 && onStartDemo && (
+          <div className="mt-3 grid w-full max-w-xs grid-cols-3 gap-2">
+            {demoSets.map((set) => (
+              <button
+                key={set.id}
+                onClick={() => onStartDemo(set.id)}
+                aria-label={`Start ${set.label} demo shoot`}
+                className="border-2 border-ink bg-paper px-2 py-2 font-display text-sm uppercase tracking-wide text-ink transition active:translate-y-px"
+              >
+                Demo {set.id}
+              </button>
+            ))}
+          </div>
+        )}
 
         <InstallCard installPrompt={installPrompt} />
 

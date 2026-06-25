@@ -18,6 +18,7 @@ export function CameraScreen({
   videoRef,
   phase,
   retakeIndex,
+  demoPreviewUrl,
   countdown,
   flash,
   thumbs,
@@ -32,6 +33,7 @@ export function CameraScreen({
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
   retakeIndex: number | null;
+  demoPreviewUrl: string | null;
   countdown: number | null;
   flash: boolean;
   thumbs: string[];
@@ -43,16 +45,26 @@ export function CameraScreen({
   onToggleMirror: () => void;
   onStart: () => void;
 }) {
+  const isDemo = demoPreviewUrl !== null;
   return (
     <div className="flex flex-1 flex-col py-4">
       <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className={`h-full w-full object-cover ${mirrorPreview ? "-scale-x-100" : ""}`}
-        />
+        {demoPreviewUrl ? (
+          <img
+            src={demoPreviewUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className={`h-full w-full object-cover ${mirrorPreview ? "-scale-x-100" : ""}`}
+          />
+        )}
 
         {phase === "capturing" && (
           <Heading
@@ -105,23 +117,33 @@ export function CameraScreen({
       <div className="mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
-            <div className="mb-3 grid grid-cols-2 gap-2">
-              <button
-                onClick={onToggleFacing}
-                className="border-2 border-ink bg-paper px-3 py-2 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+            {isDemo ? (
+              <Heading
+                as="p"
+                size="sm"
+                className="mb-3 border-2 border-ink bg-paper px-3 py-2 text-ink"
               >
-                {cameraFacing === "user" ? "Front" : "Back"}
-              </button>
-              <button
-                onClick={onToggleMirror}
-                aria-pressed={mirrorPreview}
-                className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
-                  mirrorPreview ? "bg-teal text-cream" : "bg-paper text-ink"
-                }`}
-              >
-                Mirror
-              </button>
-            </div>
+                Demo Camera
+              </Heading>
+            ) : (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <button
+                  onClick={onToggleFacing}
+                  className="border-2 border-ink bg-paper px-3 py-2 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+                >
+                  {cameraFacing === "user" ? "Front" : "Back"}
+                </button>
+                <button
+                  onClick={onToggleMirror}
+                  aria-pressed={mirrorPreview}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    mirrorPreview ? "bg-teal text-cream" : "bg-paper text-ink"
+                  }`}
+                >
+                  Mirror
+                </button>
+              </div>
+            )}
             <div className="mb-3 flex items-center justify-center gap-2">
               <Heading as="span" size="sm" className="text-brown">
                 Countdown
@@ -140,7 +162,9 @@ export function CameraScreen({
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
               {retakeIndex === null
-                ? "Take Photos"
+                ? isDemo
+                  ? "Run Demo Shoot"
+                  : "Take Photos"
                 : `Retake Shot ${retakeIndex + 1}`}
             </Button>
           </>

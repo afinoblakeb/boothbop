@@ -81,6 +81,11 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 // Screenshot mode: a flag-gated sample loader (see lib/demo.ts) for producing
 // App Store screenshots without a camera. Off in the submission build.
 const DEMO = import.meta.env.DEV || import.meta.env.VITE_DEMO === "1";
+const DEMO_SETS = [
+  { id: 1, label: "Birthday" },
+  { id: 2, label: "Night Out" },
+  { id: 3, label: "Friends" },
+] as const;
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -88,6 +93,11 @@ export default function App() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
+  const [demoSetNum, setDemoSetNum] = useState<number | null>(null);
+  const [demoCameraFrames, setDemoCameraFrames] = useState<
+    HTMLCanvasElement[] | null
+  >(null);
+  const [demoPreviewIndex, setDemoPreviewIndex] = useState(0);
   const [layout, setLayout] = useState<Layout>("4x1");
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
@@ -451,6 +461,9 @@ export default function App() {
   }: { preserveFrames?: boolean; retake?: number | null } = {}) {
     setError(null);
     abortRef.current = false;
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
     setRetakeIndex(retake);
     try {
       const stream = await startCamera(cameraFacing);
@@ -467,6 +480,35 @@ export default function App() {
     }
   }
 
+  async function openDemoCamera(setNum: number) {
+    if (!DEMO) return;
+    setError(null);
+    setNote(null);
+    abortRef.current = false;
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const { loadSampleFrames } = await import("./lib/demo");
+      const canvases = await loadSampleFrames(
+        setNum,
+        PHOTO_CAPTURE[quality.photo],
+      );
+      clearResults();
+      setDemoSetNum(setNum);
+      setDemoCameraFrames(canvases);
+      setDemoPreviewIndex(0);
+      setRetakeIndex(null);
+      setFrames([]);
+      setFormat("strip");
+      setPhase("preview");
+    } catch {
+      setDemoSetNum(null);
+      setDemoCameraFrames(null);
+      setError(`Couldn't load demo set ${setNum}.`);
+      setPhase("idle");
+    }
+  }
+
   // Stop everything and go back to the start screen.
   function cancelToHome() {
     abortRef.current = true;
@@ -475,12 +517,20 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
     setRetakeIndex(null);
     setError(null);
     setPhase("idle");
   }
 
   async function runSequence() {
+    if (demoCameraFrames) {
+      await runDemoSequence(demoCameraFrames);
+      return;
+    }
+
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
     if (!video || !(await videoReady(video))) {
@@ -573,6 +623,69 @@ export default function App() {
     setPhase("review");
   }
 
+  async function runDemoSequence(src: HTMLCanvasElement[]) {
+    abortRef.current = false;
+    setPhase("capturing");
+    clearResults();
+    const shotToReplace = retakeIndex;
+    if (shotToReplace !== null) {
+      setDemoPreviewIndex(shotToReplace);
+      await wait(400);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      setFlash(true);
+      const frame = src[shotToReplace];
+      const next = frames.map((existing, i) =>
+        i === shotToReplace ? frame : existing,
+      );
+      setFrames(next);
+      await wait(240);
+      setFlash(false);
+      setRetakeIndex(null);
+      pregenerate(next);
+      setFormat("strip");
+      setPhase("review");
+      return;
+    }
+
+    const captured: HTMLCanvasElement[] = [];
+    setFrames([]);
+    await wait(400);
+
+    for (let shot = 0; shot < SHOTS; shot++) {
+      setDemoPreviewIndex(shot);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      setFlash(true);
+      const frame = src[shot];
+      captured.push(frame);
+      setFrames([...captured]);
+      await wait(240);
+      setFlash(false);
+      setDemoPreviewIndex(Math.min(shot + 1, SHOTS - 1));
+      if (shot < SHOTS - 1) await wait(750);
+    }
+
+    pregenerate(captured);
+    setNote("Demo shoot complete.");
+    setFormat("strip");
+    setPhase("review");
+  }
+
   // Warm the GIF/video cache and populate the review results so switching tabs
   // is instant. Best-effort; never throws into the capture flow.
   function pregenerate(src: HTMLCanvasElement[]) {
@@ -620,6 +733,10 @@ export default function App() {
   }
 
   function retake() {
+    if (demoSetNum !== null) {
+      void openDemoCamera(demoSetNum);
+      return;
+    }
     clearResults();
     setFrames([]);
     setFormat("strip");
@@ -627,28 +744,17 @@ export default function App() {
   }
 
   function retakeShot(index: number) {
+    if (demoCameraFrames) {
+      clearResults();
+      setDemoPreviewIndex(index);
+      setRetakeIndex(index);
+      setFormat("strip");
+      setPhase("preview");
+      return;
+    }
     clearResults();
     setFormat("strip");
     openCamera({ preserveFrames: true, retake: index });
-  }
-
-  // Screenshot mode: inject a staged set of photos as the four frames and jump
-  // straight to review, rendering a real strip/GIF/video. Gated by DEMO.
-  async function loadSampleSession(setNum: number) {
-    setError(null);
-    try {
-      const { loadSampleFrames } = await import("./lib/demo");
-      const canvases = await loadSampleFrames(
-        setNum,
-        PHOTO_CAPTURE[quality.photo],
-      );
-      clearResults();
-      setFrames(canvases);
-      setFormat("strip");
-      setPhase("review");
-    } catch {
-      setError(`Couldn't load demo set ${setNum}.`);
-    }
   }
 
   // Reopen a saved session in the review screen so the user can get the strip,
@@ -657,6 +763,9 @@ export default function App() {
     clearResults();
     setError(null);
     setNote(null);
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
     const canvases = await Promise.all(
       session.photos.map((b) => blobToCanvas(b)),
     );
@@ -691,6 +800,11 @@ export default function App() {
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
     [frames],
   );
+  const demoPreviewUrl = useMemo(() => {
+    if (!demoCameraFrames || phase === "review") return null;
+    const frame = demoCameraFrames[demoPreviewIndex];
+    return frame ? frame.toDataURL("image/jpeg", 0.82) : null;
+  }, [demoCameraFrames, demoPreviewIndex, phase]);
 
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
@@ -937,6 +1051,8 @@ export default function App() {
           <IdleScreen
             onStart={openCamera}
             onOpenGallery={() => setShowGallery(true)}
+            demoSets={DEMO ? DEMO_SETS : []}
+            onStartDemo={(setNum) => void openDemoCamera(setNum)}
             installPrompt={installPrompt}
             error={error}
           />
@@ -947,6 +1063,7 @@ export default function App() {
           videoRef={videoRef}
           phase={phase}
           retakeIndex={retakeIndex}
+          demoPreviewUrl={demoPreviewUrl}
           countdown={countdown}
           flash={flash}
           thumbs={thumbs}
@@ -1014,20 +1131,6 @@ export default function App() {
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />
-      )}
-
-      {DEMO && phase === "idle" && !showMigration && (
-        <div className="fixed bottom-2 left-2 z-50 flex gap-1">
-          {[1, 2, 3].map((n) => (
-            <button
-              key={n}
-              onClick={() => loadSampleSession(n)}
-              className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
-            >
-              Demo {n}
-            </button>
-          ))}
-        </div>
       )}
     </div>
   );
