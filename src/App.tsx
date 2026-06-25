@@ -70,6 +70,7 @@ import {
   STICKERS,
   loadFilter,
   loadSticker,
+  renderFrame,
   saveFilter,
   saveSticker,
   type FilterKey,
@@ -1275,6 +1276,13 @@ export default function App() {
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
+  function renderedShot(frame: HTMLCanvasElement): HTMLCanvasElement {
+    return renderFrame(frame, PHOTO_CAPTURE[quality.photo], {
+      filter,
+      sticker,
+    });
+  }
+
   // Best-effort native haptic. No-ops on web; never blocks or throws into the flow.
   async function tapHaptic(style: "Medium" | "Light" = "Medium") {
     if (!isNativeShell()) return;
@@ -1417,6 +1425,18 @@ export default function App() {
           kind: "video",
         });
       }
+      const shots = await Promise.all(
+        frames.map((frame) =>
+          canvasToBlob(renderedShot(frame), "image/jpeg", 0.92),
+        ),
+      );
+      results.push(
+        ...shots.map((blob, index) => ({
+          blob,
+          filename: `boothbop-shot-${index + 1}-${stampNow}.jpg`,
+          kind: "image" as const,
+        })),
+      );
 
       if (isNativeShell()) {
         const status = await ensurePhotosPermission("cameraRoll", true);
