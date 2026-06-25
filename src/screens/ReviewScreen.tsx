@@ -1,7 +1,8 @@
 import { isVideoSupported } from "../lib/video";
+import { SESSION_TITLE_MAX } from "../lib/gallery";
 import { THEMES, type Layout } from "../lib/strip";
 import type { FilterDef, FilterKey } from "../lib/render";
-import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
+import { DownloadIcon, RefreshIcon, ShareIcon, StarIcon } from "../icons";
 import {
   Button,
   Callout,
@@ -39,12 +40,19 @@ export function ReviewScreen({
   error,
   note,
   shareFilesOk,
+  savingAll,
   thumbs,
+  sessionTitle,
+  sessionFavorite,
+  canManageSession,
   autosaveTip,
   onOpenSettings,
   onDismissTip,
   onShare,
   onDownload,
+  onSaveAll,
+  onSessionTitle,
+  onToggleFavorite,
   onRetake,
   onRetakeShot,
 }: {
@@ -62,12 +70,19 @@ export function ReviewScreen({
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
+  savingAll: boolean;
   thumbs: string[];
+  sessionTitle: string;
+  sessionFavorite: boolean;
+  canManageSession: boolean;
   autosaveTip: boolean;
   onOpenSettings: () => void;
   onDismissTip: () => void;
   onShare: () => void;
   onDownload: () => void;
+  onSaveAll: () => void;
+  onSessionTitle: (title: string) => void;
+  onToggleFavorite: () => void;
   onRetake: () => void;
   onRetakeShot: (index: number) => void;
 }) {
@@ -126,6 +141,31 @@ export function ReviewScreen({
           />
         ) : null}
       </div>
+
+      {canManageSession && (
+        <div className="mt-4 flex w-full items-end gap-2">
+          <label className="min-w-0 flex-1">
+            <SectionLabel className="mb-1">Session</SectionLabel>
+            <input
+              value={sessionTitle}
+              maxLength={SESSION_TITLE_MAX}
+              onChange={(e) => onSessionTitle(e.target.value)}
+              placeholder="Name this set"
+              className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+            />
+          </label>
+          <button
+            onClick={onToggleFavorite}
+            aria-label={sessionFavorite ? "Unfavorite" : "Favorite"}
+            aria-pressed={sessionFavorite}
+            className={`flex h-11 w-11 shrink-0 items-center justify-center border-2 border-ink transition active:translate-y-px ${
+              sessionFavorite ? "bg-mustard text-ink" : "bg-paper text-ink"
+            }`}
+          >
+            <StarIcon className="h-6 w-6" filled={sessionFavorite} />
+          </button>
+        </div>
+      )}
 
       <div className="mt-4 w-full">
         <SectionLabel className="mb-1 text-center">Look</SectionLabel>
@@ -265,6 +305,17 @@ export function ReviewScreen({
           {saveLabel}
         </Button>
       )}
+      <Button
+        variant="secondary"
+        size="md"
+        fullWidth
+        onClick={onSaveAll}
+        disabled={isBusy || savingAll || !previewUrl}
+        className="mt-3"
+      >
+        <DownloadIcon className="h-6 w-6" />
+        {savingAll ? "Saving All…" : "Save All"}
+      </Button>
       <Button
         variant="secondary"
         size="md"

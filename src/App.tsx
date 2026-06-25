@@ -22,8 +22,12 @@ import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
   canvasToBlob,
+  cleanSessionTitle,
   requestPersistence,
   saveSession,
+  SESSION_TITLE_MAX,
+  updateSessionMeta,
+  updateSessionPhotos,
   type Session,
 } from "./lib/gallery";
 import {
@@ -115,6 +119,10 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+  const [savingAll, setSavingAll] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionTitle, setSessionTitleState] = useState("");
+  const [sessionFavorite, setSessionFavorite] = useState(false);
 
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
@@ -161,6 +169,36 @@ export default function App() {
     dismissTip: dismissAutosaveTip,
     openSettings,
   } = useAutosave();
+
+  function clearActiveSession() {
+    setActiveSessionId(null);
+    setSessionTitleState("");
+    setSessionFavorite(false);
+  }
+
+  function activateSession(session: Session | null) {
+    if (!session) {
+      clearActiveSession();
+      return;
+    }
+    setActiveSessionId(session.id);
+    setSessionTitleState(session.title ?? "");
+    setSessionFavorite(session.favorite === true);
+  }
+
+  function changeSessionTitle(value: string) {
+    const next = value.slice(0, SESSION_TITLE_MAX);
+    setSessionTitleState(next);
+    if (!activeSessionId) return;
+    void updateSessionMeta(activeSessionId, { title: cleanSessionTitle(next) });
+  }
+
+  function toggleSessionFavorite() {
+    if (!activeSessionId) return;
+    const next = !sessionFavorite;
+    setSessionFavorite(next);
+    void updateSessionMeta(activeSessionId, { favorite: next });
+  }
 
   // Auto-dismiss the transient success/info note after a few seconds. The
   // cleanup cancels the prior timer whenever `note` changes or on unmount.
@@ -465,6 +503,7 @@ export default function App() {
     setDemoCameraFrames(null);
     setDemoPreviewIndex(0);
     setRetakeIndex(retake);
+    if (!preserveFrames) clearActiveSession();
     try {
       const stream = await startCamera(cameraFacing);
       streamRef.current = stream;
@@ -494,6 +533,7 @@ export default function App() {
         PHOTO_CAPTURE[quality.photo],
       );
       clearResults();
+      clearActiveSession();
       setDemoSetNum(setNum);
       setDemoCameraFrames(canvases);
       setDemoPreviewIndex(0);
@@ -517,6 +557,7 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    clearActiveSession();
     setDemoSetNum(null);
     setDemoCameraFrames(null);
     setDemoPreviewIndex(0);
@@ -568,6 +609,15 @@ export default function App() {
       stopCamera(streamRef.current);
       streamRef.current = null;
       setRetakeIndex(null);
+      if (activeSessionId) {
+        try {
+          const photos = await Promise.all(next.map((c) => canvasToBlob(c)));
+          const updated = await updateSessionPhotos(activeSessionId, photos);
+          activateSession(updated);
+        } catch {
+          /* gallery update is best-effort */
+        }
+      }
       pregenerate(next);
       setFormat("strip");
       setPhase("review");
@@ -607,8 +657,9 @@ export default function App() {
     // Auto-save this session to the private on-device gallery.
     try {
       const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      await saveSession(photos);
+      activateSession(await saveSession(photos));
     } catch {
+      clearActiveSession();
       /* storage is best-effort — never block the flow on it */
     }
 
@@ -766,6 +817,8 @@ export default function App() {
     setDemoSetNum(null);
     setDemoCameraFrames(null);
     setDemoPreviewIndex(0);
+    if (session.id.startsWith("demo-")) clearActiveSession();
+    else activateSession(session);
     const canvases = await Promise.all(
       session.photos.map((b) => blobToCanvas(b)),
     );
@@ -1026,6 +1079,76 @@ export default function App() {
     if (media) triggerDownload(media.blob, media.filename);
   }
 
+  async function saveAllCurrent() {
+    if (frames.length < SHOTS || savingAll) return;
+    setSavingAll(true);
+    setError(null);
+    setNote(null);
+    try {
+      const stampNow = stamp();
+      const strip = await stripBlob(frames, layout, THEMES[themeKey], {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: !isPro,
+        filter,
+        caption: stripCaption || undefined,
+      });
+      const gif = await getGifBlob(frames);
+      const boomerang = await getBoomerangBlob(frames);
+      const results: {
+        blob: Blob;
+        filename: string;
+        kind: "image" | "video";
+      }[] = [
+        {
+          blob: strip,
+          filename: `boothbop-strip-${stampNow}.png`,
+          kind: "image",
+        },
+        {
+          blob: gif,
+          filename: `boothbop-loop-${stampNow}.gif`,
+          kind: "image",
+        },
+        {
+          blob: boomerang,
+          filename: `boothbop-boomerang-${stampNow}.gif`,
+          kind: "image",
+        },
+      ];
+      if (isVideoSupported()) {
+        const { blob, extension } = await getVideoResult(frames);
+        results.push({
+          blob,
+          filename: `boothbop-video-${stampNow}.${extension}`,
+          kind: "video",
+        });
+      }
+
+      if (isNativeShell()) {
+        const status = await ensurePhotosPermission("cameraRoll", true);
+        if (status !== "granted" && status !== "limited") {
+          setError("Photos access is needed to save everything.");
+          return;
+        }
+        for (const media of results) {
+          await saveToPhotos(media.blob, media.kind, "cameraRoll");
+        }
+        setNote(`Saved ${results.length} files to Photos.`);
+        return;
+      }
+
+      for (const media of results) {
+        triggerDownload(media.blob, media.filename);
+        await wait(120);
+      }
+      setNote(`Downloaded ${results.length} files.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save everything.");
+    } finally {
+      setSavingAll(false);
+    }
+  }
+
   const previewUrl =
     format === "strip"
       ? stripUrl
@@ -1093,12 +1216,19 @@ export default function App() {
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
+          savingAll={savingAll}
           thumbs={thumbs}
+          sessionTitle={sessionTitle}
+          sessionFavorite={sessionFavorite}
+          canManageSession={activeSessionId !== null}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           onOpenSettings={openSettings}
           onDismissTip={dismissAutosaveTip}
           onShare={shareCurrent}
           onDownload={downloadCurrent}
+          onSaveAll={saveAllCurrent}
+          onSessionTitle={changeSessionTitle}
+          onToggleFavorite={toggleSessionFavorite}
           onRetake={retake}
           onRetakeShot={retakeShot}
         />

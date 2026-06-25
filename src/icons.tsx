@@ -84,6 +84,21 @@ export const RefreshIcon = ({ className }: { className?: string }) => (
   </Svg>
 );
 
+export const StarIcon = ({
+  className,
+  filled = false,
+}: {
+  className?: string;
+  filled?: boolean;
+}) => (
+  <Svg className={className}>
+    <path
+      fill={filled ? "currentColor" : "none"}
+      d="m12 3 2.8 5.7 6.3.9-4.6 4.5 1.1 6.3-5.6-3-5.6 3 1.1-6.3-4.6-4.5 6.3-.9z"
+    />
+  </Svg>
+);
+
 export const GearIcon = ({ className }: { className?: string }) => (
   <Svg className={className}>
     <circle cx="12" cy="12" r="3" />

@@ -3,9 +3,10 @@ import {
   clearSessions,
   deleteSession,
   listSessions,
+  updateSessionMeta,
   type Session,
 } from "../lib/gallery";
-import { BrandIcon, TrashIcon } from "../icons";
+import { BrandIcon, StarIcon, TrashIcon } from "../icons";
 import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 
 /** Full-screen overlay of past booth sessions; tap one to reopen it. */
@@ -33,6 +34,11 @@ export function GalleryScreen({
 
   async function remove(id: string) {
     await deleteSession(id);
+    reload();
+  }
+
+  async function favorite(session: Session) {
+    await updateSessionMeta(session.id, { favorite: !session.favorite });
     reload();
   }
 
@@ -80,6 +86,7 @@ export function GalleryScreen({
                       session={s}
                       onOpen={() => onOpen(s)}
                       onDelete={() => remove(s.id)}
+                      onFavorite={() => favorite(s)}
                       demo={isDemoSessionId(s.id)}
                     />
                   ))}
@@ -149,11 +156,13 @@ function Cover({
   session,
   onOpen,
   onDelete,
+  onFavorite,
   demo,
 }: {
   session: Session;
   onOpen: () => void;
   onDelete: () => void;
+  onFavorite: () => void;
   demo: boolean;
 }) {
   const [url, setUrl] = useState<string>();
@@ -174,15 +183,30 @@ function Cover({
         </span>
       </button>
       {!demo && (
-        <IconButton
-          aria-label="Delete"
-          onClick={onDelete}
-          className="absolute right-0 top-0"
-        >
-          <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
-            <TrashIcon className="h-4 w-4" />
-          </span>
-        </IconButton>
+        <>
+          <IconButton
+            aria-label={session.favorite ? "Unfavorite" : "Favorite"}
+            onClick={onFavorite}
+            className="absolute left-0 top-0"
+          >
+            <span
+              className={`flex h-7 w-7 items-center justify-center border-2 border-ink ${
+                session.favorite ? "bg-mustard text-ink" : "bg-cream text-ink"
+              }`}
+            >
+              <StarIcon className="h-4 w-4" filled={session.favorite} />
+            </span>
+          </IconButton>
+          <IconButton
+            aria-label="Delete"
+            onClick={onDelete}
+            className="absolute right-0 top-0"
+          >
+            <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
+              <TrashIcon className="h-4 w-4" />
+            </span>
+          </IconButton>
+        </>
       )}
     </div>
   );
