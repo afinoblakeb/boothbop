@@ -15,6 +15,7 @@ video exports, forever (it syncs across the buyer's devices via their Apple ID).
   by design (it's the strip's branding, not the removable watermark).
 
 ## How it behaves
+
 - Entitlement is re-checked from StoreKit on every launch (`refreshPro`), cached
   in `localStorage` (`bb.pro`) for instant UI, works offline.
 - Settings shows **Remove Watermark · $0.99** (real localized price) with a
@@ -23,6 +24,7 @@ video exports, forever (it syncs across the buyer's devices via their Apple ID).
 - On purchase/restore, the cached GIF/video are cleared so they re-encode clean.
 
 ## Test it in the Simulator (no App Store Connect needed)
+
 1. Open the project in Xcode → **Product → Scheme → Edit Scheme → Run →
    Options → StoreKit Configuration → select `BoothBop.storekit`.**
 2. Run on a simulator, open **Settings → Remove Watermark**, tap Buy — StoreKit's
@@ -31,6 +33,7 @@ video exports, forever (it syncs across the buyer's devices via their Apple ID).
 3. Reset state: Xcode → **Debug → StoreKit → Manage Transactions → delete.**
 
 ## Ship it — what you do in App Store Connect (one-time)
+
 1. **Agreements, Tax, and Banking** → accept the **Paid Applications** agreement
    and add banking + tax info. _IAPs don't work until this is active._
 2. Your app → **Monetization → In-App Purchases → (+)**:
