@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { BrandIcon } from "../icons";
 import { Button, Callout } from "../ui";
 import { LOGO } from "../constants";
@@ -9,6 +10,7 @@ import type { InstallPromptEvent } from "../types";
 export function IdleScreen({
   onStart,
   onOpenGallery,
+  onImportPhotos,
   demoSets = [],
   onStartDemo,
   installPrompt,
@@ -16,11 +18,14 @@ export function IdleScreen({
 }: {
   onStart: () => void;
   onOpenGallery: () => void;
+  onImportPhotos: (files: FileList) => void;
   demoSets?: readonly { id: number; label: string }[];
   onStartDemo?: (setNum: number) => void;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
 }) {
+  const importRef = useRef<HTMLInputElement>(null);
+
   return (
     <div className="flex flex-1 flex-col">
       <div className="flex flex-1 flex-col items-center justify-center text-center">
@@ -56,6 +61,30 @@ export function IdleScreen({
           <BrandIcon name="gallery" className="h-8 w-8" />
           My Photos
         </Button>
+
+        <Button
+          variant="secondary"
+          size="md"
+          fullWidth
+          onClick={() => importRef.current?.click()}
+          className="mt-3 max-w-xs"
+        >
+          <BrandIcon name="gallery" className="h-6 w-6" />
+          Import 4 Photos
+        </Button>
+        <input
+          ref={importRef}
+          type="file"
+          accept="image/*"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            if (e.currentTarget.files?.length) {
+              onImportPhotos(e.currentTarget.files);
+              e.currentTarget.value = "";
+            }
+          }}
+        />
 
         {demoSets.length > 0 && onStartDemo && (
           <div className="mt-3 grid w-full max-w-xs grid-cols-3 gap-2">

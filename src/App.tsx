@@ -60,6 +60,7 @@ import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
 import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
 import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
+import { loadImportedFrames } from "./lib/importPhotos";
 import {
   buyRemoveWatermark,
   getRemoveWatermarkProduct,
@@ -575,6 +576,39 @@ export default function App() {
       setDemoSetNum(null);
       setDemoCameraFrames(null);
       setError(`Couldn't load demo set ${setNum}.`);
+      setPhase("idle");
+    }
+  }
+
+  async function importPhotos(files: FileList | File[]) {
+    setError(null);
+    setNote(null);
+    abortRef.current = true;
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const canvases = await loadImportedFrames(
+        files,
+        PHOTO_CAPTURE[quality.photo],
+      );
+      clearResults();
+      setDemoSetNum(null);
+      setDemoCameraFrames(null);
+      setDemoPreviewIndex(0);
+      setRetakeIndex(null);
+      setFrames(canvases);
+      setFormat("strip");
+      setPhase("review");
+      try {
+        const photos = await Promise.all(canvases.map((c) => canvasToBlob(c)));
+        activateSession(await saveSession(photos));
+      } catch {
+        clearActiveSession();
+      }
+      pregenerate(canvases);
+      setNote("Imported 4 photos.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't import photos.");
       setPhase("idle");
     }
   }
@@ -1204,6 +1238,7 @@ export default function App() {
           <IdleScreen
             onStart={openCamera}
             onOpenGallery={() => setShowGallery(true)}
+            onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
             onStartDemo={(setNum) => void openDemoCamera(setNum)}
             installPrompt={installPrompt}
