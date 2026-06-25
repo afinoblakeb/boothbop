@@ -84,6 +84,20 @@ export const RefreshIcon = ({ className }: { className?: string }) => (
   </Svg>
 );
 
+export const ArrowLeftIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <path d="M19 12H5" />
+    <path d="m11 6-6 6 6 6" />
+  </Svg>
+);
+
+export const ArrowRightIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <path d="M5 12h14" />
+    <path d="m13 6 6 6-6 6" />
+  </Svg>
+);
+
 export const StarIcon = ({
   className,
   filled = false,

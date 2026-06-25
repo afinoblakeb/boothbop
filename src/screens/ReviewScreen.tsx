@@ -3,8 +3,16 @@ import { SESSION_TITLE_MAX } from "../lib/gallery";
 import { THEMES, type Layout } from "../lib/strip";
 import type { FilterDef, FilterKey } from "../lib/render";
 import type { StylePreset } from "../lib/templates";
+import type { MoveDirection } from "../lib/sequence";
 import { isPremiumFilter, isPremiumLayout } from "../lib/entitlements";
-import { DownloadIcon, RefreshIcon, ShareIcon, StarIcon } from "../icons";
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  DownloadIcon,
+  RefreshIcon,
+  ShareIcon,
+  StarIcon,
+} from "../icons";
 import {
   Button,
   Callout,
@@ -60,6 +68,7 @@ export function ReviewScreen({
   onToggleFavorite,
   onRetake,
   onRetakeShot,
+  onMoveShot,
 }: {
   format: Format;
   onSelectFormat: (f: Format) => void;
@@ -93,6 +102,7 @@ export function ReviewScreen({
   onToggleFavorite: () => void;
   onRetake: () => void;
   onRetakeShot: (index: number) => void;
+  onMoveShot: (index: number, direction: MoveDirection) => void;
 }) {
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
@@ -281,25 +291,46 @@ export function ReviewScreen({
       )}
 
       <div className="mt-4 w-full">
-        <SectionLabel className="mb-1 text-center">Retake</SectionLabel>
+        <SectionLabel className="mb-1 text-center">Shots</SectionLabel>
         <div className="grid grid-cols-4 gap-2">
           {thumbs.map((src, i) => (
-            <button
-              key={i}
-              onClick={() => onRetakeShot(i)}
-              className="group relative aspect-square overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
-              aria-label={`Retake shot ${i + 1}`}
-            >
-              <img
-                src={src}
-                alt=""
-                className="h-full w-full object-cover"
-                draggable={false}
-              />
-              <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
-                {i + 1}
-              </span>
-            </button>
+            <div key={i} className="min-w-0">
+              <button
+                onClick={() => onRetakeShot(i)}
+                className="group relative aspect-square w-full overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+                aria-label={`Retake shot ${i + 1}`}
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
+                <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
+                  {i + 1}
+                </span>
+              </button>
+              <div className="mt-1 grid grid-cols-2 gap-1">
+                <IconButton
+                  compact
+                  aria-label={`Move shot ${i + 1} earlier`}
+                  onClick={() => onMoveShot(i, -1)}
+                  disabled={i === 0}
+                  className="h-9 border-2 border-ink bg-paper text-ink transition disabled:opacity-35 active:translate-y-px disabled:active:translate-y-0"
+                >
+                  <ArrowLeftIcon className="h-4 w-4" />
+                </IconButton>
+                <IconButton
+                  compact
+                  aria-label={`Move shot ${i + 1} later`}
+                  onClick={() => onMoveShot(i, 1)}
+                  disabled={i === thumbs.length - 1}
+                  className="h-9 border-2 border-ink bg-paper text-ink transition disabled:opacity-35 active:translate-y-px disabled:active:translate-y-0"
+                >
+                  <ArrowRightIcon className="h-4 w-4" />
+                </IconButton>
+              </div>
+            </div>
           ))}
         </div>
       </div>

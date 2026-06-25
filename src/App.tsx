@@ -68,6 +68,7 @@ import { nativeShareFile } from "./lib/nativeShare";
 import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
 import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
 import { loadImportedFrames } from "./lib/importPhotos";
+import { moveItem, type MoveDirection } from "./lib/sequence";
 import {
   cleanStyleCaption,
   type SessionStyle,
@@ -1005,6 +1006,27 @@ export default function App() {
     openCamera({ preserveFrames: true, retake: index });
   }
 
+  function moveShot(index: number, direction: MoveDirection) {
+    clearResults();
+    setFormat("strip");
+    setFrames((current) => {
+      const next = moveItem(current, index, direction);
+      if (activeSessionId) void persistActivePhotos(next);
+      return next;
+    });
+  }
+
+  async function persistActivePhotos(next: HTMLCanvasElement[]) {
+    if (!activeSessionId) return;
+    try {
+      const photos = await Promise.all(next.map((c) => canvasToBlob(c)));
+      const updated = await updateSessionPhotos(activeSessionId, photos);
+      activateSession(updated);
+    } catch {
+      /* gallery update is best-effort */
+    }
+  }
+
   // Reopen a saved session in the review screen so the user can get the strip,
   // GIF, or video (and re-share) from any past shoot — not just the strip.
   async function openSession(session: Session) {
@@ -1463,6 +1485,7 @@ export default function App() {
           onToggleFavorite={toggleSessionFavorite}
           onRetake={retake}
           onRetakeShot={retakeShot}
+          onMoveShot={moveShot}
         />
       )}
 
