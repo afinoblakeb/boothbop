@@ -1,4 +1,4 @@
-import type { FilterKey } from "./render";
+import type { FilterKey, StickerKey } from "./render";
 import type { Layout } from "./strip";
 import { THEMES } from "./strip";
 
@@ -9,6 +9,7 @@ export interface StylePreset {
   layout: Layout;
   theme: keyof typeof THEMES;
   filter: FilterKey;
+  sticker: StickerKey;
 }
 
 export const STYLE_PRESETS = [
@@ -19,14 +20,16 @@ export const STYLE_PRESETS = [
     layout: "4x1",
     theme: "classic",
     filter: "none",
+    sticker: "none",
   },
   {
-    id: "party-grid",
-    label: "Party Grid",
+    id: "spark-grid",
+    label: "Spark Grid",
     pro: false,
     layout: "2x2",
     theme: "teal",
     filter: "warm",
+    sticker: "sparkles",
   },
   {
     id: "bw-strip",
@@ -35,6 +38,7 @@ export const STYLE_PRESETS = [
     layout: "4x1",
     theme: "carbon",
     filter: "mono",
+    sticker: "none",
   },
   {
     id: "story-glam",
@@ -43,6 +47,7 @@ export const STYLE_PRESETS = [
     layout: "story",
     theme: "rust",
     filter: "glam",
+    sticker: "hearts",
   },
   {
     id: "wedding-2x6",
@@ -51,6 +56,7 @@ export const STYLE_PRESETS = [
     layout: "2x6",
     theme: "mustard",
     filter: "warm",
+    sticker: "hearts",
   },
   {
     id: "retro-4x6",
@@ -59,6 +65,7 @@ export const STYLE_PRESETS = [
     layout: "4x6",
     theme: "olive",
     filter: "vintage",
+    sticker: "party",
   },
 ] as const satisfies readonly StylePreset[];
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILTERS } from "./render";
+import { FILTERS, STICKERS } from "./render";
 import { THEMES } from "./strip";
 import {
   STYLE_PRESETS,
@@ -20,6 +20,7 @@ describe("style presets", () => {
       expect(LAYOUTS).toContain(preset.layout);
       expect(Object.keys(THEMES)).toContain(preset.theme);
       expect(Object.keys(FILTERS)).toContain(preset.filter);
+      expect(Object.keys(STICKERS)).toContain(preset.sticker);
     }
   });
 

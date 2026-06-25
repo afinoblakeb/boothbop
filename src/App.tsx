@@ -236,11 +236,14 @@ export default function App() {
     setThemeKeyState(preset.theme);
     saveFilter(preset.filter);
     setFilterState(preset.filter);
+    saveSticker(preset.sticker);
+    setStickerState(preset.sticker);
     persistActiveStyle(
       buildSessionStyle({
         layout: preset.layout,
         themeKey: preset.theme,
         filter: preset.filter,
+        sticker: preset.sticker,
       }),
     );
     clearResults();
