@@ -94,8 +94,8 @@ export function SettingsScreen({
             BoothBop Pro
           </Heading>
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-            A one-time purchase for watermark-free exports and custom strip text
-            — yours forever.
+            A one-time upgrade for watermark-free exports, custom strip text,
+            premium layouts, premium looks, props, and high quality.
           </p>
           {isPro ? (
             <>
@@ -104,7 +104,8 @@ export function SettingsScreen({
                 tone="info"
                 className="mt-4 px-4 py-3 font-sans text-sm text-ink"
               >
-                ✓ Pro unlocked — watermark-free exports and custom strip text.
+                ✓ Pro unlocked — premium creative tools and watermark-free
+                exports are active.
               </Callout>
               <label className="mt-4 block">
                 <Heading as="span" size="sm" className="text-brown">
