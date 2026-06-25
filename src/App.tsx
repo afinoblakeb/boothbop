@@ -31,17 +31,21 @@ import {
   type Session,
 } from "./lib/gallery";
 import {
+  EXPORT_SPEED_PROFILE,
   GIF_SIZE,
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
   loadCaptureDelay,
+  loadExportSpeed,
   loadQuality,
   planAutosaveTasks,
   saveCaptureDelay,
+  saveExportSpeed,
   saveQuality,
   type AutosaveSettings,
   type AutosaveTask,
   type CaptureDelay,
+  type ExportSpeed,
   type Quality,
   type QualityMedia,
   type QualitySettings,
@@ -129,6 +133,15 @@ export default function App() {
   function changeQuality(media: QualityMedia, q: Quality) {
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
+    clearResults();
+  }
+
+  const [exportSpeed, setExportSpeedState] =
+    useState<ExportSpeed>(loadExportSpeed);
+  const speedProfile = EXPORT_SPEED_PROFILE[exportSpeed];
+  function changeExportSpeed(speed: ExportSpeed) {
+    saveExportSpeed(speed);
+    setExportSpeedState(speed);
     clearResults();
   }
 
@@ -221,6 +234,7 @@ export default function App() {
         encodeGif(src, {
           watermarkImg,
           size: GIF_SIZE[quality.gif],
+          delay: speedProfile.gifDelay,
           filter,
           watermark: !isPro,
         }),
@@ -236,7 +250,7 @@ export default function App() {
         encodeGif(src, {
           watermarkImg,
           size: GIF_SIZE[quality.gif],
-          delay: 170,
+          delay: speedProfile.boomerangDelay,
           filter,
           motion: "boomerang",
           watermark: !isPro,
@@ -254,6 +268,7 @@ export default function App() {
           watermarkImg,
           watermark: !isPro,
           filter,
+          frameMs: speedProfile.videoFrameMs,
           ...VIDEO_PROFILE[quality.video],
         };
         // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
@@ -1246,6 +1261,7 @@ export default function App() {
         <SettingsScreen
           settings={autosave}
           quality={quality}
+          exportSpeed={exportSpeed}
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
           error={autosaveError}
@@ -1255,6 +1271,7 @@ export default function App() {
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
+          onExportSpeed={changeExportSpeed}
           onCustomCaption={setCustomCaption}
           onBuyRemoveWatermark={purchaseRemoveWatermark}
           onRestorePurchase={restoreRemoveWatermark}

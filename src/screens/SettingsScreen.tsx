@@ -1,7 +1,9 @@
 import {
+  EXPORT_SPEEDS,
   type AutosaveDest,
   type AutosaveFormat,
   type AutosaveSettings,
+  type ExportSpeed,
   type Quality,
   type QualityMedia,
   type QualitySettings,
@@ -22,10 +24,17 @@ const QUALITY_OPTIONS: { value: Quality; label: string }[] = [
   { value: "high", label: "High" },
 ];
 
+const SPEED_LABELS: Record<ExportSpeed, string> = {
+  slow: "Slow",
+  normal: "Normal",
+  fast: "Fast",
+};
+
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
 export function SettingsScreen({
   settings,
   quality,
+  exportSpeed,
   native,
   videoSupported,
   error,
@@ -35,6 +44,7 @@ export function SettingsScreen({
   onDest,
   onToggle,
   onQuality,
+  onExportSpeed,
   onCustomCaption,
   onBuyRemoveWatermark,
   onRestorePurchase,
@@ -43,6 +53,7 @@ export function SettingsScreen({
 }: {
   settings: AutosaveSettings;
   quality: QualitySettings;
+  exportSpeed: ExportSpeed;
   native: boolean;
   videoSupported: boolean;
   error: string | null;
@@ -52,6 +63,7 @@ export function SettingsScreen({
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
+  onExportSpeed: (speed: ExportSpeed) => void;
   onCustomCaption: (caption: string) => void;
   onBuyRemoveWatermark: () => void;
   onRestorePurchase: () => void;
@@ -245,6 +257,23 @@ export function SettingsScreen({
             />
           </div>
         ))}
+        <div>
+          <Heading as="p" size="sm" className="text-brown">
+            GIF / video speed
+          </Heading>
+          <SegmentedControl
+            fullWidth
+            className="mt-1.5"
+            label="Motion export speed"
+            value={exportSpeed}
+            onChange={onExportSpeed}
+            options={EXPORT_SPEEDS.map((speed) => ({
+              value: speed,
+              label: SPEED_LABELS[speed],
+            }))}
+            itemClassName="py-2 text-sm"
+          />
+        </div>
       </div>
 
       <LegalFooter className="mt-10 text-center" />

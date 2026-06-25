@@ -174,3 +174,33 @@ export function loadCaptureSound(): boolean {
 export function saveCaptureSound(on: boolean): void {
   localStorage.setItem(SOUND_KEY, on ? "1" : "0");
 }
+
+// ───────────────────────── Motion export speed ─────────────────────────
+
+export const EXPORT_SPEEDS = ["slow", "normal", "fast"] as const;
+export type ExportSpeed = (typeof EXPORT_SPEEDS)[number];
+
+export const EXPORT_SPEED_PROFILE: Record<
+  ExportSpeed,
+  { gifDelay: number; boomerangDelay: number; videoFrameMs: number }
+> = {
+  slow: { gifDelay: 700, boomerangDelay: 240, videoFrameMs: 850 },
+  normal: { gifDelay: 450, boomerangDelay: 170, videoFrameMs: 600 },
+  fast: { gifDelay: 260, boomerangDelay: 105, videoFrameMs: 360 },
+};
+
+const EXPORT_SPEED_KEY = "bb.exportSpeed";
+
+export function normalizeExportSpeed(value: string | null): ExportSpeed {
+  return EXPORT_SPEEDS.includes(value as ExportSpeed)
+    ? (value as ExportSpeed)
+    : "normal";
+}
+
+export function loadExportSpeed(): ExportSpeed {
+  return normalizeExportSpeed(localStorage.getItem(EXPORT_SPEED_KEY));
+}
+
+export function saveExportSpeed(speed: ExportSpeed): void {
+  localStorage.setItem(EXPORT_SPEED_KEY, speed);
+}

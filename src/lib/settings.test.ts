@@ -2,18 +2,23 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTOSAVE_DEFAULTS,
   CAPTURE_DELAYS,
+  EXPORT_SPEED_PROFILE,
+  EXPORT_SPEEDS,
   QUALITY_DEFAULTS,
   anyAutosaveOn,
   loadAutosave,
   loadCaptureDelay,
   loadCaptureSound,
+  loadExportSpeed,
   loadQuality,
   normalizeCaptureDelay,
+  normalizeExportSpeed,
   planAutosaveTasks,
   saveAutosaveDest,
   saveAutosaveFormat,
   saveCaptureDelay,
   saveCaptureSound,
+  saveExportSpeed,
   saveQuality,
   type AutosaveSettings,
 } from "./settings";
@@ -123,5 +128,31 @@ describe("capture controls persistence", () => {
     expect(loadCaptureSound()).toBe(false);
     saveCaptureSound(true);
     expect(loadCaptureSound()).toBe(true);
+  });
+});
+
+describe("motion export speed persistence", () => {
+  it("documents the supported speed presets", () => {
+    expect(EXPORT_SPEEDS).toEqual(["slow", "normal", "fast"]);
+  });
+
+  it("normalizes unsupported speed values back to normal", () => {
+    expect(normalizeExportSpeed("fast")).toBe("fast");
+    expect(normalizeExportSpeed("turbo")).toBe("normal");
+    expect(normalizeExportSpeed(null)).toBe("normal");
+  });
+
+  it("round-trips the export speed", () => {
+    saveExportSpeed("slow");
+    expect(loadExportSpeed()).toBe("slow");
+  });
+
+  it("keeps fast exports shorter than slow exports", () => {
+    expect(EXPORT_SPEED_PROFILE.fast.gifDelay).toBeLessThan(
+      EXPORT_SPEED_PROFILE.slow.gifDelay,
+    );
+    expect(EXPORT_SPEED_PROFILE.fast.videoFrameMs).toBeLessThan(
+      EXPORT_SPEED_PROFILE.slow.videoFrameMs,
+    );
   });
 });
