@@ -8,6 +8,7 @@ import StoreKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+        BoothBopStore.startTransactionUpdates()
         return true
     }
 
@@ -341,6 +342,17 @@ public class BoothBopStore: CAPPlugin, CAPBridgedPlugin {
         CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "isPurchased", returnType: CAPPluginReturnPromise),
     ]
+    private static var transactionUpdatesTask: Task<Void, Never>?
+
+    public static func startTransactionUpdates() {
+        guard transactionUpdatesTask == nil else { return }
+        transactionUpdatesTask = Task.detached {
+            for await result in Transaction.updates {
+                guard case .verified(let transaction) = result else { continue }
+                await transaction.finish()
+            }
+        }
+    }
 
     // getProducts({ productIds: [String] }) -> { products: [{ id, displayName, description, price }] }
     @objc func getProducts(_ call: CAPPluginCall) {

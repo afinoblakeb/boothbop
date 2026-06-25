@@ -1,4 +1,5 @@
 import type { RefObject } from "react";
+import type { CameraFacing } from "../lib/camera";
 import { BrandIcon } from "../icons";
 import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
@@ -15,20 +16,30 @@ const COUNTDOWN_COLOR: Record<number, string> = {
 export function CameraScreen({
   videoRef,
   phase,
+  retakeIndex,
   countdown,
   flash,
   thumbs,
   delay,
   setDelay,
+  cameraFacing,
+  mirrorPreview,
+  onToggleFacing,
+  onToggleMirror,
   onStart,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
+  retakeIndex: number | null;
   countdown: number | null;
   flash: boolean;
   thumbs: string[];
   delay: number;
   setDelay: (n: number) => void;
+  cameraFacing: CameraFacing;
+  mirrorPreview: boolean;
+  onToggleFacing: () => void;
+  onToggleMirror: () => void;
   onStart: () => void;
 }) {
   return (
@@ -39,7 +50,7 @@ export function CameraScreen({
           playsInline
           muted
           autoPlay
-          className="h-full w-full -scale-x-100 object-cover"
+          className={`h-full w-full object-cover ${mirrorPreview ? "-scale-x-100" : ""}`}
         />
 
         {phase === "capturing" && (
@@ -93,6 +104,23 @@ export function CameraScreen({
       <div className="mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
+            <div className="mb-3 grid grid-cols-2 gap-2">
+              <button
+                onClick={onToggleFacing}
+                className="border-2 border-ink bg-paper px-3 py-2 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+              >
+                {cameraFacing === "user" ? "Front" : "Back"}
+              </button>
+              <button
+                onClick={onToggleMirror}
+                aria-pressed={mirrorPreview}
+                className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                  mirrorPreview ? "bg-teal text-cream" : "bg-paper text-ink"
+                }`}
+              >
+                Mirror
+              </button>
+            </div>
             <div className="mb-3 flex items-center justify-center gap-2">
               <Heading as="span" size="sm" className="text-brown">
                 Countdown
@@ -111,7 +139,9 @@ export function CameraScreen({
             </div>
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-              Take Photos
+              {retakeIndex === null
+                ? "Take Photos"
+                : `Retake Shot ${retakeIndex + 1}`}
             </Button>
           </>
         ) : (

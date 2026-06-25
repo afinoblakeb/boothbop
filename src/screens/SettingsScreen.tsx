@@ -31,9 +31,11 @@ export function SettingsScreen({
   error,
   isPro,
   proPrice,
+  customCaption,
   onDest,
   onToggle,
   onQuality,
+  onCustomCaption,
   onBuyRemoveWatermark,
   onRestorePurchase,
   onOpenIosSettings,
@@ -46,9 +48,11 @@ export function SettingsScreen({
   error: string | null;
   isPro: boolean;
   proPrice: string | null;
+  customCaption: string;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
+  onCustomCaption: (caption: string) => void;
   onBuyRemoveWatermark: () => void;
   onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
@@ -75,20 +79,34 @@ export function SettingsScreen({
       {native && (
         <>
           <Heading as="h3" size="lg" className="mt-6">
-            Remove Watermark
+            BoothBop Pro
           </Heading>
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-            A one-time purchase that removes the BoothBop watermark from your
-            GIFs and videos — yours forever.
+            A one-time purchase for watermark-free exports and custom strip text
+            — yours forever.
           </p>
           {isPro ? (
-            <Callout
-              as="p"
-              tone="info"
-              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
-            >
-              ✓ Watermark removed — thanks for supporting BoothBop!
-            </Callout>
+            <>
+              <Callout
+                as="p"
+                tone="info"
+                className="mt-4 px-4 py-3 font-sans text-sm text-ink"
+              >
+                ✓ Pro unlocked — watermark-free exports and custom strip text.
+              </Callout>
+              <label className="mt-4 block">
+                <Heading as="span" size="sm" className="text-brown">
+                  Strip footer
+                </Heading>
+                <input
+                  value={customCaption}
+                  onChange={(e) => onCustomCaption(e.target.value)}
+                  maxLength={28}
+                  placeholder="BoothBop"
+                  className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+                />
+              </label>
+            </>
           ) : (
             <div className="mt-4">
               <Button
@@ -97,7 +115,7 @@ export function SettingsScreen({
                 fullWidth
                 onClick={onBuyRemoveWatermark}
               >
-                Remove Watermark · {proPrice ?? "$0.99"}
+                Unlock Pro · {proPrice ?? "$0.99"}
               </Button>
               <button
                 onClick={onRestorePurchase}

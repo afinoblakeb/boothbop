@@ -1,10 +1,10 @@
-// Brand watermark for generated GIFs / videos: the horizontal BoothBop
+// Brand watermark for generated exports: the horizontal BoothBop
 // wordmark drawn bottom-right, semi-transparent, with a soft light halo so it
-// stays legible over both dark and light photos. (The photo strip carries the
-// brand in its own footer, so it's not watermarked.)
+// stays legible over both dark and light photos. Photo strips use the same
+// brand mark in their footer while watermarking is enabled.
 //
-// Kept as one function + a loader so a future paid "remove watermark" tier
-// just skips the draw.
+// Kept as one function + a loader so the paid "remove watermark" tier skips
+// the draw/logo load.
 
 const SRC = `${import.meta.env.BASE_URL}watermark.png`;
 let cached: HTMLImageElement | null | undefined;

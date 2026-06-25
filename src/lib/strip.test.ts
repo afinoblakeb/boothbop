@@ -31,7 +31,7 @@ describe("stripGeometry", () => {
   });
 
   it("always positions exactly four non-overlapping cells", () => {
-    for (const layout of ["4x1", "2x2"] as Layout[]) {
+    for (const layout of ["4x1", "2x2", "2x6", "4x6", "story"] as Layout[]) {
       const { cells } = stripGeometry(layout);
       expect(cells).toHaveLength(4);
       const seen = new Set(cells.map((c) => `${c.x},${c.y}`));
@@ -40,13 +40,25 @@ describe("stripGeometry", () => {
   });
 
   it("keeps every cell inside the canvas bounds", () => {
-    for (const layout of ["4x1", "2x2"] as Layout[]) {
+    for (const layout of ["4x1", "2x2", "2x6", "4x6", "story"] as Layout[]) {
       const g = stripGeometry(layout);
-      for (const { x, y } of g.cells) {
-        expect(x + STRIP.cell).toBeLessThanOrEqual(g.width);
-        expect(y + STRIP.cell).toBeLessThanOrEqual(g.height - STRIP.footer);
+      for (const { x, y, size } of g.cells) {
+        expect(x + size).toBeLessThanOrEqual(g.width);
+        expect(y + size).toBeLessThanOrEqual(g.height - STRIP.footer);
       }
     }
+  });
+
+  it("supports print and social aspect ratios", () => {
+    expect(
+      stripGeometry("2x6").height / stripGeometry("2x6").width,
+    ).toBeCloseTo(3, 1);
+    expect(
+      stripGeometry("4x6").height / stripGeometry("4x6").width,
+    ).toBeCloseTo(1.5, 1);
+    expect(
+      stripGeometry("story").height / stripGeometry("story").width,
+    ).toBeCloseTo(16 / 9, 1);
   });
 });
 
@@ -91,7 +103,7 @@ describe("composeStrip branding", () => {
     );
     const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, logo);
+    composeStrip(fourFrames(), "4x1", THEMES.classic, { logo });
 
     const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
     expect(drewLogo).toBe(true);
@@ -105,9 +117,27 @@ describe("composeStrip branding", () => {
       ctx as unknown as CanvasRenderingContext2D,
     );
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, null);
+    composeStrip(fourFrames(), "4x1", THEMES.classic);
 
     expect(drewCaption(ctx)).toBe(true);
+  });
+
+  it("omits the brand mark when watermarking is disabled", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
+
+    composeStrip(fourFrames(), "4x1", THEMES.classic, {
+      logo,
+      cell: STRIP.cell,
+      watermark: false,
+    });
+
+    const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
+    expect(drewLogo).toBe(false);
+    expect(drewCaption(ctx)).toBe(false);
   });
 });
 

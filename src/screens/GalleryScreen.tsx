@@ -56,14 +56,26 @@ export function GalleryScreen({
         </div>
       ) : (
         <>
-          <div className="mt-4 grid grid-cols-3 gap-2">
-            {sessions.map((s) => (
-              <Cover
-                key={s.id}
-                blob={s.photos[0]}
-                onOpen={() => onOpen(s)}
-                onDelete={() => remove(s.id)}
-              />
+          <p className="mt-4 font-display text-lg uppercase tracking-wide text-brown">
+            {sessions.length} saved {sessions.length === 1 ? "set" : "sets"}
+          </p>
+          <div className="mt-3 space-y-5">
+            {groupSessions(sessions).map(([day, items]) => (
+              <section key={day}>
+                <Heading as="h3" size="sm" className="mb-2 text-brown">
+                  {day}
+                </Heading>
+                <div className="grid grid-cols-3 gap-2">
+                  {items.map((s) => (
+                    <Cover
+                      key={s.id}
+                      session={s}
+                      onOpen={() => onOpen(s)}
+                      onDelete={() => remove(s.id)}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
           <Button
@@ -82,22 +94,42 @@ export function GalleryScreen({
   );
 }
 
+function groupSessions(sessions: Session[]): [string, Session[]][] {
+  const groups = new Map<string, Session[]>();
+  for (const s of sessions) {
+    const key = new Date(s.createdAt).toLocaleDateString(undefined, {
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    });
+    groups.set(key, [...(groups.get(key) ?? []), s]);
+  }
+  return Array.from(groups.entries());
+}
+
+function timeLabel(ms: number): string {
+  return new Date(ms).toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
 /** Grid thumbnail: tap to open the set, small corner button to delete it. */
 function Cover({
-  blob,
+  session,
   onOpen,
   onDelete,
 }: {
-  blob: Blob;
+  session: Session;
   onOpen: () => void;
   onDelete: () => void;
 }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
-    const u = URL.createObjectURL(blob);
+    const u = URL.createObjectURL(session.photos[0]);
     setUrl(u);
     return () => URL.revokeObjectURL(u);
-  }, [blob]);
+  }, [session.photos]);
   return (
     <div className="relative">
       <button
@@ -105,6 +137,9 @@ function Cover({
         className="block aspect-square w-full overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
       >
         {url && <img src={url} alt="" className="h-full w-full object-cover" />}
+        <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
+          {timeLabel(session.createdAt)}
+        </span>
       </button>
       <IconButton
         aria-label="Delete"

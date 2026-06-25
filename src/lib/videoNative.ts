@@ -2,8 +2,9 @@
 // the paid-tier watermark flag stays here) and hands the frames to the
 // AVAssetWriter plugin, which muxes them into an MP4 — a real, sub-second encode
 // instead of the web MediaRecorder's flaky ~5s real-time recording.
-import { drawWatermark } from "./watermark";
+import { drawFrame, motionSequence } from "./render";
 import { encodeVideo, type VideoOptions, type VideoResult } from "./video";
+import { drawWatermark } from "./watermark";
 
 const NATIVE_TIMEOUT_MS = 20_000;
 
@@ -30,6 +31,7 @@ function base64ToBlob(base64: string, mime: string): Blob {
 function frameToBase64(
   frame: HTMLCanvasElement,
   size: number,
+  filter: NonNullable<VideoOptions["filter"]>,
   watermark: boolean,
   watermarkImg: HTMLImageElement | null,
 ): string {
@@ -37,7 +39,7 @@ function frameToBase64(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+  drawFrame(ctx, frame, { x: 0, y: 0, width: size, height: size }, { filter });
   if (watermark) drawWatermark(ctx, size, size, watermarkImg);
   return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
 }
@@ -49,13 +51,15 @@ export async function encodeVideoNative(
     bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
+    filter = "none",
+    motion = "loop",
     watermark = true,
     watermarkImg = null,
   }: VideoOptions = {},
 ): Promise<VideoResult> {
   try {
-    const images = frames.map((f) =>
-      frameToBase64(f, size, watermark, watermarkImg),
+    const images = motionSequence(frames, motion).map((f) =>
+      frameToBase64(f, size, filter, watermark, watermarkImg),
     );
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withTimeout(
@@ -72,6 +76,8 @@ export async function encodeVideoNative(
       bitrate,
       frameMs,
       loops,
+      filter,
+      motion,
       watermark,
       watermarkImg,
     });

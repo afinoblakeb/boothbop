@@ -1,5 +1,6 @@
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
+import type { FilterDef, FilterKey } from "../lib/render";
 import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
 import {
   Button,
@@ -32,43 +33,54 @@ export function ReviewScreen({
   setLayout,
   themeKey,
   setThemeKey,
+  filter,
+  filters,
+  setFilter,
   error,
   note,
   shareFilesOk,
+  thumbs,
   autosaveTip,
   onOpenSettings,
   onDismissTip,
   onShare,
   onDownload,
   onRetake,
+  onRetakeShot,
 }: {
   format: Format;
   onSelectFormat: (f: Format) => void;
   previewUrl: string | null;
-  generating: null | "gif" | "video";
+  generating: null | "gif" | "boomerang" | "video";
   layout: Layout;
   setLayout: (l: Layout) => void;
   themeKey: keyof typeof THEMES;
   setThemeKey: (k: keyof typeof THEMES) => void;
+  filter: FilterKey;
+  filters: Record<FilterKey, FilterDef>;
+  setFilter: (f: FilterKey) => void;
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
+  thumbs: string[];
   autosaveTip: boolean;
   onOpenSettings: () => void;
   onDismissTip: () => void;
   onShare: () => void;
   onDownload: () => void;
   onRetake: () => void;
+  onRetakeShot: (index: number) => void;
 }) {
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
     { id: "gif", label: "GIF" },
+    { id: "boomerang", label: "Boom" },
     ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
   ];
   const saveLabel =
     format === "video"
       ? "Save Video"
-      : format === "gif"
+      : format === "gif" || format === "boomerang"
         ? "Save GIF"
         : "Save Photo";
   const isBusy = generating !== null;
@@ -90,7 +102,11 @@ export function ReviewScreen({
         {isBusy ? (
           <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
-            {generating === "gif" ? "Making your GIF…" : "Recording video…"}
+            {generating === "video"
+              ? "Recording video…"
+              : generating === "boomerang"
+                ? "Making your boomerang…"
+                : "Making your GIF…"}
           </div>
         ) : format === "video" && previewUrl ? (
           <video
@@ -111,6 +127,20 @@ export function ReviewScreen({
         ) : null}
       </div>
 
+      <div className="mt-4 w-full">
+        <SectionLabel className="mb-1 text-center">Look</SectionLabel>
+        <SegmentedControl
+          className="mx-auto"
+          label="Photo look"
+          value={filter}
+          onChange={setFilter}
+          options={(Object.entries(filters) as [FilterKey, FilterDef][]).map(
+            ([value, f]) => ({ value, label: f.label }),
+          )}
+          itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
+        />
+      </div>
+
       {/* Strip-only styling controls */}
       {format === "strip" ? (
         <>
@@ -122,10 +152,13 @@ export function ReviewScreen({
               value={layout}
               onChange={setLayout}
               options={[
-                { value: "4x1", label: "Strip" },
+                { value: "4x1", label: "Classic" },
                 { value: "2x2", label: "Grid" },
+                { value: "2x6", label: "2×6" },
+                { value: "4x6", label: "4×6" },
+                { value: "story", label: "Story" },
               ]}
-              itemClassName="flex min-h-[44px] items-center justify-center px-6 py-2 text-lg"
+              itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2 text-sm"
             />
           </div>
 
@@ -151,9 +184,35 @@ export function ReviewScreen({
         </>
       ) : (
         <p className="mt-3 text-center font-sans text-xs uppercase tracking-wide text-warmgray">
-          {format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.
+          {format === "boomerang"
+            ? "Boomerang rebounds your four photos forward and back."
+            : `${format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.`}
         </p>
       )}
+
+      <div className="mt-4 w-full">
+        <SectionLabel className="mb-1 text-center">Retake</SectionLabel>
+        <div className="grid grid-cols-4 gap-2">
+          {thumbs.map((src, i) => (
+            <button
+              key={i}
+              onClick={() => onRetakeShot(i)}
+              className="group relative aspect-square overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+              aria-label={`Retake shot ${i + 1}`}
+            >
+              <img
+                src={src}
+                alt=""
+                className="h-full w-full object-cover"
+                draggable={false}
+              />
+              <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
+                {i + 1}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
       {autosaveTip && (

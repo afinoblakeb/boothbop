@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMERA_MSG,
+  type CameraFacing,
   cameraError,
   captureSquareFrame,
   startCamera,
@@ -46,6 +47,7 @@ import {
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
+import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
 import {
   buyRemoveWatermark,
   getRemoveWatermarkProduct,
@@ -82,13 +84,19 @@ export default function App() {
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
+  const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
   const [layout, setLayout] = useState<Layout>("4x1");
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
 
   const [format, setFormat] = useState<Format>("strip");
-  const [generating, setGenerating] = useState<null | "gif" | "video">(null);
+  const [generating, setGenerating] = useState<
+    null | "gif" | "boomerang" | "video"
+  >(null);
   const [gifResult, setGifResult] = useState<MediaResult | null>(null);
+  const [boomerangResult, setBoomerangResult] = useState<MediaResult | null>(
+    null,
+  );
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
@@ -100,12 +108,29 @@ export default function App() {
   function changeQuality(media: QualityMedia, q: Quality) {
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
+    clearResults();
+  }
+
+  const [filter, setFilterState] = useState<FilterKey>(loadFilter);
+  function changeFilter(f: FilterKey) {
+    saveFilter(f);
+    setFilterState(f);
+    clearResults();
   }
 
   // "Remove watermark" one-time purchase (native iOS). isPro drops the watermark
   // from GIF/video exports. StoreKit is the source of truth; cached for the UI.
   const [isPro, setIsPro] = useState(isProCached());
   const [proProduct, setProProduct] = useState<ProProduct | null>(null);
+  const [customCaption, setCustomCaptionState] = useState(
+    () => localStorage.getItem("bb.pro.caption") ?? "",
+  );
+  function setCustomCaption(value: string) {
+    const next = value.slice(0, 28);
+    localStorage.setItem("bb.pro.caption", next);
+    setCustomCaptionState(next);
+  }
+  const stripCaption = isPro ? customCaption.trim() : "";
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -136,6 +161,7 @@ export default function App() {
   // the review tabs and the auto-save path. Reset by clearResults().
   const mediaCache = useRef<{
     gif?: Promise<Blob>;
+    boomerang?: Promise<Blob>;
     video?: Promise<VideoResult>;
   }>({});
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
@@ -144,11 +170,29 @@ export default function App() {
         encodeGif(src, {
           watermarkImg,
           size: GIF_SIZE[quality.gif],
+          filter,
           watermark: !isPro,
         }),
       )
       .catch((e) => {
         mediaCache.current.gif = undefined; // let a re-tap retry
+        throw e;
+      }));
+  }
+  function getBoomerangBlob(src: HTMLCanvasElement[]): Promise<Blob> {
+    return (mediaCache.current.boomerang ??= loadWatermark()
+      .then((watermarkImg) =>
+        encodeGif(src, {
+          watermarkImg,
+          size: GIF_SIZE[quality.gif],
+          delay: 170,
+          filter,
+          motion: "boomerang",
+          watermark: !isPro,
+        }),
+      )
+      .catch((e) => {
+        mediaCache.current.boomerang = undefined;
         throw e;
       }));
   }
@@ -158,6 +202,7 @@ export default function App() {
         const opts = {
           watermarkImg,
           watermark: !isPro,
+          filter,
           ...VIDEO_PROFILE[quality.video],
         };
         // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
@@ -179,6 +224,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("bb.delay", String(delay));
   }, [delay]);
+
+  const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
+    localStorage.getItem("bb.cameraFacing") === "environment"
+      ? "environment"
+      : "user",
+  );
+  const [mirrorPreview, setMirrorPreview] = useState(
+    () => localStorage.getItem("bb.mirrorPreview") !== "0",
+  );
 
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
@@ -308,12 +362,54 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    setRetakeIndex(null);
     setPhase("idle");
     setError(msg);
   }
 
+  function bindCameraEnded(stream: MediaStream) {
+    stream.getVideoTracks().forEach((t) => {
+      t.addEventListener("ended", () => failToHome(CAMERA_MSG));
+    });
+  }
+
+  function saveCameraFacing(next: CameraFacing) {
+    localStorage.setItem("bb.cameraFacing", next);
+    setCameraFacingState(next);
+  }
+
+  async function restartCamera(nextFacing: CameraFacing) {
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const stream = await startCamera(nextFacing);
+      streamRef.current = stream;
+      bindCameraEnded(stream);
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.play().catch(() => {});
+      }
+    } catch (e) {
+      failToHome(cameraError(e));
+    }
+  }
+
+  function toggleCameraFacing() {
+    const next = cameraFacing === "user" ? "environment" : "user";
+    saveCameraFacing(next);
+    if (next === "environment") setMirror(false);
+    if (phase === "preview") void restartCamera(next);
+  }
+
+  function setMirror(on: boolean) {
+    localStorage.setItem("bb.mirrorPreview", on ? "1" : "0");
+    setMirrorPreview(on);
+  }
+
   function clearResults() {
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
+    setBoomerangResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
     mediaCache.current = {};
   }
@@ -348,20 +444,23 @@ export default function App() {
     }
   }
 
-  async function openCamera() {
+  async function openCamera({
+    preserveFrames = false,
+    retake = null,
+  }: { preserveFrames?: boolean; retake?: number | null } = {}) {
     setError(null);
     abortRef.current = false;
+    setRetakeIndex(retake);
     try {
-      const stream = await startCamera();
+      const stream = await startCamera(cameraFacing);
       streamRef.current = stream;
       // If the camera track ends mid-use (revoked, taken by another app),
       // drop the user back home with the permission message.
-      stream.getVideoTracks().forEach((t) => {
-        t.addEventListener("ended", () => failToHome(CAMERA_MSG));
-      });
-      setFrames([]);
+      bindCameraEnded(stream);
+      if (!preserveFrames) setFrames([]);
       setPhase("preview");
     } catch (e) {
+      setRetakeIndex(null);
       setError(cameraError(e));
       setPhase("idle");
     }
@@ -375,6 +474,7 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    setRetakeIndex(null);
     setError(null);
     setPhase("idle");
   }
@@ -390,6 +490,39 @@ export default function App() {
     abortRef.current = false;
     setPhase("capturing");
     clearResults();
+    const shotToReplace = retakeIndex;
+    if (shotToReplace !== null) {
+      await wait(400);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      setFlash(true);
+      const frame = captureSquareFrame(
+        video,
+        PHOTO_CAPTURE[quality.photo],
+        mirrorPreview,
+      );
+      const next = frames.map((existing, i) =>
+        i === shotToReplace ? frame : existing,
+      );
+      setFrames(next);
+      await wait(240);
+      setFlash(false);
+      stopCamera(streamRef.current);
+      streamRef.current = null;
+      setRetakeIndex(null);
+      pregenerate(next);
+      setFormat("strip");
+      setPhase("review");
+      return;
+    }
+
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -405,7 +538,11 @@ export default function App() {
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
-      const frame = captureSquareFrame(video, PHOTO_CAPTURE[quality.photo]);
+      const frame = captureSquareFrame(
+        video,
+        PHOTO_CAPTURE[quality.photo],
+        mirrorPreview,
+      );
       captured.push(frame);
       setFrames([...captured]);
       await wait(240);
@@ -451,6 +588,19 @@ export default function App() {
         ),
       )
       .catch(() => {});
+    getBoomerangBlob(src)
+      .then((blob) =>
+        setBoomerangResult((r) =>
+          r
+            ? r
+            : {
+                url: URL.createObjectURL(blob),
+                blob,
+                filename: `boothbop-boomerang-${stamp()}.gif`,
+              },
+        ),
+      )
+      .catch(() => {});
     if (isVideoSupported()) {
       getVideoResult(src)
         .then(({ blob, extension }) =>
@@ -473,6 +623,12 @@ export default function App() {
     setFrames([]);
     setFormat("strip");
     openCamera();
+  }
+
+  function retakeShot(index: number) {
+    clearResults();
+    setFormat("strip");
+    openCamera({ preserveFrames: true, retake: index });
   }
 
   // Screenshot mode: inject a staged set of photos as the four frames and jump
@@ -512,14 +668,23 @@ export default function App() {
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(
-      frames,
-      layout,
-      THEMES[themeKey],
-      brandLogo,
-      PHOTO_CAPTURE[quality.photo],
-    ).toDataURL("image/png");
-  }, [frames, layout, themeKey, brandLogo, quality.photo]);
+    return composeStrip(frames, layout, THEMES[themeKey], {
+      logo: brandLogo,
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: !isPro,
+      filter,
+      caption: stripCaption || undefined,
+    }).toDataURL("image/png");
+  }, [
+    frames,
+    layout,
+    themeKey,
+    brandLogo,
+    quality.photo,
+    isPro,
+    filter,
+    stripCaption,
+  ]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
@@ -532,6 +697,7 @@ export default function App() {
     setError(null);
     setNote(null);
     if (f === "gif" && !gifResult) await ensureGif();
+    if (f === "boomerang" && !boomerangResult) await ensureBoomerang();
     if (f === "video" && !videoResult) await ensureVideo();
   }
 
@@ -551,6 +717,27 @@ export default function App() {
       );
     } catch {
       setError("Couldn't create the GIF.");
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  async function ensureBoomerang() {
+    setGenerating("boomerang");
+    try {
+      await wait(30);
+      const blob = await getBoomerangBlob(frames);
+      setBoomerangResult((r) =>
+        r
+          ? r
+          : {
+              url: URL.createObjectURL(blob),
+              blob,
+              filename: `boothbop-boomerang-${stamp()}.gif`,
+            },
+      );
+    } catch {
+      setError("Couldn't create the boomerang.");
     } finally {
       setGenerating(null);
     }
@@ -588,7 +775,12 @@ export default function App() {
     theme: StripTheme,
   ): Promise<Blob> {
     if (task.layout)
-      return stripBlob(src, task.layout, theme, PHOTO_CAPTURE[quality.photo]);
+      return stripBlob(src, task.layout, theme, {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: !isPro,
+        filter,
+        caption: stripCaption || undefined,
+      });
     if (task.format === "gif") return getGifBlob(src);
     return (await getVideoResult(src)).blob;
   }
@@ -638,13 +830,14 @@ export default function App() {
   // Resolve the blob + filename for whatever format is currently shown.
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
+    if (format === "boomerang") return boomerangResult;
     if (format === "video") return videoResult;
-    const blob = await stripBlob(
-      frames,
-      layout,
-      THEMES[themeKey],
-      PHOTO_CAPTURE[quality.photo],
-    );
+    const blob = await stripBlob(frames, layout, THEMES[themeKey], {
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: !isPro,
+      filter,
+      caption: stripCaption || undefined,
+    });
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
@@ -723,7 +916,9 @@ export default function App() {
       ? stripUrl
       : format === "gif"
         ? (gifResult?.url ?? null)
-        : (videoResult?.url ?? null);
+        : format === "boomerang"
+          ? (boomerangResult?.url ?? null)
+          : (videoResult?.url ?? null);
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">
@@ -750,11 +945,16 @@ export default function App() {
         <CameraScreen
           videoRef={videoRef}
           phase={phase}
+          retakeIndex={retakeIndex}
           countdown={countdown}
           flash={flash}
           thumbs={thumbs}
           delay={delay}
           setDelay={setDelay}
+          cameraFacing={cameraFacing}
+          mirrorPreview={mirrorPreview}
+          onToggleFacing={toggleCameraFacing}
+          onToggleMirror={() => setMirror(!mirrorPreview)}
           onStart={runSequence}
         />
       )}
@@ -769,15 +969,20 @@ export default function App() {
           setLayout={setLayout}
           themeKey={themeKey}
           setThemeKey={setThemeKey}
+          filter={filter}
+          filters={FILTERS}
+          setFilter={changeFilter}
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
+          thumbs={thumbs}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           onOpenSettings={openSettings}
           onDismissTip={dismissAutosaveTip}
           onShare={shareCurrent}
           onDownload={downloadCurrent}
           onRetake={retake}
+          onRetakeShot={retakeShot}
         />
       )}
 
@@ -797,9 +1002,11 @@ export default function App() {
           error={autosaveError}
           isPro={isPro}
           proPrice={proProduct?.price ?? null}
+          customCaption={customCaption}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
+          onCustomCaption={setCustomCaption}
           onBuyRemoveWatermark={purchaseRemoveWatermark}
           onRestorePurchase={restoreRemoveWatermark}
           onOpenIosSettings={() => void openIosSettings()}
