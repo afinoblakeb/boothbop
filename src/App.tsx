@@ -30,11 +30,14 @@ import {
   GIF_SIZE,
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
+  loadCaptureDelay,
   loadQuality,
   planAutosaveTasks,
+  saveCaptureDelay,
   saveQuality,
   type AutosaveSettings,
   type AutosaveTask,
+  type CaptureDelay,
   type Quality,
   type QualityMedia,
   type QualitySettings,
@@ -217,13 +220,11 @@ export default function App() {
   }
 
   // Shutter delay (seconds counted down before each shot), persisted.
-  const [delay, setDelay] = useState<number>(() => {
-    const v = Number(localStorage.getItem("bb.delay"));
-    return v === 1 || v === 2 || v === 3 ? v : 2;
-  });
-  useEffect(() => {
-    localStorage.setItem("bb.delay", String(delay));
-  }, [delay]);
+  const [delay, setDelayState] = useState<CaptureDelay>(loadCaptureDelay);
+  function changeDelay(next: CaptureDelay) {
+    saveCaptureDelay(next);
+    setDelayState(next);
+  }
 
   const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
     localStorage.getItem("bb.cameraFacing") === "environment"
@@ -646,7 +647,7 @@ export default function App() {
       setFormat("strip");
       setPhase("review");
     } catch {
-      setError(`Add public/demo/set${setNum}-1.jpg … set${setNum}-4.jpg`);
+      setError(`Couldn't load demo set ${setNum}.`);
     }
   }
 
@@ -950,7 +951,7 @@ export default function App() {
           flash={flash}
           thumbs={thumbs}
           delay={delay}
-          setDelay={setDelay}
+          setDelay={changeDelay}
           cameraFacing={cameraFacing}
           mirrorPreview={mirrorPreview}
           onToggleFacing={toggleCameraFacing}
@@ -990,6 +991,7 @@ export default function App() {
         <GalleryScreen
           onClose={() => setShowGallery(false)}
           onOpen={openSession}
+          demo={DEMO}
         />
       )}
 

@@ -1,13 +1,19 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTOSAVE_DEFAULTS,
+  CAPTURE_DELAYS,
   QUALITY_DEFAULTS,
   anyAutosaveOn,
   loadAutosave,
+  loadCaptureDelay,
+  loadCaptureSound,
   loadQuality,
+  normalizeCaptureDelay,
   planAutosaveTasks,
   saveAutosaveDest,
   saveAutosaveFormat,
+  saveCaptureDelay,
+  saveCaptureSound,
   saveQuality,
   type AutosaveSettings,
 } from "./settings";
@@ -93,5 +99,29 @@ describe("export quality persistence", () => {
   it("treats an unknown stored tier as standard", () => {
     localStorage.setItem("bb.quality.video", "ultra");
     expect(loadQuality().video).toBe("standard");
+  });
+});
+
+describe("capture controls persistence", () => {
+  it("documents the supported countdown delays", () => {
+    expect(CAPTURE_DELAYS).toEqual([1, 2, 3, 5, 10]);
+  });
+
+  it("normalizes unsupported countdown values back to 2 seconds", () => {
+    expect(normalizeCaptureDelay(5)).toBe(5);
+    expect(normalizeCaptureDelay(9)).toBe(2);
+  });
+
+  it("round-trips the countdown delay", () => {
+    saveCaptureDelay(10);
+    expect(loadCaptureDelay()).toBe(10);
+  });
+
+  it("defaults capture sound on and persists the toggle", () => {
+    expect(loadCaptureSound()).toBe(true);
+    saveCaptureSound(false);
+    expect(loadCaptureSound()).toBe(false);
+    saveCaptureSound(true);
+    expect(loadCaptureSound()).toBe(true);
   });
 });

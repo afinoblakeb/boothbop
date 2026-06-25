@@ -7,12 +7,15 @@
 export interface Session {
   id: string;
   createdAt: number;
+  title?: string;
+  favorite?: boolean;
   photos: Blob[]; // the four captured frames (JPEG)
 }
 
 const DB_NAME = "boothbop";
 const STORE = "sessions";
 const VERSION = 1;
+export const SESSION_TITLE_MAX = 36;
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -37,6 +40,7 @@ export async function saveSession(photos: Blob[]): Promise<Session> {
   const session: Session = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
+    favorite: false,
     photos,
   };
   const db = await openDB();
@@ -61,7 +65,76 @@ export async function listSessions(): Promise<Session[]> {
       req.onsuccess = () => resolve(req.result as Session[]);
       req.onerror = () => reject(req.error);
     });
-    return items.sort((a, b) => b.createdAt - a.createdAt);
+    return items
+      .map(normalizeSession)
+      .sort(
+        (a, b) =>
+          Number(b.favorite) - Number(a.favorite) || b.createdAt - a.createdAt,
+      );
+  } finally {
+    db.close();
+  }
+}
+
+export async function updateSessionMeta(
+  id: string,
+  patch: Pick<Session, "title" | "favorite">,
+): Promise<Session | null> {
+  const db = await openDB();
+  try {
+    return await new Promise<Session | null>((resolve, reject) => {
+      const t = db.transaction(STORE, "readwrite");
+      const store = t.objectStore(STORE);
+      const getReq = store.get(id);
+      let next: Session | null = null;
+      getReq.onsuccess = () => {
+        const current = getReq.result as Session | undefined;
+        if (!current) {
+          resolve(null);
+          return;
+        }
+        next = normalizeSession({
+          ...current,
+          ...(patch.title !== undefined
+            ? { title: cleanSessionTitle(patch.title) }
+            : {}),
+          ...(patch.favorite !== undefined ? { favorite: patch.favorite } : {}),
+        });
+        store.put(next);
+      };
+      getReq.onerror = () => reject(getReq.error);
+      t.oncomplete = () => resolve(next);
+      t.onerror = () => reject(t.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
+export async function updateSessionPhotos(
+  id: string,
+  photos: Blob[],
+): Promise<Session | null> {
+  const db = await openDB();
+  try {
+    return await new Promise<Session | null>((resolve, reject) => {
+      const t = db.transaction(STORE, "readwrite");
+      const store = t.objectStore(STORE);
+      const getReq = store.get(id);
+      let next: Session | null = null;
+      getReq.onsuccess = () => {
+        const current = getReq.result as Session | undefined;
+        if (!current) {
+          resolve(null);
+          return;
+        }
+        next = normalizeSession({ ...current, photos });
+        store.put(next);
+      };
+      getReq.onerror = () => reject(getReq.error);
+      t.oncomplete = () => resolve(next);
+      t.onerror = () => reject(t.error);
+    });
   } finally {
     db.close();
   }
@@ -93,6 +166,18 @@ export async function clearSessions(): Promise<void> {
   } finally {
     db.close();
   }
+}
+
+export function cleanSessionTitle(title: string): string {
+  return title.replace(/\s+/g, " ").trim().slice(0, SESSION_TITLE_MAX);
+}
+
+function normalizeSession(session: Session): Session {
+  return {
+    ...session,
+    title: cleanSessionTitle(session.title ?? ""),
+    favorite: session.favorite === true,
+  };
 }
 
 /** Encode a canvas frame to a Blob (defaults to compact JPEG for storage). */

@@ -3,9 +3,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { IDBFactory } from "fake-indexeddb";
 import {
   clearSessions,
+  cleanSessionTitle,
   deleteSession,
   listSessions,
   saveSession,
+  updateSessionMeta,
+  updateSessionPhotos,
 } from "./gallery";
 
 const photo = (byte: number) =>
@@ -68,5 +71,40 @@ describe("gallery sessions", () => {
     expect(stored).toBeDefined();
     expect(stored!.photos).toHaveLength(2);
     expect(stored!.photos[0]).toBeTruthy();
+  });
+
+  it("cleans saved session titles", () => {
+    expect(cleanSessionTitle("  birthday    booth   ")).toBe("birthday booth");
+    expect(cleanSessionTitle("x".repeat(60))).toHaveLength(36);
+  });
+
+  it("updates a session title and favorite flag", async () => {
+    const session = await saveSession(fourPhotos());
+    const updated = await updateSessionMeta(session.id, {
+      title: "  Launch   Party  ",
+      favorite: true,
+    });
+    expect(updated?.title).toBe("Launch Party");
+    expect(updated?.favorite).toBe(true);
+    const stored = (await listSessions()).find((s) => s.id === session.id);
+    expect(stored?.title).toBe("Launch Party");
+    expect(stored?.favorite).toBe(true);
+  });
+
+  it("pins favorites before non-favorites", async () => {
+    const a = await saveSession(fourPhotos());
+    const b = await saveSession(fourPhotos());
+    await updateSessionMeta(a.id, { favorite: true });
+    const list = await listSessions();
+    expect(list[0].id).toBe(a.id);
+    expect(list.map((s) => s.id)).toContain(b.id);
+  });
+
+  it("replaces the photos on an existing session", async () => {
+    const session = await saveSession(fourPhotos());
+    const updated = await updateSessionPhotos(session.id, [photo(99)]);
+    expect(updated?.photos).toHaveLength(1);
+    const stored = (await listSessions()).find((s) => s.id === session.id);
+    expect(stored?.photos).toHaveLength(1);
   });
 });

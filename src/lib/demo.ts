@@ -1,9 +1,37 @@
 // Screenshot/demo helper — loads staged sample photos in as the four captured
 // frames so we can render REAL strips/GIFs/video for App Store screenshots
 // without a camera or posing. Gated behind a build flag in App.tsx (DEV or
-// VITE_DEMO); the sample images live in public/demo/ (gitignored) and are NOT
-// part of the production submission build.
+// VITE_DEMO); the sample images live in src/demo/ and are only bundled with the
+// dev/demo loader.
 import { CAPTURE_SIZE } from "./camera";
+import type { Session } from "./gallery";
+
+const SAMPLE_SETS: Record<number, string[]> = {
+  1: [
+    new URL("../demo/set1-1.jpg", import.meta.url).href,
+    new URL("../demo/set1-2.jpg", import.meta.url).href,
+    new URL("../demo/set1-3.jpg", import.meta.url).href,
+    new URL("../demo/set1-4.jpg", import.meta.url).href,
+  ],
+  2: [
+    new URL("../demo/set2-1.jpg", import.meta.url).href,
+    new URL("../demo/set2-2.jpg", import.meta.url).href,
+    new URL("../demo/set2-3.jpg", import.meta.url).href,
+    new URL("../demo/set2-4.jpg", import.meta.url).href,
+  ],
+  3: [
+    new URL("../demo/set3-1.jpg", import.meta.url).href,
+    new URL("../demo/set3-2.jpg", import.meta.url).href,
+    new URL("../demo/set3-3.jpg", import.meta.url).href,
+    new URL("../demo/set3-4.jpg", import.meta.url).href,
+  ],
+};
+
+const SAMPLE_TITLES: Record<number, string> = {
+  1: "Demo: Birthday",
+  2: "Demo: Night Out",
+  3: "Demo: Friends",
+};
 
 function loadImage(url: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -12,6 +40,12 @@ function loadImage(url: string): Promise<HTMLImageElement> {
     img.onerror = () => reject(new Error(`Couldn't load ${url}`));
     img.src = url;
   });
+}
+
+async function loadBlob(url: string): Promise<Blob> {
+  const response = await fetch(url);
+  if (!response.ok) throw new Error(`Couldn't load ${url}`);
+  return response.blob();
 }
 
 // Center-crop to a square at the capture resolution, matching captureSquareFrame
@@ -31,13 +65,34 @@ function toSquareCanvas(
   return canvas;
 }
 
-// Loads public/demo/set{n}-1.jpg … set{n}-4.jpg as four square frames.
+// Loads one staged set as four square frames.
 export async function loadSampleFrames(
   setNum: number,
   size: number = CAPTURE_SIZE,
 ): Promise<HTMLCanvasElement[]> {
-  const base = import.meta.env.BASE_URL;
-  const urls = [1, 2, 3, 4].map((i) => `${base}demo/set${setNum}-${i}.jpg`);
+  const urls = SAMPLE_SETS[setNum];
+  if (!urls) throw new Error(`Unknown demo set ${setNum}`);
   const imgs = await Promise.all(urls.map(loadImage));
   return imgs.map((img) => toSquareCanvas(img, size));
+}
+
+export async function loadSampleSessions(): Promise<Session[]> {
+  const entries = Object.entries(SAMPLE_SETS);
+  const now = Date.now();
+  return Promise.all(
+    entries.map(async ([rawSetNum, urls], index) => {
+      const setNum = Number(rawSetNum);
+      return {
+        id: `demo-${setNum}`,
+        createdAt: now - index * 60_000,
+        title: SAMPLE_TITLES[setNum],
+        favorite: true,
+        photos: await Promise.all(urls.map(loadBlob)),
+      };
+    }),
+  );
+}
+
+export function isDemoSession(session: Session): boolean {
+  return session.id.startsWith("demo-");
 }

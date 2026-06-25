@@ -1,5 +1,6 @@
 import type { RefObject } from "react";
 import type { CameraFacing } from "../lib/camera";
+import { CAPTURE_DELAYS, type CaptureDelay } from "../lib/settings";
 import { BrandIcon } from "../icons";
 import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
@@ -34,8 +35,8 @@ export function CameraScreen({
   countdown: number | null;
   flash: boolean;
   thumbs: string[];
-  delay: number;
-  setDelay: (n: number) => void;
+  delay: CaptureDelay;
+  setDelay: (n: CaptureDelay) => void;
   cameraFacing: CameraFacing;
   mirrorPreview: boolean;
   onToggleFacing: () => void;
@@ -129,12 +130,11 @@ export function CameraScreen({
                 label="Countdown seconds"
                 value={delay}
                 onChange={setDelay}
-                options={[
-                  { value: 1, label: "1s" },
-                  { value: 2, label: "2s" },
-                  { value: 3, label: "3s" },
-                ]}
-                itemClassName="flex min-h-[44px] items-center justify-center px-4 py-2.5 text-lg"
+                options={CAPTURE_DELAYS.map((value) => ({
+                  value,
+                  label: `${value}s`,
+                }))}
+                itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2.5 text-lg"
               />
             </div>
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>

@@ -12,16 +12,24 @@ import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 export function GalleryScreen({
   onClose,
   onOpen,
+  demo = false,
 }: {
   onClose: () => void;
   onOpen: (session: Session) => void;
+  demo?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
 
-  const reload = () => listSessions().then(setSessions);
+  const reload = () => loadGallerySessions(demo).then(setSessions);
   useEffect(() => {
-    reload();
-  }, []);
+    let active = true;
+    loadGallerySessions(demo).then((items) => {
+      if (active) setSessions(items);
+    });
+    return () => {
+      active = false;
+    };
+  }, [demo]);
 
   async function remove(id: string) {
     await deleteSession(id);
@@ -57,7 +65,7 @@ export function GalleryScreen({
       ) : (
         <>
           <p className="mt-4 font-display text-lg uppercase tracking-wide text-brown">
-            {sessions.length} saved {sessions.length === 1 ? "set" : "sets"}
+            {galleryCountLabel(sessions)}
           </p>
           <div className="mt-3 space-y-5">
             {groupSessions(sessions).map(([day, items]) => (
@@ -72,26 +80,48 @@ export function GalleryScreen({
                       session={s}
                       onOpen={() => onOpen(s)}
                       onDelete={() => remove(s.id)}
+                      demo={isDemoSessionId(s.id)}
                     />
                   ))}
                 </div>
               </section>
             ))}
           </div>
-          <Button
-            variant="danger"
-            size="md"
-            fullWidth
-            onClick={clearAll}
-            className="mt-6"
-          >
-            <TrashIcon className="h-5 w-5" />
-            Clear all
-          </Button>
+          {sessions.some((s) => !isDemoSessionId(s.id)) && (
+            <Button
+              variant="danger"
+              size="md"
+              fullWidth
+              onClick={clearAll}
+              className="mt-6"
+            >
+              <TrashIcon className="h-5 w-5" />
+              Clear all
+            </Button>
+          )}
         </>
       )}
     </OverlayScreen>
   );
+}
+
+async function loadGallerySessions(demo: boolean): Promise<Session[]> {
+  const saved = await listSessions();
+  if (!demo) return saved;
+  const { loadSampleSessions } = await import("../lib/demo");
+  return [...(await loadSampleSessions()), ...saved];
+}
+
+function isDemoSessionId(id: string): boolean {
+  return id.startsWith("demo-");
+}
+
+function galleryCountLabel(sessions: Session[]): string {
+  const demo = sessions.filter((s) => isDemoSessionId(s.id)).length;
+  const saved = sessions.length - demo;
+  if (demo && saved) return `${demo} demo + ${saved} saved`;
+  if (demo) return `${demo} demo ${demo === 1 ? "set" : "sets"}`;
+  return `${saved} saved ${saved === 1 ? "set" : "sets"}`;
 }
 
 function groupSessions(sessions: Session[]): [string, Session[]][] {
@@ -119,10 +149,12 @@ function Cover({
   session,
   onOpen,
   onDelete,
+  demo,
 }: {
   session: Session;
   onOpen: () => void;
   onDelete: () => void;
+  demo: boolean;
 }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
@@ -138,18 +170,20 @@ function Cover({
       >
         {url && <img src={url} alt="" className="h-full w-full object-cover" />}
         <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
-          {timeLabel(session.createdAt)}
+          {session.title || timeLabel(session.createdAt)}
         </span>
       </button>
-      <IconButton
-        aria-label="Delete"
-        onClick={onDelete}
-        className="absolute right-0 top-0"
-      >
-        <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
-          <TrashIcon className="h-4 w-4" />
-        </span>
-      </IconButton>
+      {!demo && (
+        <IconButton
+          aria-label="Delete"
+          onClick={onDelete}
+          className="absolute right-0 top-0"
+        >
+          <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
+            <TrashIcon className="h-4 w-4" />
+          </span>
+        </IconButton>
+      )}
     </div>
   );
 }

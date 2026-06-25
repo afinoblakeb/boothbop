@@ -144,3 +144,33 @@ export const VIDEO_PROFILE: Record<Quality, { size: number; bitrate: number }> =
     standard: { size: 720, bitrate: 6_000_000 },
     high: { size: 1080, bitrate: 10_000_000 },
   };
+
+// ───────────────────────── Capture controls ─────────────────────────
+
+export const CAPTURE_DELAYS = [1, 2, 3, 5, 10] as const;
+export type CaptureDelay = (typeof CAPTURE_DELAYS)[number];
+
+const DELAY_KEY = "bb.delay";
+const SOUND_KEY = "bb.captureSound";
+
+export function normalizeCaptureDelay(value: number): CaptureDelay {
+  return CAPTURE_DELAYS.includes(value as CaptureDelay)
+    ? (value as CaptureDelay)
+    : 2;
+}
+
+export function loadCaptureDelay(): CaptureDelay {
+  return normalizeCaptureDelay(Number(localStorage.getItem(DELAY_KEY)));
+}
+
+export function saveCaptureDelay(delay: CaptureDelay): void {
+  localStorage.setItem(DELAY_KEY, String(delay));
+}
+
+export function loadCaptureSound(): boolean {
+  return localStorage.getItem(SOUND_KEY) !== "0";
+}
+
+export function saveCaptureSound(on: boolean): void {
+  localStorage.setItem(SOUND_KEY, on ? "1" : "0");
+}
