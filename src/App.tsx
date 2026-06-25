@@ -62,6 +62,11 @@ import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
 import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
 import { loadImportedFrames } from "./lib/importPhotos";
 import {
+  isPremiumFilter,
+  isPremiumLayout,
+  isPremiumQuality,
+} from "./lib/entitlements";
+import {
   buyRemoveWatermark,
   getRemoveWatermarkProduct,
   isProCached,
@@ -133,6 +138,11 @@ export default function App() {
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
   function changeQuality(media: QualityMedia, q: Quality) {
+    if (isPremiumQuality(q) && !isPro) {
+      setNote("Unlock BoothBop Pro for high-quality exports.");
+      setShowSettings(true);
+      return;
+    }
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
     clearResults();
@@ -149,9 +159,23 @@ export default function App() {
 
   const [filter, setFilterState] = useState<FilterKey>(loadFilter);
   function changeFilter(f: FilterKey) {
+    if (isPremiumFilter(f) && !isPro) {
+      setNote("Unlock BoothBop Pro for premium looks.");
+      setShowSettings(true);
+      return;
+    }
     saveFilter(f);
     setFilterState(f);
     clearResults();
+  }
+
+  function changeLayout(next: Layout) {
+    if (isPremiumLayout(next) && !isPro) {
+      setNote("Unlock BoothBop Pro for premium layouts.");
+      setShowSettings(true);
+      return;
+    }
+    setLayout(next);
   }
 
   function applyStylePreset(preset: StylePreset) {
@@ -198,6 +222,29 @@ export default function App() {
     dismissTip: dismissAutosaveTip,
     openSettings,
   } = useAutosave();
+
+  useEffect(() => {
+    if (isPro) return;
+    let changed = false;
+    const nextQuality = { ...quality };
+    for (const media of Object.keys(nextQuality) as QualityMedia[]) {
+      if (isPremiumQuality(nextQuality[media])) {
+        nextQuality[media] = "standard";
+        saveQuality(media, "standard");
+        changed = true;
+      }
+    }
+    if (changed) {
+      setQuality(nextQuality);
+      clearResults();
+    }
+    if (isPremiumFilter(filter)) {
+      saveFilter("none");
+      setFilterState("none");
+      clearResults();
+    }
+    if (isPremiumLayout(layout)) setLayout("4x1");
+  }, [filter, isPro, layout, quality]);
 
   function clearActiveSession() {
     setActiveSessionId(null);
@@ -1272,7 +1319,7 @@ export default function App() {
           previewUrl={previewUrl}
           generating={generating}
           layout={layout}
-          setLayout={setLayout}
+          setLayout={changeLayout}
           themeKey={themeKey}
           setThemeKey={setThemeKey}
           filter={filter}

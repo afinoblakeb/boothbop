@@ -252,7 +252,12 @@ export function SettingsScreen({
               label={`${row.label} quality`}
               value={quality[row.key]}
               onChange={(q) => onQuality(row.key, q)}
-              options={QUALITY_OPTIONS}
+              options={QUALITY_OPTIONS.map((option) => ({
+                ...option,
+                label:
+                  option.value === "high" && !isPro ? "High Pro" : option.label,
+                disabled: option.value === "high" && !isPro,
+              }))}
               itemClassName="py-2 text-sm"
             />
           </div>

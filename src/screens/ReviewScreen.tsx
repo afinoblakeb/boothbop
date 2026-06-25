@@ -3,6 +3,7 @@ import { SESSION_TITLE_MAX } from "../lib/gallery";
 import { THEMES, type Layout } from "../lib/strip";
 import type { FilterDef, FilterKey } from "../lib/render";
 import type { StylePreset } from "../lib/templates";
+import { isPremiumFilter, isPremiumLayout } from "../lib/entitlements";
 import { DownloadIcon, RefreshIcon, ShareIcon, StarIcon } from "../icons";
 import {
   Button,
@@ -182,7 +183,12 @@ export function ReviewScreen({
           value={filter}
           onChange={setFilter}
           options={(Object.entries(filters) as [FilterKey, FilterDef][]).map(
-            ([value, f]) => ({ value, label: f.label }),
+            ([value, f]) => ({
+              value,
+              label:
+                isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
+              disabled: isPremiumFilter(value) && !isPro,
+            }),
           )}
           itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
         />
@@ -226,9 +232,21 @@ export function ReviewScreen({
               options={[
                 { value: "4x1", label: "Classic" },
                 { value: "2x2", label: "Grid" },
-                { value: "2x6", label: "2×6 Pro", disabled: !isPro },
-                { value: "4x6", label: "4×6 Pro", disabled: !isPro },
-                { value: "story", label: "Story Pro", disabled: !isPro },
+                {
+                  value: "2x6",
+                  label: "2×6 Pro",
+                  disabled: isPremiumLayout("2x6") && !isPro,
+                },
+                {
+                  value: "4x6",
+                  label: "4×6 Pro",
+                  disabled: isPremiumLayout("4x6") && !isPro,
+                },
+                {
+                  value: "story",
+                  label: "Story Pro",
+                  disabled: isPremiumLayout("story") && !isPro,
+                },
               ]}
               itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2 text-sm"
             />
