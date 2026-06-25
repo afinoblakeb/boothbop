@@ -22,6 +22,10 @@ export function GalleryScreen({
   demo?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [favoritesOnly, setFavoritesOnly] = useState(false);
+  const visibleSessions =
+    sessions?.filter((session) => !favoritesOnly || session.favorite) ?? null;
+  const hasFavorites = sessions?.some((session) => session.favorite) ?? false;
 
   const reload = () => loadGallerySessions(demo).then(setSessions);
   useEffect(() => {
@@ -70,13 +74,53 @@ export function GalleryScreen({
             Your booth sessions are saved here automatically.
           </p>
         </div>
+      ) : visibleSessions?.length === 0 ? (
+        <div className="mt-16 flex flex-col items-center text-center text-brown">
+          <BrandIcon name="gallery" className="h-16 w-16" />
+          <Heading as="p" size="lg" className="mt-3">
+            No favorites yet
+          </Heading>
+          <p className="font-sans text-sm text-warmgray">
+            Star a set to keep it at the top.
+          </p>
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setFavoritesOnly(false)}
+            className="mt-4"
+          >
+            Show all
+          </Button>
+        </div>
       ) : (
         <>
+          {hasFavorites && (
+            <div className="mt-4 grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setFavoritesOnly(false)}
+                aria-pressed={!favoritesOnly}
+                className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                  !favoritesOnly ? "bg-orange text-cream" : "bg-paper text-ink"
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => setFavoritesOnly(true)}
+                aria-pressed={favoritesOnly}
+                className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                  favoritesOnly ? "bg-orange text-cream" : "bg-paper text-ink"
+                }`}
+              >
+                Favorites
+              </button>
+            </div>
+          )}
           <p className="mt-4 font-display text-lg uppercase tracking-wide text-brown">
-            {galleryCountLabel(sessions)}
+            {galleryCountLabel(visibleSessions ?? [])}
           </p>
           <div className="mt-3 space-y-5">
-            {groupSessions(sessions).map(([day, items]) => (
+            {groupSessions(visibleSessions ?? []).map(([day, items]) => (
               <section key={day}>
                 <Heading as="h3" size="sm" className="mb-2 text-brown">
                   {day}
