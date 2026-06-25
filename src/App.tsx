@@ -65,6 +65,10 @@ interface MediaResult {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Screenshot mode: a flag-gated sample loader (see lib/demo.ts) for producing
+// App Store screenshots without a camera. Off in the submission build.
+const DEMO = import.meta.env.DEV || import.meta.env.VITE_DEMO === "1";
+
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
@@ -408,6 +412,25 @@ export default function App() {
     openCamera();
   }
 
+  // Screenshot mode: inject a staged set of photos as the four frames and jump
+  // straight to review, rendering a real strip/GIF/video. Gated by DEMO.
+  async function loadSampleSession(setNum: number) {
+    setError(null);
+    try {
+      const { loadSampleFrames } = await import("./lib/demo");
+      const canvases = await loadSampleFrames(
+        setNum,
+        PHOTO_CAPTURE[quality.photo],
+      );
+      clearResults();
+      setFrames(canvases);
+      setFormat("strip");
+      setPhase("review");
+    } catch {
+      setError(`Add public/demo/set${setNum}-1.jpg … set${setNum}-4.jpg`);
+    }
+  }
+
   // Reopen a saved session in the review screen so the user can get the strip,
   // GIF, or video (and re-share) from any past shoot — not just the strip.
   async function openSession(session: Session) {
@@ -715,6 +738,20 @@ export default function App() {
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />
+      )}
+
+      {DEMO && phase === "idle" && !showMigration && (
+        <div className="fixed bottom-2 left-2 z-50 flex gap-1">
+          {[1, 2, 3].map((n) => (
+            <button
+              key={n}
+              onClick={() => loadSampleSession(n)}
+              className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
+            >
+              Demo {n}
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
