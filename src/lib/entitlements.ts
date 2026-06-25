@@ -1,4 +1,4 @@
-import type { FilterKey } from "./render";
+import type { FilterKey, StickerKey } from "./render";
 import type { Layout } from "./strip";
 import type { Quality } from "./settings";
 
@@ -7,11 +7,13 @@ export type ProFeature =
   | "highQuality"
   | "premiumFilter"
   | "premiumLayout"
+  | "premiumSticker"
   | "premiumPreset"
   | "removeWatermark";
 
 export const PREMIUM_FILTERS: readonly FilterKey[] = ["glam", "vintage"];
 export const PREMIUM_LAYOUTS: readonly Layout[] = ["2x6", "4x6", "story"];
+export const PREMIUM_STICKERS: readonly StickerKey[] = ["hearts", "party"];
 
 export function canUseProFeature(isPro: boolean): boolean {
   return isPro;
@@ -23,6 +25,10 @@ export function isPremiumFilter(filter: FilterKey): boolean {
 
 export function isPremiumLayout(layout: Layout): boolean {
   return PREMIUM_LAYOUTS.includes(layout);
+}
+
+export function isPremiumSticker(sticker: StickerKey): boolean {
+  return PREMIUM_STICKERS.includes(sticker);
 }
 
 export function isPremiumQuality(quality: Quality): boolean {

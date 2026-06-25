@@ -32,6 +32,7 @@ function frameToBase64(
   frame: HTMLCanvasElement,
   size: number,
   filter: NonNullable<VideoOptions["filter"]>,
+  sticker: NonNullable<VideoOptions["sticker"]>,
   watermark: boolean,
   watermarkImg: HTMLImageElement | null,
 ): string {
@@ -39,7 +40,12 @@ function frameToBase64(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  drawFrame(ctx, frame, { x: 0, y: 0, width: size, height: size }, { filter });
+  drawFrame(
+    ctx,
+    frame,
+    { x: 0, y: 0, width: size, height: size },
+    { filter, sticker },
+  );
   if (watermark) drawWatermark(ctx, size, size, watermarkImg);
   return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
 }
@@ -52,6 +58,7 @@ export async function encodeVideoNative(
     frameMs = 600,
     loops = 2,
     filter = "none",
+    sticker = "none",
     motion = "loop",
     watermark = true,
     watermarkImg = null,
@@ -59,7 +66,7 @@ export async function encodeVideoNative(
 ): Promise<VideoResult> {
   try {
     const images = motionSequence(frames, motion).map((f) =>
-      frameToBase64(f, size, filter, watermark, watermarkImg),
+      frameToBase64(f, size, filter, sticker, watermark, watermarkImg),
     );
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withTimeout(
@@ -77,6 +84,7 @@ export async function encodeVideoNative(
       frameMs,
       loops,
       filter,
+      sticker,
       motion,
       watermark,
       watermarkImg,

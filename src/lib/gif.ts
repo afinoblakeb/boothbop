@@ -5,6 +5,7 @@ import {
   motionSequence,
   type FilterKey,
   type MotionMode,
+  type StickerKey,
 } from "./render";
 import { drawWatermark } from "./watermark";
 
@@ -12,6 +13,7 @@ export interface GifOptions {
   size?: number; // output dimension (square)
   delay?: number; // ms each frame is shown
   filter?: FilterKey;
+  sticker?: StickerKey;
   motion?: MotionMode;
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
   watermarkImg?: HTMLImageElement | null; // preloaded logo
@@ -23,6 +25,7 @@ export function encodeGif(
     size = 640,
     delay = 450,
     filter = "none",
+    sticker = "none",
     motion = "loop",
     watermark = true,
     watermarkImg = null,
@@ -41,7 +44,7 @@ export function encodeGif(
       ctx,
       frame,
       { x: 0, y: 0, width: size, height: size },
-      { filter },
+      { filter, sticker },
     );
     if (watermark) drawWatermark(ctx, size, size, watermarkImg);
     const { data } = ctx.getImageData(0, 0, size, size);

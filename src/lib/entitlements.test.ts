@@ -4,6 +4,7 @@ import {
   isPremiumFilter,
   isPremiumLayout,
   isPremiumQuality,
+  isPremiumSticker,
 } from "./entitlements";
 
 describe("entitlements", () => {
@@ -28,5 +29,11 @@ describe("entitlements", () => {
   it("treats high quality as premium", () => {
     expect(isPremiumQuality("high")).toBe(true);
     expect(isPremiumQuality("standard")).toBe(false);
+  });
+
+  it("marks premium sticker packs", () => {
+    expect(isPremiumSticker("hearts")).toBe(true);
+    expect(isPremiumSticker("party")).toBe(true);
+    expect(isPremiumSticker("sparkles")).toBe(false);
   });
 });

@@ -65,7 +65,16 @@ import {
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
-import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
+import {
+  FILTERS,
+  STICKERS,
+  loadFilter,
+  loadSticker,
+  saveFilter,
+  saveSticker,
+  type FilterKey,
+  type StickerKey,
+} from "./lib/render";
 import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
 import { loadImportedFrames } from "./lib/importPhotos";
 import { moveItem, type MoveDirection } from "./lib/sequence";
@@ -78,6 +87,7 @@ import {
   isPremiumFilter,
   isPremiumLayout,
   isPremiumQuality,
+  isPremiumSticker,
 } from "./lib/entitlements";
 import {
   buyRemoveWatermark,
@@ -183,6 +193,19 @@ export default function App() {
     clearResults();
   }
 
+  const [sticker, setStickerState] = useState<StickerKey>(loadSticker);
+  function changeSticker(next: StickerKey) {
+    if (isPremiumSticker(next) && !isPro) {
+      setNote("Unlock BoothBop Pro for premium props.");
+      setShowSettings(true);
+      return;
+    }
+    saveSticker(next);
+    setStickerState(next);
+    persistActiveStyle(buildSessionStyle({ sticker: next }));
+    clearResults();
+  }
+
   function changeLayout(next: Layout) {
     if (isPremiumLayout(next) && !isPro) {
       setNote("Unlock BoothBop Pro for premium layouts.");
@@ -275,11 +298,16 @@ export default function App() {
       setFilterState("none");
       clearResults();
     }
+    if (isPremiumSticker(sticker)) {
+      saveSticker("none");
+      setStickerState("none");
+      clearResults();
+    }
     if (isPremiumLayout(layout)) {
       saveStripLayout("4x1");
       setLayout("4x1");
     }
-  }, [filter, isPro, layout, quality]);
+  }, [filter, isPro, layout, quality, sticker]);
 
   function clearActiveSession() {
     setActiveSessionId(null);
@@ -313,10 +341,12 @@ export default function App() {
 
   function buildSessionStyle(overrides: Partial<SessionStyle> = {}) {
     const caption = overrides.caption ?? stripCaption;
+    const nextSticker = overrides.sticker ?? sticker;
     return {
       layout: overrides.layout ?? layout,
       themeKey: overrides.themeKey ?? themeKey,
       filter: overrides.filter ?? filter,
+      ...(nextSticker !== "none" ? { sticker: nextSticker } : {}),
       ...(caption ? { caption: cleanStyleCaption(caption) } : {}),
     };
   }
@@ -332,14 +362,22 @@ export default function App() {
       isPremiumLayout(style.layout) && !isPro ? "4x1" : style.layout;
     const nextFilter =
       isPremiumFilter(style.filter) && !isPro ? "none" : style.filter;
-    const locked = nextLayout !== style.layout || nextFilter !== style.filter;
+    const styleSticker = style.sticker ?? "none";
+    const nextSticker =
+      isPremiumSticker(styleSticker) && !isPro ? "none" : styleSticker;
+    const locked =
+      nextLayout !== style.layout ||
+      nextFilter !== style.filter ||
+      nextSticker !== styleSticker;
 
     saveStripLayout(nextLayout);
     saveThemeKey(style.themeKey);
     saveFilter(nextFilter);
+    saveSticker(nextSticker);
     setLayout(nextLayout);
     setThemeKeyState(style.themeKey);
     setFilterState(nextFilter);
+    setStickerState(nextSticker);
     if (isPro) {
       const caption = cleanStyleCaption(style.caption ?? "");
       localStorage.setItem("bb.pro.caption", caption);
@@ -371,6 +409,7 @@ export default function App() {
           size: GIF_SIZE[quality.gif],
           delay: speedProfile.gifDelay,
           filter,
+          sticker,
           watermark: !isPro,
         }),
       )
@@ -387,6 +426,7 @@ export default function App() {
           size: GIF_SIZE[quality.gif],
           delay: speedProfile.boomerangDelay,
           filter,
+          sticker,
           motion: "boomerang",
           watermark: !isPro,
         }),
@@ -403,6 +443,7 @@ export default function App() {
           watermarkImg,
           watermark: !isPro,
           filter,
+          sticker,
           frameMs: speedProfile.videoFrameMs,
           ...VIDEO_PROFILE[quality.video],
         };
@@ -1057,6 +1098,7 @@ export default function App() {
       cell: PHOTO_CAPTURE[quality.photo],
       watermark: !isPro,
       filter,
+      sticker,
       caption: stripCaption || undefined,
     }).toDataURL("image/png");
   }, [
@@ -1067,6 +1109,7 @@ export default function App() {
     quality.photo,
     isPro,
     filter,
+    sticker,
     stripCaption,
   ]);
 
@@ -1168,6 +1211,7 @@ export default function App() {
         cell: PHOTO_CAPTURE[quality.photo],
         watermark: !isPro,
         filter,
+        sticker,
         caption: stripCaption || undefined,
       });
     if (task.format === "gif") return getGifBlob(src);
@@ -1225,6 +1269,7 @@ export default function App() {
       cell: PHOTO_CAPTURE[quality.photo],
       watermark: !isPro,
       filter,
+      sticker,
       caption: stripCaption || undefined,
     });
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
@@ -1338,6 +1383,7 @@ export default function App() {
         cell: PHOTO_CAPTURE[quality.photo],
         watermark: !isPro,
         filter,
+        sticker,
         caption: stripCaption || undefined,
       });
       const gif = await getGifBlob(frames);
@@ -1464,6 +1510,9 @@ export default function App() {
           filter={filter}
           filters={FILTERS}
           setFilter={changeFilter}
+          sticker={sticker}
+          stickers={STICKERS}
+          setSticker={changeSticker}
           stylePresets={STYLE_PRESETS}
           isPro={isPro}
           onApplyPreset={applyStylePreset}

@@ -3,6 +3,7 @@
 // do not drift.
 
 export type FilterKey = "none" | "mono" | "warm" | "glam" | "vintage";
+export type StickerKey = "none" | "sparkles" | "hearts" | "party";
 export type MotionMode = "loop" | "boomerang";
 
 export interface FilterDef {
@@ -30,7 +31,19 @@ export const FILTERS: Record<FilterKey, FilterDef> = {
   },
 };
 
+export interface StickerDef {
+  label: string;
+}
+
+export const STICKERS: Record<StickerKey, StickerDef> = {
+  none: { label: "None" },
+  sparkles: { label: "Spark" },
+  hearts: { label: "Hearts" },
+  party: { label: "Party" },
+};
+
 const FILTER_KEY = "bb.filter";
+const STICKER_KEY = "bb.sticker";
 
 export function loadFilter(): FilterKey {
   const v = localStorage.getItem(FILTER_KEY);
@@ -39,6 +52,15 @@ export function loadFilter(): FilterKey {
 
 export function saveFilter(filter: FilterKey): void {
   localStorage.setItem(FILTER_KEY, filter);
+}
+
+export function loadSticker(): StickerKey {
+  const v = localStorage.getItem(STICKER_KEY);
+  return isStickerKey(v) ? v : "none";
+}
+
+export function saveSticker(sticker: StickerKey): void {
+  localStorage.setItem(STICKER_KEY, sticker);
 }
 
 function isFilterKey(v: string | null): v is FilterKey {
@@ -51,8 +73,13 @@ function isFilterKey(v: string | null): v is FilterKey {
   );
 }
 
+function isStickerKey(v: string | null): v is StickerKey {
+  return v === "none" || v === "sparkles" || v === "hearts" || v === "party";
+}
+
 export interface DrawFrameOptions {
   filter?: FilterKey;
+  sticker?: StickerKey;
 }
 
 export interface DrawRect {
@@ -66,7 +93,7 @@ export function drawFrame(
   ctx: CanvasRenderingContext2D,
   frame: HTMLCanvasElement,
   dest: DrawRect,
-  { filter = "none" }: DrawFrameOptions = {},
+  { filter = "none", sticker = "none" }: DrawFrameOptions = {},
 ): void {
   const def = FILTERS[filter];
   ctx.save();
@@ -88,6 +115,7 @@ export function drawFrame(
   );
   ctx.restore();
   drawOverlay(ctx, dest, def.overlay);
+  drawSticker(ctx, dest, sticker);
 }
 
 function drawOverlay(
@@ -116,6 +144,119 @@ function drawOverlay(
     ctx.fillRect(x, y, width, height);
   }
   ctx.restore();
+}
+
+function drawSticker(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  sticker: StickerKey,
+) {
+  if (sticker === "none") return;
+  const scale = Math.min(rect.width, rect.height) / 640;
+  ctx.save();
+  if (sticker === "sparkles") {
+    drawSparkle(ctx, rect, 0.18, 0.18, 28 * scale, "#f7d154");
+    drawSparkle(ctx, rect, 0.78, 0.27, 20 * scale, "#f6e7cf");
+    drawSparkle(ctx, rect, 0.28, 0.78, 18 * scale, "#e85a1a");
+  } else if (sticker === "hearts") {
+    drawHeart(ctx, rect, 0.78, 0.18, 38 * scale, "#e85a1a");
+    drawHeart(ctx, rect, 0.2, 0.78, 30 * scale, "#f7d154");
+  } else {
+    drawConfetti(ctx, rect, scale);
+  }
+  ctx.restore();
+}
+
+function drawSparkle(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  radius: number,
+  color: string,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(2, radius * 0.12);
+  ctx.beginPath();
+  ctx.moveTo(x, y - radius);
+  ctx.lineTo(x + radius * 0.28, y - radius * 0.28);
+  ctx.lineTo(x + radius, y);
+  ctx.lineTo(x + radius * 0.28, y + radius * 0.28);
+  ctx.lineTo(x, y + radius);
+  ctx.lineTo(x - radius * 0.28, y + radius * 0.28);
+  ctx.lineTo(x - radius, y);
+  ctx.lineTo(x - radius * 0.28, y - radius * 0.28);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawHeart(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+  color: string,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(2, size * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(x, y + size * 0.34);
+  ctx.bezierCurveTo(
+    x - size,
+    y - size * 0.2,
+    x - size * 0.45,
+    y - size,
+    x,
+    y - size * 0.45,
+  );
+  ctx.bezierCurveTo(
+    x + size * 0.45,
+    y - size,
+    x + size,
+    y - size * 0.2,
+    x,
+    y + size * 0.34,
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawConfetti(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  scale: number,
+) {
+  const pieces = [
+    [0.13, 0.16, "#f7d154", -0.3],
+    [0.31, 0.1, "#3e7c78", 0.35],
+    [0.74, 0.14, "#e85a1a", -0.2],
+    [0.86, 0.33, "#f6e7cf", 0.25],
+    [0.17, 0.72, "#e85a1a", 0.2],
+    [0.7, 0.82, "#f7d154", -0.35],
+    [0.9, 0.76, "#3e7c78", 0.3],
+  ] as const;
+  for (const [rx, ry, color, rotation] of pieces) {
+    const x = rect.x + rect.width * rx;
+    const y = rect.y + rect.height * ry;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rotation);
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#111111";
+    ctx.lineWidth = Math.max(1.5, 2 * scale);
+    ctx.fillRect(-12 * scale, -5 * scale, 24 * scale, 10 * scale);
+    ctx.strokeRect(-12 * scale, -5 * scale, 24 * scale, 10 * scale);
+    ctx.restore();
+  }
 }
 
 export function renderFrame(

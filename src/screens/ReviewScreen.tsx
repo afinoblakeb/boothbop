@@ -1,10 +1,19 @@
 import { isVideoSupported } from "../lib/video";
 import { SESSION_TITLE_MAX } from "../lib/gallery";
 import { THEMES, type Layout } from "../lib/strip";
-import type { FilterDef, FilterKey } from "../lib/render";
+import type {
+  FilterDef,
+  FilterKey,
+  StickerDef,
+  StickerKey,
+} from "../lib/render";
 import type { StylePreset } from "../lib/templates";
 import type { MoveDirection } from "../lib/sequence";
-import { isPremiumFilter, isPremiumLayout } from "../lib/entitlements";
+import {
+  isPremiumFilter,
+  isPremiumLayout,
+  isPremiumSticker,
+} from "../lib/entitlements";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -47,6 +56,9 @@ export function ReviewScreen({
   filter,
   filters,
   setFilter,
+  sticker,
+  stickers,
+  setSticker,
   stylePresets,
   isPro,
   onApplyPreset,
@@ -81,6 +93,9 @@ export function ReviewScreen({
   filter: FilterKey;
   filters: Record<FilterKey, FilterDef>;
   setFilter: (f: FilterKey) => void;
+  sticker: StickerKey;
+  stickers: Record<StickerKey, StickerDef>;
+  setSticker: (s: StickerKey) => void;
   stylePresets: readonly StylePreset[];
   isPro: boolean;
   onApplyPreset: (preset: StylePreset) => void;
@@ -198,6 +213,27 @@ export function ReviewScreen({
               label:
                 isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
               disabled: isPremiumFilter(value) && !isPro,
+            }),
+          )}
+          itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
+        />
+      </div>
+
+      <div className="mt-3 w-full">
+        <SectionLabel className="mb-1 text-center">Props</SectionLabel>
+        <SegmentedControl
+          className="mx-auto"
+          label="Photo props"
+          value={sticker}
+          onChange={setSticker}
+          options={(Object.entries(stickers) as [StickerKey, StickerDef][]).map(
+            ([value, item]) => ({
+              value,
+              label:
+                isPremiumSticker(value) && !isPro
+                  ? `${item.label} Pro`
+                  : item.label,
+              disabled: isPremiumSticker(value) && !isPro,
             }),
           )}
           itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"

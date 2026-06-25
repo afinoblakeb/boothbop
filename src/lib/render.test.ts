@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { FILTERS, loadFilter, motionSequence, saveFilter } from "./render";
+import {
+  FILTERS,
+  STICKERS,
+  loadFilter,
+  loadSticker,
+  motionSequence,
+  saveFilter,
+  saveSticker,
+} from "./render";
 
 beforeEach(() => localStorage.clear());
 
@@ -28,6 +36,34 @@ describe("filter settings", () => {
     ]);
     for (const f of Object.values(FILTERS)) {
       expect(f.label.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("sticker settings", () => {
+  it("defaults to no sticker when storage is empty", () => {
+    expect(loadSticker()).toBe("none");
+  });
+
+  it("round-trips a selected sticker", () => {
+    saveSticker("party");
+    expect(loadSticker()).toBe("party");
+  });
+
+  it("treats unknown stored stickers as none", () => {
+    localStorage.setItem("bb.sticker", "laser");
+    expect(loadSticker()).toBe("none");
+  });
+
+  it("exposes user-facing sticker labels", () => {
+    expect(Object.keys(STICKERS)).toEqual([
+      "none",
+      "sparkles",
+      "hearts",
+      "party",
+    ]);
+    for (const sticker of Object.values(STICKERS)) {
+      expect(sticker.label.length).toBeGreaterThan(0);
     }
   });
 });

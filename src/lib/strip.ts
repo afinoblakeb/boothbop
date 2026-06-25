@@ -1,5 +1,5 @@
 // Compose the 4 captured frames into a downloadable photo strip.
-import { drawFrame, type FilterKey } from "./render";
+import { drawFrame, type FilterKey, type StickerKey } from "./render";
 import { loadWatermark } from "./watermark";
 
 export const LAYOUTS = ["4x1", "2x2", "2x6", "4x6", "story"] as const;
@@ -124,6 +124,7 @@ export interface StripOptions {
   cell?: number;
   watermark?: boolean;
   filter?: FilterKey;
+  sticker?: StickerKey;
   caption?: string;
 }
 
@@ -136,6 +137,7 @@ export function composeStrip(
     cell = STRIP.cell,
     watermark = true,
     filter = "none",
+    sticker = "none",
     caption,
   }: StripOptions = {},
 ): HTMLCanvasElement {
@@ -153,7 +155,12 @@ export function composeStrip(
 
   frames.slice(0, 4).forEach((frame, i) => {
     const { x, y, size } = cells[i];
-    drawFrame(ctx, frame, { x, y, width: size, height: size }, { filter });
+    drawFrame(
+      ctx,
+      frame,
+      { x, y, width: size, height: size },
+      { filter, sticker },
+    );
   });
 
   const footerY = height - footer;

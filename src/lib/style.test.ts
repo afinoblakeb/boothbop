@@ -4,6 +4,7 @@ import {
   normalizeFilterKey,
   normalizeLayout,
   normalizeSessionStyle,
+  normalizeStickerKey,
   normalizeThemeKey,
 } from "./style";
 
@@ -15,6 +16,8 @@ describe("style normalization", () => {
     expect(normalizeThemeKey("hotpink")).toBe("classic");
     expect(normalizeFilterKey("warm")).toBe("warm");
     expect(normalizeFilterKey("laser")).toBe("none");
+    expect(normalizeStickerKey("party")).toBe("party");
+    expect(normalizeStickerKey("laser")).toBe("none");
   });
 
   it("cleans captions for storage", () => {
@@ -28,12 +31,14 @@ describe("style normalization", () => {
         layout: "story",
         themeKey: "rust",
         filter: "vintage",
+        sticker: "party",
         caption: "  After   Party  ",
       }),
     ).toEqual({
       layout: "story",
       themeKey: "rust",
       filter: "vintage",
+      sticker: "party",
       caption: "After Party",
     });
   });

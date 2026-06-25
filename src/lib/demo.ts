@@ -35,7 +35,7 @@ const SAMPLE_TITLES: Record<number, string> = {
 };
 
 const SAMPLE_STYLES: Record<number, SessionStyle> = {
-  1: { layout: "2x2", themeKey: "teal", filter: "warm" },
+  1: { layout: "2x2", themeKey: "teal", filter: "warm", sticker: "sparkles" },
   2: { layout: "4x1", themeKey: "carbon", filter: "mono" },
   3: { layout: "4x1", themeKey: "mustard", filter: "none" },
 };

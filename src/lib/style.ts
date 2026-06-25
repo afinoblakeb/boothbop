@@ -1,4 +1,4 @@
-import { FILTERS, type FilterKey } from "./render";
+import { FILTERS, STICKERS, type FilterKey, type StickerKey } from "./render";
 import { LAYOUTS, THEMES, type Layout } from "./strip";
 
 export type ThemeKey = keyof typeof THEMES;
@@ -7,6 +7,7 @@ export interface SessionStyle {
   layout: Layout;
   themeKey: ThemeKey;
   filter: FilterKey;
+  sticker?: StickerKey;
   caption?: string;
 }
 
@@ -30,6 +31,12 @@ export function normalizeFilterKey(value: unknown): FilterKey {
     : "none";
 }
 
+export function normalizeStickerKey(value: unknown): StickerKey {
+  return typeof value === "string" && value in STICKERS
+    ? (value as StickerKey)
+    : "none";
+}
+
 export function normalizeSessionStyle(
   value: unknown,
 ): SessionStyle | undefined {
@@ -38,6 +45,7 @@ export function normalizeSessionStyle(
     !("layout" in value) &&
     !("themeKey" in value) &&
     !("filter" in value) &&
+    !("sticker" in value) &&
     !("caption" in value)
   ) {
     return undefined;
@@ -47,10 +55,12 @@ export function normalizeSessionStyle(
     typeof value.caption === "string"
       ? cleanStyleCaption(value.caption)
       : undefined;
+  const sticker = normalizeStickerKey(value.sticker);
   return {
     layout: normalizeLayout(value.layout),
     themeKey: normalizeThemeKey(value.themeKey),
     filter: normalizeFilterKey(value.filter),
+    ...(sticker !== "none" ? { sticker } : {}),
     ...(caption ? { caption } : {}),
   };
 }

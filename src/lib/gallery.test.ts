@@ -114,12 +114,14 @@ describe("gallery sessions", () => {
       layout: "2x2",
       themeKey: "teal",
       filter: "warm",
+      sticker: "sparkles",
       caption: "  Launch   Night  ",
     });
     expect(session.style).toEqual({
       layout: "2x2",
       themeKey: "teal",
       filter: "warm",
+      sticker: "sparkles",
       caption: "Launch Night",
     });
 
@@ -127,11 +129,13 @@ describe("gallery sessions", () => {
       layout: "story",
       themeKey: "rust",
       filter: "vintage",
+      sticker: "party",
     });
     expect(updated?.style).toEqual({
       layout: "story",
       themeKey: "rust",
       filter: "vintage",
+      sticker: "party",
     });
     const stored = (await listSessions()).find((s) => s.id === session.id);
     expect(stored?.style?.layout).toBe("story");
@@ -142,6 +146,7 @@ describe("gallery sessions", () => {
       layout: "bad" as never,
       themeKey: "missing",
       filter: "weird" as never,
+      sticker: "strange" as never,
       caption: "x".repeat(60),
     });
     expect(session.style).toEqual({
