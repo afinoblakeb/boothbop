@@ -9,6 +9,7 @@ import {
   saveSession,
   updateSessionMeta,
   updateSessionPhotos,
+  updateSessionStyle,
 } from "./gallery";
 
 const photo = (byte: number) =>
@@ -106,5 +107,48 @@ describe("gallery sessions", () => {
     expect(updated?.photos).toHaveLength(1);
     const stored = (await listSessions()).find((s) => s.id === session.id);
     expect(stored?.photos).toHaveLength(1);
+  });
+
+  it("saves and updates session style metadata", async () => {
+    const session = await saveSession(fourPhotos(), {
+      layout: "2x2",
+      themeKey: "teal",
+      filter: "warm",
+      caption: "  Launch   Night  ",
+    });
+    expect(session.style).toEqual({
+      layout: "2x2",
+      themeKey: "teal",
+      filter: "warm",
+      caption: "Launch Night",
+    });
+
+    const updated = await updateSessionStyle(session.id, {
+      layout: "story",
+      themeKey: "rust",
+      filter: "vintage",
+    });
+    expect(updated?.style).toEqual({
+      layout: "story",
+      themeKey: "rust",
+      filter: "vintage",
+    });
+    const stored = (await listSessions()).find((s) => s.id === session.id);
+    expect(stored?.style?.layout).toBe("story");
+  });
+
+  it("normalizes legacy invalid style metadata", async () => {
+    const session = await saveSession(fourPhotos(), {
+      layout: "bad" as never,
+      themeKey: "missing",
+      filter: "weird" as never,
+      caption: "x".repeat(60),
+    });
+    expect(session.style).toEqual({
+      layout: "4x1",
+      themeKey: "classic",
+      filter: "none",
+      caption: "x".repeat(28),
+    });
   });
 });

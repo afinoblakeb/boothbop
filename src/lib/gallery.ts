@@ -4,11 +4,16 @@
 // Nothing is ever uploaded — this is purely the user's phone acting as private
 // storage, and everything here can be deleted by the user at any time.
 
+import { normalizeSessionStyle, type SessionStyle } from "./style";
+
+export type { SessionStyle } from "./style";
+
 export interface Session {
   id: string;
   createdAt: number;
   title?: string;
   favorite?: boolean;
+  style?: SessionStyle;
   photos: Blob[]; // the four captured frames (JPEG)
 }
 
@@ -36,11 +41,16 @@ export function requestPersistence() {
   navigator.storage?.persist?.().catch(() => {});
 }
 
-export async function saveSession(photos: Blob[]): Promise<Session> {
+export async function saveSession(
+  photos: Blob[],
+  style?: SessionStyle,
+): Promise<Session> {
+  const normalizedStyle = normalizeSessionStyle(style);
   const session: Session = {
     id: crypto.randomUUID(),
     createdAt: Date.now(),
     favorite: false,
+    ...(normalizedStyle ? { style: normalizedStyle } : {}),
     photos,
   };
   const db = await openDB();
@@ -140,6 +150,38 @@ export async function updateSessionPhotos(
   }
 }
 
+export async function updateSessionStyle(
+  id: string,
+  style: SessionStyle,
+): Promise<Session | null> {
+  const db = await openDB();
+  try {
+    return await new Promise<Session | null>((resolve, reject) => {
+      const t = db.transaction(STORE, "readwrite");
+      const store = t.objectStore(STORE);
+      const getReq = store.get(id);
+      let next: Session | null = null;
+      getReq.onsuccess = () => {
+        const current = getReq.result as Session | undefined;
+        if (!current) {
+          resolve(null);
+          return;
+        }
+        next = normalizeSession({
+          ...current,
+          style: normalizeSessionStyle(style),
+        });
+        store.put(next);
+      };
+      getReq.onerror = () => reject(getReq.error);
+      t.oncomplete = () => resolve(next);
+      t.onerror = () => reject(t.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function deleteSession(id: string): Promise<void> {
   const db = await openDB();
   try {
@@ -173,10 +215,12 @@ export function cleanSessionTitle(title: string): string {
 }
 
 function normalizeSession(session: Session): Session {
+  const style = normalizeSessionStyle(session.style);
   return {
     ...session,
     title: cleanSessionTitle(session.title ?? ""),
     favorite: session.favorite === true,
+    ...(style ? { style } : { style: undefined }),
   };
 }
 

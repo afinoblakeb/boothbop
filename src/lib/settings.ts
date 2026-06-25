@@ -3,6 +3,7 @@
 // All logic here is pure/React-free so it can be unit-tested.
 
 import type { Layout } from "./strip";
+import { normalizeLayout, normalizeThemeKey, type ThemeKey } from "./style";
 
 export type AutosaveDest = "album" | "cameraRoll";
 export type AutosaveFormat = "strip" | "grid" | "gif" | "video";
@@ -203,4 +204,25 @@ export function loadExportSpeed(): ExportSpeed {
 
 export function saveExportSpeed(speed: ExportSpeed): void {
   localStorage.setItem(EXPORT_SPEED_KEY, speed);
+}
+
+// ───────────────────────── Strip style persistence ─────────────────────────
+
+const STRIP_LAYOUT_KEY = "bb.strip.layout";
+const STRIP_THEME_KEY = "bb.strip.theme";
+
+export function loadStripLayout(): Layout {
+  return normalizeLayout(localStorage.getItem(STRIP_LAYOUT_KEY));
+}
+
+export function saveStripLayout(layout: Layout): void {
+  localStorage.setItem(STRIP_LAYOUT_KEY, layout);
+}
+
+export function loadThemeKey(): ThemeKey {
+  return normalizeThemeKey(localStorage.getItem(STRIP_THEME_KEY));
+}
+
+export function saveThemeKey(themeKey: ThemeKey): void {
+  localStorage.setItem(STRIP_THEME_KEY, themeKey);
 }

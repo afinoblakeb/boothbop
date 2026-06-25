@@ -28,6 +28,7 @@ import {
   SESSION_TITLE_MAX,
   updateSessionMeta,
   updateSessionPhotos,
+  updateSessionStyle,
   type Session,
 } from "./lib/gallery";
 import {
@@ -38,11 +39,15 @@ import {
   loadCaptureDelay,
   loadCaptureSound,
   loadExportSpeed,
+  loadStripLayout,
+  loadThemeKey,
   loadQuality,
   planAutosaveTasks,
   saveCaptureDelay,
   saveCaptureSound,
   saveExportSpeed,
+  saveStripLayout,
+  saveThemeKey,
   saveQuality,
   type AutosaveSettings,
   type AutosaveTask,
@@ -63,6 +68,11 @@ import { nativeShareFile } from "./lib/nativeShare";
 import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
 import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
 import { loadImportedFrames } from "./lib/importPhotos";
+import {
+  cleanStyleCaption,
+  type SessionStyle,
+  type ThemeKey,
+} from "./lib/style";
 import {
   isPremiumFilter,
   isPremiumLayout,
@@ -115,8 +125,8 @@ export default function App() {
     HTMLCanvasElement[] | null
   >(null);
   const [demoPreviewIndex, setDemoPreviewIndex] = useState(0);
-  const [layout, setLayout] = useState<Layout>("4x1");
-  const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
+  const [layout, setLayout] = useState<Layout>(loadStripLayout);
+  const [themeKey, setThemeKeyState] = useState<ThemeKey>(loadThemeKey);
   const [error, setError] = useState<string | null>(null);
 
   const [format, setFormat] = useState<Format>("strip");
@@ -168,6 +178,7 @@ export default function App() {
     }
     saveFilter(f);
     setFilterState(f);
+    persistActiveStyle(buildSessionStyle({ filter: f }));
     clearResults();
   }
 
@@ -177,7 +188,15 @@ export default function App() {
       setShowSettings(true);
       return;
     }
+    saveStripLayout(next);
     setLayout(next);
+    persistActiveStyle(buildSessionStyle({ layout: next }));
+  }
+
+  function changeThemeKey(next: ThemeKey) {
+    saveThemeKey(next);
+    setThemeKeyState(next);
+    persistActiveStyle(buildSessionStyle({ themeKey: next }));
   }
 
   function applyStylePreset(preset: StylePreset) {
@@ -186,10 +205,19 @@ export default function App() {
       setShowSettings(true);
       return;
     }
+    saveStripLayout(preset.layout);
+    saveThemeKey(preset.theme);
     setLayout(preset.layout);
-    setThemeKey(preset.theme);
+    setThemeKeyState(preset.theme);
     saveFilter(preset.filter);
     setFilterState(preset.filter);
+    persistActiveStyle(
+      buildSessionStyle({
+        layout: preset.layout,
+        themeKey: preset.theme,
+        filter: preset.filter,
+      }),
+    );
     clearResults();
     setFormat("strip");
   }
@@ -202,9 +230,10 @@ export default function App() {
     () => localStorage.getItem("bb.pro.caption") ?? "",
   );
   function setCustomCaption(value: string) {
-    const next = value.slice(0, 28);
+    const next = cleanStyleCaption(value);
     localStorage.setItem("bb.pro.caption", next);
     setCustomCaptionState(next);
+    persistActiveStyle(buildSessionStyle({ caption: isPro ? next : "" }));
   }
   const stripCaption = isPro ? customCaption.trim() : "";
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
@@ -245,7 +274,10 @@ export default function App() {
       setFilterState("none");
       clearResults();
     }
-    if (isPremiumLayout(layout)) setLayout("4x1");
+    if (isPremiumLayout(layout)) {
+      saveStripLayout("4x1");
+      setLayout("4x1");
+    }
   }, [filter, isPro, layout, quality]);
 
   function clearActiveSession() {
@@ -276,6 +308,43 @@ export default function App() {
     const next = !sessionFavorite;
     setSessionFavorite(next);
     void updateSessionMeta(activeSessionId, { favorite: next });
+  }
+
+  function buildSessionStyle(overrides: Partial<SessionStyle> = {}) {
+    const caption = overrides.caption ?? stripCaption;
+    return {
+      layout: overrides.layout ?? layout,
+      themeKey: overrides.themeKey ?? themeKey,
+      filter: overrides.filter ?? filter,
+      ...(caption ? { caption: cleanStyleCaption(caption) } : {}),
+    };
+  }
+
+  function persistActiveStyle(style: SessionStyle) {
+    if (!activeSessionId) return;
+    void updateSessionStyle(activeSessionId, style);
+  }
+
+  function restoreSessionStyle(style: SessionStyle | undefined): boolean {
+    if (!style) return false;
+    const nextLayout =
+      isPremiumLayout(style.layout) && !isPro ? "4x1" : style.layout;
+    const nextFilter =
+      isPremiumFilter(style.filter) && !isPro ? "none" : style.filter;
+    const locked = nextLayout !== style.layout || nextFilter !== style.filter;
+
+    saveStripLayout(nextLayout);
+    saveThemeKey(style.themeKey);
+    saveFilter(nextFilter);
+    setLayout(nextLayout);
+    setThemeKeyState(style.themeKey);
+    setFilterState(nextFilter);
+    if (isPro) {
+      const caption = cleanStyleCaption(style.caption ?? "");
+      localStorage.setItem("bb.pro.caption", caption);
+      setCustomCaptionState(caption);
+    }
+    return locked;
   }
 
   // Auto-dismiss the transient success/info note after a few seconds. The
@@ -657,7 +726,7 @@ export default function App() {
       setPhase("review");
       try {
         const photos = await Promise.all(canvases.map((c) => canvasToBlob(c)));
-        activateSession(await saveSession(photos));
+        activateSession(await saveSession(photos, buildSessionStyle()));
       } catch {
         clearActiveSession();
       }
@@ -781,7 +850,7 @@ export default function App() {
     // Auto-save this session to the private on-device gallery.
     try {
       const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      activateSession(await saveSession(photos));
+      activateSession(await saveSession(photos, buildSessionStyle()));
     } catch {
       clearActiveSession();
       /* storage is best-effort — never block the flow on it */
@@ -947,6 +1016,7 @@ export default function App() {
     setDemoPreviewIndex(0);
     if (session.id.startsWith("demo-")) clearActiveSession();
     else activateSession(session);
+    const lockedStyle = restoreSessionStyle(session.style);
     const canvases = await Promise.all(
       session.photos.map((b) => blobToCanvas(b)),
     );
@@ -954,6 +1024,7 @@ export default function App() {
     setFormat("strip");
     setShowGallery(false);
     setPhase("review");
+    if (lockedStyle) setNote("Some saved Pro styling is locked.");
   }
 
   // Strip preview (re-rendered when frames / layout / theme change).
@@ -1367,7 +1438,7 @@ export default function App() {
           layout={layout}
           setLayout={changeLayout}
           themeKey={themeKey}
-          setThemeKey={setThemeKey}
+          setThemeKey={changeThemeKey}
           filter={filter}
           filters={FILTERS}
           setFilter={changeFilter}

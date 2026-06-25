@@ -10,6 +10,8 @@ import {
   loadCaptureDelay,
   loadCaptureSound,
   loadExportSpeed,
+  loadStripLayout,
+  loadThemeKey,
   loadQuality,
   normalizeCaptureDelay,
   normalizeExportSpeed,
@@ -19,6 +21,8 @@ import {
   saveCaptureDelay,
   saveCaptureSound,
   saveExportSpeed,
+  saveStripLayout,
+  saveThemeKey,
   saveQuality,
   type AutosaveSettings,
 } from "./settings";
@@ -154,5 +158,26 @@ describe("motion export speed persistence", () => {
     expect(EXPORT_SPEED_PROFILE.fast.videoFrameMs).toBeLessThan(
       EXPORT_SPEED_PROFILE.slow.videoFrameMs,
     );
+  });
+});
+
+describe("strip style persistence", () => {
+  it("defaults to the classic strip style", () => {
+    expect(loadStripLayout()).toBe("4x1");
+    expect(loadThemeKey()).toBe("classic");
+  });
+
+  it("round-trips strip layout and theme", () => {
+    saveStripLayout("story");
+    saveThemeKey("teal");
+    expect(loadStripLayout()).toBe("story");
+    expect(loadThemeKey()).toBe("teal");
+  });
+
+  it("normalizes unsupported strip style values", () => {
+    localStorage.setItem("bb.strip.layout", "poster");
+    localStorage.setItem("bb.strip.theme", "neon");
+    expect(loadStripLayout()).toBe("4x1");
+    expect(loadThemeKey()).toBe("classic");
   });
 });

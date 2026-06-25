@@ -2,7 +2,8 @@
 import { drawFrame, type FilterKey } from "./render";
 import { loadWatermark } from "./watermark";
 
-export type Layout = "4x1" | "2x2" | "2x6" | "4x6" | "story";
+export const LAYOUTS = ["4x1", "2x2", "2x6", "4x6", "story"] as const;
+export type Layout = (typeof LAYOUTS)[number];
 
 export interface StripTheme {
   /** Strip background / border colour. */
