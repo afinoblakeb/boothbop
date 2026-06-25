@@ -46,6 +46,14 @@ import {
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
+import {
+  buyRemoveWatermark,
+  getRemoveWatermarkProduct,
+  isProCached,
+  refreshPro,
+  restorePurchases,
+  type ProProduct,
+} from "./lib/purchases";
 import { SHOTS } from "./constants";
 import type { Format, InstallPromptEvent, Phase } from "./types";
 import { TopBar } from "./components/TopBar";
@@ -93,6 +101,11 @@ export default function App() {
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
   }
+
+  // "Remove watermark" one-time purchase (native iOS). isPro drops the watermark
+  // from GIF/video exports. StoreKit is the source of truth; cached for the UI.
+  const [isPro, setIsPro] = useState(isProCached());
+  const [proProduct, setProProduct] = useState<ProProduct | null>(null);
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -128,7 +141,11 @@ export default function App() {
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
     return (mediaCache.current.gif ??= loadWatermark()
       .then((watermarkImg) =>
-        encodeGif(src, { watermarkImg, size: GIF_SIZE[quality.gif] }),
+        encodeGif(src, {
+          watermarkImg,
+          size: GIF_SIZE[quality.gif],
+          watermark: !isPro,
+        }),
       )
       .catch((e) => {
         mediaCache.current.gif = undefined; // let a re-tap retry
@@ -138,7 +155,11 @@ export default function App() {
   function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
     return (mediaCache.current.video ??= loadWatermark()
       .then((watermarkImg) => {
-        const opts = { watermarkImg, ...VIDEO_PROFILE[quality.video] };
+        const opts = {
+          watermarkImg,
+          watermark: !isPro,
+          ...VIDEO_PROFILE[quality.video],
+        };
         // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
         return isNativeShell()
           ? encodeVideoNative(src, opts)
@@ -165,6 +186,18 @@ export default function App() {
   // Preload the strip-footer logo.
   useEffect(() => {
     loadWatermark().then(setBrandLogo);
+  }, []);
+
+  // Native: confirm the Remove-Watermark entitlement from StoreKit on launch and
+  // load the localized price for the paywall. Best-effort; no-ops on web.
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    refreshPro()
+      .then(setIsPro)
+      .catch(() => {});
+    getRemoveWatermarkProduct()
+      .then(setProProduct)
+      .catch(() => {});
   }, []);
 
   // Native app: hide the launch splash as soon as React has mounted, rather
@@ -283,6 +316,36 @@ export default function App() {
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
     mediaCache.current = {};
+  }
+
+  // Buy the watermark removal. On success, drop cached (watermarked) GIF/video
+  // so they re-encode clean the next time their tab is opened.
+  async function purchaseRemoveWatermark() {
+    setError(null);
+    try {
+      if (await buyRemoveWatermark()) {
+        setIsPro(true);
+        clearResults();
+        setNote("Watermark removed — thank you!");
+      }
+    } catch {
+      setError("The purchase didn't go through. Please try again.");
+    }
+  }
+
+  async function restoreRemoveWatermark() {
+    setError(null);
+    try {
+      if (await restorePurchases()) {
+        setIsPro(true);
+        clearResults();
+        setNote("Purchase restored.");
+      } else {
+        setNote("No previous purchase found.");
+      }
+    } catch {
+      setError("Couldn't restore right now. Please try again.");
+    }
   }
 
   async function openCamera() {
@@ -732,9 +795,13 @@ export default function App() {
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
           error={autosaveError}
+          isPro={isPro}
+          proPrice={proProduct?.price ?? null}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
+          onBuyRemoveWatermark={purchaseRemoveWatermark}
+          onRestorePurchase={restoreRemoveWatermark}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />

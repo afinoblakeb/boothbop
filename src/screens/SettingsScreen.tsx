@@ -29,9 +29,13 @@ export function SettingsScreen({
   native,
   videoSupported,
   error,
+  isPro,
+  proPrice,
   onDest,
   onToggle,
   onQuality,
+  onBuyRemoveWatermark,
+  onRestorePurchase,
   onOpenIosSettings,
   onClose,
 }: {
@@ -40,9 +44,13 @@ export function SettingsScreen({
   native: boolean;
   videoSupported: boolean;
   error: string | null;
+  isPro: boolean;
+  proPrice: string | null;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
+  onBuyRemoveWatermark: () => void;
+  onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
 }) {
@@ -64,7 +72,45 @@ export function SettingsScreen({
 
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
-      <Heading as="h3" size="lg" className="mt-6">
+      {native && (
+        <>
+          <Heading as="h3" size="lg" className="mt-6">
+            Remove Watermark
+          </Heading>
+          <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+            A one-time purchase that removes the BoothBop watermark from your
+            GIFs and videos — yours forever.
+          </p>
+          {isPro ? (
+            <Callout
+              as="p"
+              tone="info"
+              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
+            >
+              ✓ Watermark removed — thanks for supporting BoothBop!
+            </Callout>
+          ) : (
+            <div className="mt-4">
+              <Button
+                variant="primary"
+                size="md"
+                fullWidth
+                onClick={onBuyRemoveWatermark}
+              >
+                Remove Watermark · {proPrice ?? "$0.99"}
+              </Button>
+              <button
+                onClick={onRestorePurchase}
+                className="mt-3 font-sans text-xs text-warmgray underline"
+              >
+                Restore purchase
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <Heading as="h3" size="lg" className="mt-8">
         Auto-save to Photos
       </Heading>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
