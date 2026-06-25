@@ -36,10 +36,12 @@ import {
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
   loadCaptureDelay,
+  loadCaptureSound,
   loadExportSpeed,
   loadQuality,
   planAutosaveTasks,
   saveCaptureDelay,
+  saveCaptureSound,
   saveExportSpeed,
   saveQuality,
   type AutosaveSettings,
@@ -350,6 +352,13 @@ export default function App() {
   function changeDelay(next: CaptureDelay) {
     saveCaptureDelay(next);
     setDelayState(next);
+  }
+
+  const [captureSound, setCaptureSoundState] = useState(loadCaptureSound);
+  function toggleCaptureSound() {
+    const next = !captureSound;
+    saveCaptureSound(next);
+    setCaptureSoundState(next);
   }
 
   const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
@@ -698,6 +707,7 @@ export default function App() {
       await wait(400);
       for (let n = delay; n >= 1; n--) {
         if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
         setCountdown(n);
         await wait(1000);
       }
@@ -705,6 +715,7 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium");
+      playCaptureTone(900, 120);
       setFlash(true);
       const frame = captureSquareFrame(
         video,
@@ -742,6 +753,7 @@ export default function App() {
     for (let shot = 0; shot < SHOTS; shot++) {
       for (let n = delay; n >= 1; n--) {
         if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
         setCountdown(n);
         await wait(1000);
       }
@@ -749,6 +761,7 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
+      playCaptureTone(900, 120);
       setFlash(true);
       const frame = captureSquareFrame(
         video,
@@ -795,6 +808,7 @@ export default function App() {
       await wait(400);
       for (let n = delay; n >= 1; n--) {
         if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
         setCountdown(n);
         await wait(1000);
       }
@@ -802,6 +816,7 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium");
+      playCaptureTone(900, 120);
       setFlash(true);
       const frame = src[shotToReplace];
       const next = frames.map((existing, i) =>
@@ -825,6 +840,7 @@ export default function App() {
       setDemoPreviewIndex(shot);
       for (let n = delay; n >= 1; n--) {
         if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
         setCountdown(n);
         await wait(1000);
       }
@@ -832,6 +848,7 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium");
+      playCaptureTone(900, 120);
       setFlash(true);
       const frame = src[shot];
       captured.push(frame);
@@ -1131,6 +1148,33 @@ export default function App() {
     }
   }
 
+  function playCaptureTone(frequency: number, durationMs: number) {
+    if (!captureSound) return;
+    try {
+      const AudioCtor =
+        window.AudioContext ??
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioCtor) return;
+      const ctx = new AudioCtor();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(frequency, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + durationMs / 1000 + 0.02);
+      osc.onended = () => void ctx.close().catch(() => {});
+    } catch {
+      /* audio is best-effort */
+    }
+  }
+
   function triggerDownload(blob: Blob, name: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -1304,10 +1348,12 @@ export default function App() {
           thumbs={thumbs}
           delay={delay}
           setDelay={changeDelay}
+          captureSound={captureSound}
           cameraFacing={cameraFacing}
           mirrorPreview={mirrorPreview}
           onToggleFacing={toggleCameraFacing}
           onToggleMirror={() => setMirror(!mirrorPreview)}
+          onToggleSound={toggleCaptureSound}
           onStart={runSequence}
         />
       )}

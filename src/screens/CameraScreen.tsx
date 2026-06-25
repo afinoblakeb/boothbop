@@ -24,10 +24,12 @@ export function CameraScreen({
   thumbs,
   delay,
   setDelay,
+  captureSound,
   cameraFacing,
   mirrorPreview,
   onToggleFacing,
   onToggleMirror,
+  onToggleSound,
   onStart,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
@@ -39,10 +41,12 @@ export function CameraScreen({
   thumbs: string[];
   delay: CaptureDelay;
   setDelay: (n: CaptureDelay) => void;
+  captureSound: boolean;
   cameraFacing: CameraFacing;
   mirrorPreview: boolean;
   onToggleFacing: () => void;
   onToggleMirror: () => void;
+  onToggleSound: () => void;
   onStart: () => void;
 }) {
   const isDemo = demoPreviewUrl !== null;
@@ -118,15 +122,26 @@ export function CameraScreen({
         {phase === "preview" ? (
           <>
             {isDemo ? (
-              <Heading
-                as="p"
-                size="sm"
-                className="mb-3 border-2 border-ink bg-paper px-3 py-2 text-ink"
-              >
-                Demo Camera
-              </Heading>
-            ) : (
               <div className="mb-3 grid grid-cols-2 gap-2">
+                <Heading
+                  as="p"
+                  size="sm"
+                  className="border-2 border-ink bg-paper px-3 py-2 text-ink"
+                >
+                  Demo Camera
+                </Heading>
+                <button
+                  onClick={onToggleSound}
+                  aria-pressed={captureSound}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    captureSound ? "bg-mustard text-ink" : "bg-paper text-ink"
+                  }`}
+                >
+                  Sound
+                </button>
+              </div>
+            ) : (
+              <div className="mb-3 grid grid-cols-3 gap-2">
                 <button
                   onClick={onToggleFacing}
                   className="border-2 border-ink bg-paper px-3 py-2 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
@@ -141,6 +156,15 @@ export function CameraScreen({
                   }`}
                 >
                   Mirror
+                </button>
+                <button
+                  onClick={onToggleSound}
+                  aria-pressed={captureSound}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    captureSound ? "bg-mustard text-ink" : "bg-paper text-ink"
+                  }`}
+                >
+                  Sound
                 </button>
               </div>
             )}
