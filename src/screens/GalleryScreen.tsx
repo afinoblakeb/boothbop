@@ -1,11 +1,13 @@
 import { useEffect, useState } from "react";
 import {
+  blobToCanvas,
   clearSessions,
   deleteSession,
   listSessions,
   updateSessionMeta,
   type Session,
 } from "../lib/gallery";
+import { composeStrip, THEMES } from "../lib/strip";
 import { BrandIcon, StarIcon, TrashIcon } from "../icons";
 import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 
@@ -167,10 +169,40 @@ function Cover({
 }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
-    const u = URL.createObjectURL(session.photos[0]);
-    setUrl(u);
-    return () => URL.revokeObjectURL(u);
-  }, [session.photos]);
+    let active = true;
+    let fallbackUrl = URL.createObjectURL(session.photos[0]);
+    setUrl(fallbackUrl);
+
+    async function renderCover() {
+      if (session.photos.length < 4) return;
+      const frames = await Promise.all(
+        session.photos.map((photo) => blobToCanvas(photo, 320)),
+      );
+      const style = session.style;
+      const canvas = composeStrip(
+        frames,
+        style?.layout ?? "2x2",
+        THEMES[style?.themeKey ?? "classic"],
+        {
+          cell: 220,
+          watermark: false,
+          filter: style?.filter ?? "none",
+          sticker: style?.sticker ?? "none",
+          caption: style?.caption,
+        },
+      );
+      if (!active) return;
+      setUrl(canvas.toDataURL("image/jpeg", 0.82));
+      URL.revokeObjectURL(fallbackUrl);
+      fallbackUrl = "";
+    }
+
+    renderCover().catch(() => {});
+    return () => {
+      active = false;
+      if (fallbackUrl) URL.revokeObjectURL(fallbackUrl);
+    };
+  }, [session]);
   return (
     <div className="relative">
       <button
