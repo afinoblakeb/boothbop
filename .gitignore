@@ -56,3 +56,6 @@ android/build
 android/app/src/main/assets/public   # copied-in web build
 android/local.properties
 *.keystore
+
+# Screenshot sample photos (staged input for App Store shots; never shipped)
+public/demo/

@@ -159,7 +159,7 @@ TURN FOUR POSES INTO SOMETHING SHAREABLE
 - Short looping video, ready to send
 
 MAKE IT YOURS
-- Retro atomic-age themes in cream, orange, and teal
+- Retro atomic-age themes: cream, rust, teal, mustard, olive, and carbon
 - Swappable border colors and styles for every strip
 - Adjustable shutter delay—more time to get into position
 - Front-facing camera tuned for selfies and group shots
