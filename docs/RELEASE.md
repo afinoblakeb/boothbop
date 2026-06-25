@@ -10,11 +10,13 @@ so it runs headless).
    Integrations → Keys → **+**. Role: **App Manager** (or Admin). Download the
    `AuthKey_XXXXXXXXXX.p8` — ⚠️ **it can only be downloaded once.** Then add to
    `~/.config/afino/secrets.env`:
+
    ```
    APPCONNECT_KEY_ID=XXXXXXXXXX
    APPCONNECT_ISSUER_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
    APPCONNECT_KEY_PATH=/Users/afinoblake/.config/afino/AuthKey_XXXXXXXXXX.p8
    ```
+
    _Status: ✅ all three set in `~/.config/afino/secrets.env`
    (`AuthKey_95WM8G5FQ8.p8` stored at `~/.config/afino/`, perms 600)._
 
