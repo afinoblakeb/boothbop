@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import Photos
 import AVFoundation
+import StoreKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -323,11 +324,118 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// MARK: - BoothBopStore: in-app purchases via StoreKit 2
+//
+// A tiny local plugin for the one-time "Remove Watermark" non-consumable. Uses
+// StoreKit 2 (iOS 15+) directly — NO third-party SDK (e.g. RevenueCat), which
+// would phone home and break our "Data Not Collected" privacy label. Apple owns
+// the entitlement, so a non-consumable stays with the user forever and syncs
+// across their devices via their Apple ID. Registered in code below.
+@objc(BoothBopStore)
+public class BoothBopStore: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "BoothBopStore"
+    public let jsName = "BoothBopStore"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "getProducts", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "purchase", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "restore", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "isPurchased", returnType: CAPPluginReturnPromise),
+    ]
+
+    // getProducts({ productIds: [String] }) -> { products: [{ id, displayName, description, price }] }
+    @objc func getProducts(_ call: CAPPluginCall) {
+        let ids = call.getArray("productIds", String.self) ?? []
+        Task {
+            do {
+                let products = try await Product.products(for: ids)
+                let arr: [[String: String]] = products.map { p in
+                    [
+                        "id": p.id,
+                        "displayName": p.displayName,
+                        "description": p.description,
+                        "price": p.displayPrice, // already localized, e.g. "$0.99"
+                    ]
+                }
+                call.resolve(["products": arr])
+            } catch {
+                call.reject("Couldn't load products: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    // purchase({ productId }) -> { status: "purchased"|"pending"|"cancelled", purchased: Bool }
+    @objc func purchase(_ call: CAPPluginCall) {
+        guard let productId = call.getString("productId") else {
+            return call.reject("productId required", "argumentError")
+        }
+        Task {
+            do {
+                let products = try await Product.products(for: [productId])
+                guard let product = products.first else {
+                    return call.reject("Product not found", "notFound")
+                }
+                let result = try await product.purchase()
+                switch result {
+                case .success(let verification):
+                    if case .verified(let transaction) = verification {
+                        await transaction.finish()
+                        call.resolve(["status": "purchased", "purchased": true])
+                    } else {
+                        call.reject("Purchase could not be verified", "unverified")
+                    }
+                case .userCancelled:
+                    call.resolve(["status": "cancelled", "purchased": false])
+                case .pending:
+                    call.resolve(["status": "pending", "purchased": false])
+                @unknown default:
+                    call.resolve(["status": "unknown", "purchased": false])
+                }
+            } catch {
+                call.reject("Purchase failed: \(error.localizedDescription)", "purchaseError")
+            }
+        }
+    }
+
+    // restore() -> { restored: Bool } — user-initiated; syncs then re-checks.
+    @objc func restore(_ call: CAPPluginCall) {
+        Task {
+            do {
+                try await AppStore.sync()
+                let owned = await self.hasEntitlement(nil)
+                call.resolve(["restored": owned])
+            } catch {
+                call.reject("Restore failed: \(error.localizedDescription)", "restoreError")
+            }
+        }
+    }
+
+    // isPurchased({ productId }) -> { purchased: Bool } — silent, offline-safe.
+    @objc func isPurchased(_ call: CAPPluginCall) {
+        let productId = call.getString("productId")
+        Task {
+            let owned = await self.hasEntitlement(productId)
+            call.resolve(["purchased": owned])
+        }
+    }
+
+    private func hasEntitlement(_ productId: String?) async -> Bool {
+        for await result in Transaction.currentEntitlements {
+            if case .verified(let transaction) = result,
+               transaction.revocationDate == nil,
+               productId == nil || transaction.productID == productId {
+                return true
+            }
+        }
+        return false
+    }
+}
+
 // Custom bridge VC: registers our local plugins in code so they never depend on
 // the SPM auto-registration path that failed for the third-party plugin.
 class BridgeViewController: CAPBridgeViewController {
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(BoothBopPhotos())
         bridge?.registerPluginInstance(BoothBopVideo())
+        bridge?.registerPluginInstance(BoothBopStore())
     }
 }

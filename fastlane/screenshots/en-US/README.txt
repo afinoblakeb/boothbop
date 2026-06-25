@@ -1,0 +1,1 @@
+A note on screenshots: drop the 6.9" PNGs (1320x2868) into fastlane/screenshots/en-US/. See docs/RELEASE.md.

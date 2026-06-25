@@ -1,0 +1,3 @@
+app_identifier("com.boothbop.app")
+# The Apple ID / team are resolved from the App Store Connect API key at runtime
+# (see the Fastfile), so nothing sensitive lives here.

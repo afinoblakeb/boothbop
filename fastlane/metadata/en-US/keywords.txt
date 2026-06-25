@@ -1,0 +1,1 @@
+photobooth,photostrip,gif,selfie,collage,grid,loop,party,retro,vintage,countdown,burst,booth

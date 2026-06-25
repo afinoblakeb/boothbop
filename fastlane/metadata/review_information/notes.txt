@@ -1,0 +1,23 @@
+Thank you for reviewing BoothBop.
+
+NO LOGIN REQUIRED. There is no account, sign-up, or paywall to use the app.
+The full booth is available immediately on launch—no demo credentials needed.
+
+WHAT THE APP DOES
+BoothBop is a self-contained native photo-booth app. It uses the live device
+camera (front-facing) to capture four photos on a countdown, then composites
+them on-device into a photo strip (4x1 or 2x2), an animated GIF, and a short
+looping video (encoded natively via AVFoundation/AVAssetWriter).
+
+RE: GUIDELINE 4.2
+The UI renders in an embedded WKWebView via Capacitor, but ALL assets are
+bundled in the app binary—nothing loads from a remote URL and the web view
+never points at a website. The camera, native video encoding, on-device
+gallery, Photos-album save, and the native share sheet are driven by native
+plugins. The app fully functions in Airplane Mode.
+
+PRIVACY
+No data is collected. Photos are captured and processed entirely on-device and
+are never uploaded—no servers, accounts, analytics, ads, or third-party SDKs.
+
+Contact: support@boothbop.com · Website: boothbop.com

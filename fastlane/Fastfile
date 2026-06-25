@@ -1,0 +1,79 @@
+# BoothBop release automation. See docs/RELEASE.md for one-time setup.
+#
+# Auth: an App Store Connect API key (bypasses 2FA → fully headless). Set these
+# in ~/.config/afino/secrets.env and `source` it before running:
+#   APPCONNECT_KEY_ID     — the key's ID
+#   APPCONNECT_ISSUER_ID  — your account's issuer ID
+#   APPCONNECT_KEY_PATH   — absolute path to the AuthKey_XXXX.p8 file
+#
+# Then, from the repo root:
+#   bundle exec fastlane beta      # build + upload to TestFlight
+#   bundle exec fastlane release   # build + upload + push listing + submit
+#   bundle exec fastlane metadata  # push listing/screenshots only (no build)
+
+default_platform(:ios)
+
+def asc_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch("APPCONNECT_KEY_ID"),
+    issuer_id: ENV.fetch("APPCONNECT_ISSUER_ID"),
+    key_filepath: ENV.fetch("APPCONNECT_KEY_PATH"),
+    in_house: false,
+  )
+end
+
+platform :ios do
+  desc "Build the web app and copy it into the native iOS project"
+  lane :prepare do
+    # Plain production build (no VITE_DEMO → no screenshot loader/sample photos).
+    sh("cd .. && npm run build && npx cap sync ios")
+  end
+
+  desc "Archive + sign the iOS app (Release, App Store export)"
+  lane :build do
+    prepare
+    gym(
+      project: "../ios/App/App.xcodeproj",
+      scheme: "App",
+      configuration: "Release",
+      export_method: "app-store",
+      output_directory: "../build",
+      clean: true,
+    )
+    # Signing: relies on Xcode-managed automatic signing + the API key, OR set
+    # up `match` (recommended for headless) — see docs/RELEASE.md.
+  end
+
+  desc "Build and upload to TestFlight"
+  lane :beta do
+    key = asc_key
+    build
+    pilot(api_key: key, skip_waiting_for_build_processing: true)
+  end
+
+  desc "Build, upload, push the listing + screenshots, and submit for review"
+  lane :release do
+    key = asc_key
+    build
+    deliver(
+      api_key: key,
+      submit_for_review: true,
+      automatic_release: false, # manual release — you click Release after approval
+      force: true,              # skip the HTML confirmation prompt
+      run_precheck_before_submit: false,
+      submission_information: {
+        export_compliance_uses_encryption: false,
+        add_id_info_uses_idfa: false,
+      },
+    )
+  end
+
+  desc "Push listing metadata + screenshots only (no new build)"
+  lane :metadata do
+    deliver(
+      api_key: asc_key,
+      skip_binary_upload: true,
+      force: true,
+    )
+  end
+end
