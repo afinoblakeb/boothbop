@@ -7,6 +7,7 @@ import {
   updateSessionMeta,
   type Session,
 } from "../lib/gallery";
+import { DEFAULT_LAYOUT } from "../lib/style";
 import { composeStrip, THEMES } from "../lib/strip";
 import { BrandIcon, StarIcon, TrashIcon } from "../icons";
 import { Button, Heading, IconButton, OverlayScreen } from "../ui";
@@ -225,7 +226,7 @@ function Cover({
       const style = session.style;
       const canvas = composeStrip(
         frames,
-        style?.layout ?? "2x2",
+        style?.layout ?? DEFAULT_LAYOUT,
         THEMES[style?.themeKey ?? "classic"],
         {
           cell: 220,

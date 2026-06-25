@@ -5,7 +5,7 @@
 // dev/demo loader.
 import { CAPTURE_SIZE } from "./camera";
 import type { Session } from "./gallery";
-import type { SessionStyle } from "./style";
+import { DEFAULT_LAYOUT, type SessionStyle } from "./style";
 
 const SAMPLE_SETS: Record<number, string[]> = {
   1: [
@@ -35,9 +35,14 @@ const SAMPLE_TITLES: Record<number, string> = {
 };
 
 const SAMPLE_STYLES: Record<number, SessionStyle> = {
-  1: { layout: "2x2", themeKey: "teal", filter: "warm", sticker: "sparkles" },
-  2: { layout: "4x1", themeKey: "carbon", filter: "mono" },
-  3: { layout: "4x1", themeKey: "mustard", filter: "none" },
+  1: {
+    layout: DEFAULT_LAYOUT,
+    themeKey: "teal",
+    filter: "warm",
+    sticker: "sparkles",
+  },
+  2: { layout: DEFAULT_LAYOUT, themeKey: "carbon", filter: "mono" },
+  3: { layout: DEFAULT_LAYOUT, themeKey: "mustard", filter: "none" },
 };
 
 function loadImage(url: string): Promise<HTMLImageElement> {

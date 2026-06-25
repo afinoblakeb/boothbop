@@ -43,6 +43,7 @@ import {
   loadThemeKey,
   loadQuality,
   planAutosaveTasks,
+  resetStripLayout,
   saveCaptureDelay,
   saveCaptureSound,
   saveExportSpeed,
@@ -222,6 +223,12 @@ export default function App() {
     saveThemeKey(next);
     setThemeKeyState(next);
     persistActiveStyle(buildSessionStyle({ themeKey: next }));
+  }
+
+  function resetFreshReviewLayout(): Layout {
+    const next = resetStripLayout();
+    setLayout(next);
+    return next;
   }
 
   function applyStylePreset(preset: StylePreset) {
@@ -705,7 +712,10 @@ export default function App() {
     setDemoCameraFrames(null);
     setDemoPreviewIndex(0);
     setRetakeIndex(retake);
-    if (!preserveFrames) clearActiveSession();
+    if (!preserveFrames) {
+      clearActiveSession();
+      resetFreshReviewLayout();
+    }
     try {
       const stream = await startCamera(cameraFacing);
       streamRef.current = stream;
@@ -736,6 +746,7 @@ export default function App() {
       );
       clearResults();
       clearActiveSession();
+      resetFreshReviewLayout();
       setDemoSetNum(setNum);
       setDemoCameraFrames(canvases);
       setDemoPreviewIndex(0);
@@ -763,6 +774,7 @@ export default function App() {
         PHOTO_CAPTURE[quality.photo],
       );
       clearResults();
+      const freshLayout = resetFreshReviewLayout();
       setDemoSetNum(null);
       setDemoCameraFrames(null);
       setDemoPreviewIndex(0);
@@ -772,7 +784,9 @@ export default function App() {
       setPhase("review");
       try {
         const photos = await Promise.all(canvases.map((c) => canvasToBlob(c)));
-        activateSession(await saveSession(photos, buildSessionStyle()));
+        activateSession(
+          await saveSession(photos, buildSessionStyle({ layout: freshLayout })),
+        );
       } catch {
         clearActiveSession();
       }
@@ -861,6 +875,7 @@ export default function App() {
       return;
     }
 
+    const freshLayout = resetFreshReviewLayout();
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -896,7 +911,9 @@ export default function App() {
     // Auto-save this session to the private on-device gallery.
     try {
       const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      activateSession(await saveSession(photos, buildSessionStyle()));
+      activateSession(
+        await saveSession(photos, buildSessionStyle({ layout: freshLayout })),
+      );
     } catch {
       clearActiveSession();
       /* storage is best-effort — never block the flow on it */
@@ -947,6 +964,7 @@ export default function App() {
       return;
     }
 
+    resetFreshReviewLayout();
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);

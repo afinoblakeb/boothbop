@@ -3,7 +3,12 @@
 // All logic here is pure/React-free so it can be unit-tested.
 
 import type { Layout } from "./strip";
-import { normalizeLayout, normalizeThemeKey, type ThemeKey } from "./style";
+import {
+  DEFAULT_LAYOUT,
+  normalizeLayout,
+  normalizeThemeKey,
+  type ThemeKey,
+} from "./style";
 
 export type AutosaveDest = "album" | "cameraRoll";
 export type AutosaveFormat = "strip" | "grid" | "gif" | "video";
@@ -76,7 +81,8 @@ export function planAutosaveTasks(
   opts: { videoSupported: boolean },
 ): AutosaveTask[] {
   const tasks: AutosaveTask[] = [];
-  if (s.strip) tasks.push({ format: "strip", layout: "4x1", kind: "image" });
+  if (s.strip)
+    tasks.push({ format: "strip", layout: DEFAULT_LAYOUT, kind: "image" });
   if (s.grid) tasks.push({ format: "grid", layout: "2x2", kind: "image" });
   if (s.gif) tasks.push({ format: "gif", kind: "image" });
   if (s.video && opts.videoSupported)
@@ -217,6 +223,11 @@ export function loadStripLayout(): Layout {
 
 export function saveStripLayout(layout: Layout): void {
   localStorage.setItem(STRIP_LAYOUT_KEY, layout);
+}
+
+export function resetStripLayout(): Layout {
+  saveStripLayout(DEFAULT_LAYOUT);
+  return DEFAULT_LAYOUT;
 }
 
 export function loadThemeKey(): ThemeKey {

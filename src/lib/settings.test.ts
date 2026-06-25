@@ -16,6 +16,7 @@ import {
   normalizeCaptureDelay,
   normalizeExportSpeed,
   planAutosaveTasks,
+  resetStripLayout,
   saveAutosaveDest,
   saveAutosaveFormat,
   saveCaptureDelay,
@@ -172,6 +173,12 @@ describe("strip style persistence", () => {
     saveThemeKey("teal");
     expect(loadStripLayout()).toBe("story");
     expect(loadThemeKey()).toBe("teal");
+  });
+
+  it("can reset persisted layout back to the classic strip", () => {
+    saveStripLayout("2x2");
+    expect(resetStripLayout()).toBe("4x1");
+    expect(loadStripLayout()).toBe("4x1");
   });
 
   it("normalizes unsupported strip style values", () => {

@@ -2,6 +2,7 @@ import { FILTERS, STICKERS, type FilterKey, type StickerKey } from "./render";
 import { LAYOUTS, THEMES, type Layout } from "./strip";
 
 export type ThemeKey = keyof typeof THEMES;
+export const DEFAULT_LAYOUT: Layout = "4x1";
 
 export interface SessionStyle {
   layout: Layout;
@@ -18,7 +19,7 @@ export function cleanStyleCaption(caption: string): string {
 }
 
 export function normalizeLayout(value: unknown): Layout {
-  return LAYOUTS.includes(value as Layout) ? (value as Layout) : "4x1";
+  return LAYOUTS.includes(value as Layout) ? (value as Layout) : DEFAULT_LAYOUT;
 }
 
 export function normalizeThemeKey(value: unknown): ThemeKey {
