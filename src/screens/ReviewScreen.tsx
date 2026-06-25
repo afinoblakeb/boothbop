@@ -134,7 +134,7 @@ export function ReviewScreen({
   const isBusy = generating !== null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center py-4">
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto py-4 pb-8">
       {/* Format tabs */}
       <SegmentedControl
         ariaRole="tab"
@@ -146,7 +146,7 @@ export function ReviewScreen({
       />
 
       {/* Live preview of the selected output */}
-      <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
+      <div className="mt-3 flex h-[clamp(240px,42vh,520px)] w-full shrink-0 items-center justify-center overflow-hidden">
         {isBusy ? (
           <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
@@ -159,7 +159,7 @@ export function ReviewScreen({
         ) : format === "video" && previewUrl ? (
           <video
             src={previewUrl}
-            className="max-h-full w-auto border-2 border-ink"
+            className="max-h-full max-w-full border-2 border-ink object-contain"
             autoPlay
             loop
             muted
@@ -170,7 +170,7 @@ export function ReviewScreen({
           <ZoomableImage
             src={previewUrl}
             alt={`Your ${format}`}
-            className="max-h-full w-auto border-2 border-ink"
+            className="max-h-full max-w-full border-2 border-ink object-contain"
           />
         ) : null}
       </div>
