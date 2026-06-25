@@ -59,6 +59,7 @@ import {
 import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
 import { FILTERS, loadFilter, saveFilter, type FilterKey } from "./lib/render";
+import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
 import {
   buyRemoveWatermark,
   getRemoveWatermarkProduct,
@@ -150,6 +151,20 @@ export default function App() {
     saveFilter(f);
     setFilterState(f);
     clearResults();
+  }
+
+  function applyStylePreset(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      setNote("Unlock BoothBop Pro for premium templates.");
+      setShowSettings(true);
+      return;
+    }
+    setLayout(preset.layout);
+    setThemeKey(preset.theme);
+    saveFilter(preset.filter);
+    setFilterState(preset.filter);
+    clearResults();
+    setFormat("strip");
   }
 
   // "Remove watermark" one-time purchase (native iOS). isPro drops the watermark
@@ -1228,6 +1243,9 @@ export default function App() {
           filter={filter}
           filters={FILTERS}
           setFilter={changeFilter}
+          stylePresets={STYLE_PRESETS}
+          isPro={isPro}
+          onApplyPreset={applyStylePreset}
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
