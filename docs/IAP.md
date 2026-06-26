@@ -1,52 +1,65 @@
-# In-App Purchase: Remove Watermark
+# In-App Purchase: BoothBop Pro
 
-A one-time **non-consumable** that removes the BoothBop watermark from GIF and
-video exports, forever (it syncs across the buyer's devices via their Apple ID).
+BoothBop Pro is the native iOS entitlement for premium templates, premium
+looks/props, custom captions, HD exports, and watermark-free GIF/video exports.
+Apple handles billing and entitlement sync; BoothBop does not collect purchase
+data.
 
-- **Product ID:** `com.boothbop.app.removewatermark` (must match exactly —
-  `REMOVE_WATERMARK_ID` in `src/lib/purchases.ts`)
-- **Price:** $0.99 (Tier 1) — adjustable
-- **Implementation:** native StoreKit 2 plugin `BoothBopStore`
-  (`ios/App/App/AppDelegate.swift`) → `lib/storePlugin.ts` → `lib/purchases.ts`.
-  **No third-party SDK**, so the App Privacy label stays **Data Not Collected**
-  (purchases are handled by Apple, not collected by us).
-- **Gating:** `isPro` in `App.tsx` flips the existing `watermark` flag on
-  `encodeGif`/`encodeVideo` to `false`. The **strip footer logo is unaffected**
-  by design (it's the strip's branding, not the removable watermark).
+- **Primary product ID:** `com.boothbop.app.pro.monthly`
+- **Type:** auto-renewable subscription
+- **Target price:** `$1.99/month`
+- **Legacy entitlement:** `com.boothbop.app.removewatermark`
+  remains recognized so early non-consumable test purchases still restore.
+- **Implementation:** StoreKit 2 plugin `BoothBopStore`
+  (`ios/App/App/AppDelegate.swift`) -> `src/lib/storePlugin.ts` ->
+  `src/lib/purchases.ts`.
+- **Gating:** `isPro` in `App.tsx` controls all Pro UI and passes
+  `watermark: false` to GIF/video renderers. The strip footer logo stays by
+  design; it is part of the strip branding, not the removable animated watermark.
 
-## How it behaves
+## How It Behaves
 
-- Entitlement is re-checked from StoreKit on every launch (`refreshPro`), cached
-  in `localStorage` (`bb.pro`) for instant UI, works offline.
-- Settings shows **Remove Watermark · $0.99** (real localized price) with a
-  **Restore purchase** link (required by Guideline 3.1.1). After purchase it
-  shows "✓ Watermark removed."
-- On purchase/restore, the cached GIF/video are cleared so they re-encode clean.
+- `refreshPro()` checks StoreKit current entitlements on launch and caches the
+  result in `localStorage` (`bb.pro`) for instant/offline UI.
+- `getProProduct()` loads the localized monthly product price for the paywall.
+- `subscribeToPro()` purchases the monthly product.
+- `restorePurchases()` restores either the monthly Pro entitlement or the legacy
+  remove-watermark entitlement.
+- Purchase/restore success clears cached GIF/video output so animated exports
+  re-render without the watermark.
 
-## Test it in the Simulator (no App Store Connect needed)
+## Simulator Testing
 
-1. Open the project in Xcode → **Product → Scheme → Edit Scheme → Run →
-   Options → StoreKit Configuration → select `BoothBop.storekit`.**
-2. Run on a simulator, open **Settings → Remove Watermark**, tap Buy — StoreKit's
-   test sheet appears (free). Confirm the watermark drops from a GIF/video and
-   "✓ Watermark removed" shows. Test **Restore purchase** too.
-3. Reset state: Xcode → **Debug → StoreKit → Manage Transactions → delete.**
+1. Open Xcode -> Product -> Scheme -> Edit Scheme -> Run -> Options.
+2. Set StoreKit Configuration to `BoothBop.storekit`.
+3. Run the app, tap any locked Pro template/look/layout/prop/caption/HD export,
+   then tap **Start Pro**.
+4. Confirm the StoreKit test sheet shows `BoothBop Pro Monthly` at `$1.99`.
+5. After purchase, confirm Pro templates unlock and GIF/video watermarks drop.
+6. Test restore from Settings and the Pro screen.
+7. Reset state with Xcode -> Debug -> StoreKit -> Manage Transactions -> delete.
 
-## Ship it — what you do in App Store Connect (one-time)
+## App Store Connect Setup
 
-1. **Agreements, Tax, and Banking** → accept the **Paid Applications** agreement
-   and add banking + tax info. _IAPs don't work until this is active._
-2. Your app → **Monetization → In-App Purchases → (+)**:
-   - Type **Non-Consumable**
-   - Reference Name: `Remove Watermark`
-   - Product ID: `com.boothbop.app.removewatermark`
-   - Price: **$0.99**
-   - Localization (English): Display Name `Remove Watermark`, Description
-     `Removes the BoothBop watermark from your GIFs and videos, forever.`
-   - Upload a **review screenshot** of the Settings purchase (required).
-3. **Sandbox test on a real device:** Users and Access → Sandbox → create a
-   tester; on the device the purchase sheet uses it (free).
-4. **Submit:** the **first** IAP must be submitted **with an app version** — so
-   bump the app to a new version (e.g. 1.0) that includes this build, attach the
-   IAP, and submit them together. (`fastlane release` handles the binary +
-   metadata; create/submit the IAP in App Store Connect or via the `asc` CLI.)
+1. Agreements, Tax, and Banking: activate the Paid Applications agreement.
+2. Create a subscription group named `BoothBop Pro`.
+3. Add an auto-renewable subscription:
+   - Reference Name: `BoothBop Pro Monthly`
+   - Product ID: `com.boothbop.app.pro.monthly`
+   - Duration: 1 month
+   - Price: `$1.99`
+   - Display Name: `BoothBop Pro Monthly`
+   - Description: `Premium templates, Pro looks and props, custom captions, HD exports, and watermark-free animated exports.`
+4. Add the app privacy/product screenshots required for IAP review.
+5. Submit the first subscription with an app version that includes this build.
+
+## Legacy Product
+
+The old local StoreKit product remains in `ios/App/BoothBop.storekit`:
+
+- Product ID: `com.boothbop.app.removewatermark`
+- Type: non-consumable
+- Price: `$0.99`
+
+Do not sell this as the primary product going forward. Keep it only while early
+testers/builds may have the old entitlement.

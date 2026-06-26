@@ -85,6 +85,7 @@ import {
   type SessionStyle,
   type ThemeKey,
 } from "./lib/style";
+import type { ProContext } from "./lib/pro";
 import {
   isPremiumFilter,
   isPremiumLayout,
@@ -92,11 +93,11 @@ import {
   isPremiumSticker,
 } from "./lib/entitlements";
 import {
-  buyRemoveWatermark,
-  getRemoveWatermarkProduct,
+  getProProduct,
   isProCached,
   refreshPro,
   restorePurchases,
+  subscribeToPro,
   type ProProduct,
 } from "./lib/purchases";
 import { SHOTS } from "./constants";
@@ -109,6 +110,7 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
+import { ProScreen } from "./screens/ProScreen";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -156,6 +158,10 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
+  const [showPro, setShowPro] = useState(false);
+  const [proContext, setProContext] = useState<ProContext>("settings");
+  const [proBusy, setProBusy] = useState(false);
+  const [proError, setProError] = useState<string | null>(null);
   const [shareFilesOk, setShareFilesOk] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -166,8 +172,7 @@ export default function App() {
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
   function changeQuality(media: QualityMedia, q: Quality) {
     if (isPremiumQuality(q) && !isPro) {
-      setNote("Unlock BoothBop Pro for high-quality exports.");
-      setShowSettings(true);
+      openPro("quality");
       return;
     }
     saveQuality(media, q);
@@ -187,8 +192,7 @@ export default function App() {
   const [filter, setFilterState] = useState<FilterKey>(loadFilter);
   function changeFilter(f: FilterKey) {
     if (isPremiumFilter(f) && !isPro) {
-      setNote("Unlock BoothBop Pro for premium looks.");
-      setShowSettings(true);
+      openPro("look");
       return;
     }
     saveFilter(f);
@@ -200,8 +204,7 @@ export default function App() {
   const [sticker, setStickerState] = useState<StickerKey>(loadSticker);
   function changeSticker(next: StickerKey) {
     if (isPremiumSticker(next) && !isPro) {
-      setNote("Unlock BoothBop Pro for premium props.");
-      setShowSettings(true);
+      openPro("props");
       return;
     }
     saveSticker(next);
@@ -212,8 +215,7 @@ export default function App() {
 
   function changeLayout(next: Layout) {
     if (isPremiumLayout(next) && !isPro) {
-      setNote("Unlock BoothBop Pro for premium layouts.");
-      setShowSettings(true);
+      openPro("layout");
       return;
     }
     saveStripLayout(next);
@@ -235,8 +237,7 @@ export default function App() {
 
   function applyStylePreset(preset: StylePreset) {
     if (preset.pro && !isPro) {
-      setNote("Unlock BoothBop Pro for premium templates.");
-      setShowSettings(true);
+      openPro("template");
       return;
     }
     saveStripLayout(preset.layout);
@@ -259,8 +260,9 @@ export default function App() {
     setFormat("strip");
   }
 
-  // "Remove watermark" one-time purchase (native iOS). isPro drops the watermark
-  // from GIF/video exports. StoreKit is the source of truth; cached for the UI.
+  // BoothBop Pro (native iOS). isPro gates premium creative tools and drops the
+  // removable watermark from GIF/video exports. StoreKit is the source of truth;
+  // cached locally for instant UI.
   const [isPro, setIsPro] = useState(isProCached());
   const [proProduct, setProProduct] = useState<ProProduct | null>(null);
   const [customCaption, setCustomCaptionState] = useState(
@@ -502,14 +504,14 @@ export default function App() {
     loadWatermark().then(setBrandLogo);
   }, []);
 
-  // Native: confirm the Remove-Watermark entitlement from StoreKit on launch and
-  // load the localized price for the paywall. Best-effort; no-ops on web.
+  // Native: confirm the Pro entitlement from StoreKit on launch and load the
+  // localized price for the paywall. Best-effort; no-ops on web.
   useEffect(() => {
     if (!isNativeShell()) return;
     refreshPro()
       .then(setIsPro)
       .catch(() => {});
-    getRemoveWatermarkProduct()
+    getProProduct()
       .then(setProProduct)
       .catch(() => {});
   }, []);
@@ -674,33 +676,56 @@ export default function App() {
     mediaCache.current = {};
   }
 
-  // Buy the watermark removal. On success, drop cached (watermarked) GIF/video
-  // so they re-encode clean the next time their tab is opened.
-  async function purchaseRemoveWatermark() {
+  function openPro(context: ProContext = "settings") {
+    setProContext(context);
+    setProError(null);
+    setShowPro(true);
+  }
+
+  // Buy Pro. On success, drop cached (watermarked) GIF/video so they re-encode
+  // clean the next time their tab is opened.
+  async function purchasePro() {
     setError(null);
+    setProError(null);
+    setProBusy(true);
     try {
-      if (await buyRemoveWatermark()) {
+      if (await subscribeToPro()) {
         setIsPro(true);
         clearResults();
-        setNote("Watermark removed — thank you!");
+        setShowPro(false);
+        setNote("BoothBop Pro active.");
+      } else {
+        setProError("The purchase was cancelled or is still pending.");
       }
     } catch {
-      setError("The purchase didn't go through. Please try again.");
+      setProError("The purchase didn't go through. Please try again.");
+    } finally {
+      setProBusy(false);
     }
   }
 
-  async function restoreRemoveWatermark() {
+  async function restorePro() {
     setError(null);
+    setProError(null);
+    setProBusy(true);
     try {
       if (await restorePurchases()) {
         setIsPro(true);
         clearResults();
+        setShowPro(false);
         setNote("Purchase restored.");
       } else {
+        setProError("No previous Pro purchase was found.");
+        setProContext("settings");
+        setShowPro(true);
         setNote("No previous purchase found.");
       }
     } catch {
-      setError("Couldn't restore right now. Please try again.");
+      setProError("Couldn't restore right now. Please try again.");
+      setProContext("settings");
+      setShowPro(true);
+    } finally {
+      setProBusy(false);
     }
   }
 
@@ -1064,7 +1089,7 @@ export default function App() {
 
   function startTemplate(preset: StylePreset) {
     if (preset.pro && !isPro) {
-      setShowSettings(true);
+      openPro("template");
       return;
     }
     applyStylePreset(preset);
@@ -1074,7 +1099,7 @@ export default function App() {
 
   function applyTemplateToCurrent(preset: StylePreset) {
     if (preset.pro && !isPro) {
-      setShowSettings(true);
+      openPro("template");
       return;
     }
     applyStylePreset(preset);
@@ -1082,7 +1107,7 @@ export default function App() {
   }
 
   function unlockTemplate() {
-    setShowSettings(true);
+    openPro("template");
   }
 
   function retakeShot(index: number) {
@@ -1599,6 +1624,7 @@ export default function App() {
           canManageSession={activeSessionId !== null}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           onOpenSettings={openSettings}
+          onOpenPro={() => openPro("caption")}
           onDismissTip={dismissAutosaveTip}
           onBrowseTemplates={() => setShowTemplates(true)}
           onShare={shareCurrent}
@@ -1642,16 +1668,28 @@ export default function App() {
           error={autosaveError}
           isPro={isPro}
           proPrice={proProduct?.price ?? null}
-          customCaption={customCaption}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
           onExportSpeed={changeExportSpeed}
-          onCustomCaption={setCustomCaption}
-          onBuyRemoveWatermark={purchaseRemoveWatermark}
-          onRestorePurchase={restoreRemoveWatermark}
+          onOpenPro={() => openPro("settings")}
+          onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showPro && (
+        <ProScreen
+          context={proContext}
+          price={proProduct?.price ?? null}
+          native={isNativeShell()}
+          isPro={isPro}
+          busy={proBusy}
+          error={proError}
+          onStartPro={purchasePro}
+          onRestore={restorePro}
+          onClose={() => setShowPro(false)}
         />
       )}
     </div>

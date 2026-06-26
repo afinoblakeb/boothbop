@@ -22,45 +22,44 @@ loops. So:
 - **v1 = the app exactly as it is today, FREE, no IAP.** Submit ASAP. Lowest
   possible rejection surface; learn the whole pipeline cleanly. (Guideline 4.2 is
   already pre-empted in the review notes.)
-- **v1.1 = add the Remove-Watermark IAP** (StoreKit). Learn IAP/sandbox/review in
+- **v1.1 = add BoothBop Pro IAP** (StoreKit). Learn IAP/sandbox/review in
   isolation. If it bounces, the app is already live.
 - Then the staged roadmap below. **AR is in "Q2 jail" — do not let it eat the
   quarter.**
 
 ## Monetization model (the coherent one)
 
-**ONE non-consumable unlock — `com.boothbop.pro` — that keeps gaining features.**
-No subscription (a photo booth is bursty/occasional → subs breed chargebacks &
-1-star reviews). No à-la-carte pile of IAPs (the confusion trap).
+**ONE Pro entitlement — `com.boothbop.app.pro.monthly` — that keeps gaining
+features.** No à-la-carte pile of IAPs (the confusion trap). The old
+`com.boothbop.app.removewatermark` non-consumable remains restore-compatible for
+early builds, but the primary product is now BoothBop Pro Monthly.
 
-- Launch it **labeled "Remove Watermark — $2.99"**, but under the generic
-  `com.boothbop.pro` product ID (NOT `removewatermark`).
-- As features ship, the **same SKU** gains them and the **storefront repositions**:
-  - ~Month 2: **"BoothBop Pro — $4.99"** (remove watermark + premium filters,
-    themes, boomerang, captions)
-  - ~Month 3: **"BoothBop Pro — $5.99–6.99"** (+ HD strips, Portrait, AR)
-- **Every earlier buyer is auto-upgraded for free** (entitlement = "owns
-  `com.boothbop.pro`"). Grandfathering is automatic, and "price going up, buy now"
-  is an honest lever at each step.
-- **StoreKit 2, no backend:** non-consumable, on-device `Transaction.currentEntitlements`,
-  a **Restore Purchases** button (Apple requires it), cache `isPro` for offline.
-- **What keeps you backend-free:** keep the web PWA permanently free (don't try to
-  sync the unlock cross-platform); stay non-consumable (no subscription server
-  checks). You never need a backend.
+- Launch it as **BoothBop Pro - $1.99/month**, backed by real recurring value:
+  premium templates, Pro looks/props, custom captions, HD exports, and
+  watermark-free animated exports.
+- As features ship, the **same Pro entitlement** gains them and the storefront
+  repositions around event packs, party mode, print-ready exports, and premium
+  looks.
+- **StoreKit 2, no backend:** auto-renewable subscription, on-device
+  `Transaction.currentEntitlements`, a **Restore Purchases** button (Apple
+  requires it), cache `isPro` for offline.
+- **What keeps you backend-free:** keep the web PWA permanently free (don't try
+  to sync the unlock cross-platform); let Apple handle native subscription
+  billing and restore.
 
 ### Free vs Pro — gate the polish, never the spread
 
-|                                                  | Free forever                    | Pro (`com.boothbop.pro`) |
-| ------------------------------------------------ | ------------------------------- | ------------------------ |
-| Capture (4-shot), strip, GIF, video              | ✅                              |                          |
-| Save to Photos, share anywhere                   | ✅ (watermarked)                |                          |
-| Entire web PWA (boothbop.com)                    | ✅ (always watermarked, no Pro) |                          |
-| Baseline filters / themes / layouts              | ✅ (a generous few)             |                          |
-| **Remove watermark**                             |                                 | ✅ anchor                |
-| Extra filters / themes / layouts / sticker packs |                                 | ✅                       |
-| Boomerang, custom captions/fonts                 |                                 | ✅                       |
-| HD full-res capture ("HD strips")                |                                 | ✅                       |
-| Depth/Portrait, AR face filters                  |                                 | ✅                       |
+|                                                  | Free forever                    | Pro (`com.boothbop.app.pro.monthly`) |
+| ------------------------------------------------ | ------------------------------- | ------------------------------------ |
+| Capture (4-shot), strip, GIF, video              | ✅                              |                                      |
+| Save to Photos, share anywhere                   | ✅ (watermarked)                |                                      |
+| Entire web PWA (boothbop.com)                    | ✅ (always watermarked, no Pro) |                                      |
+| Baseline filters / themes / layouts              | ✅ (a generous few)             |                                      |
+| **Remove watermark**                             |                                 | ✅ anchor                            |
+| Extra filters / themes / layouts / sticker packs |                                 | ✅                                   |
+| Boomerang, custom captions/fonts                 |                                 | ✅                                   |
+| HD full-res capture ("HD strips")                |                                 | ✅                                   |
+| Depth/Portrait, AR face filters                  |                                 | ✅                                   |
 
 **Rule:** the _shared output_ (watermarked) stays free — it's the growth engine.
 Sell polish, power, and friction-removal; never the ability to capture or share.
@@ -83,20 +82,20 @@ and pressure-release valve. Only native plugins need an Xcode build + review.
 Legend: **[W]** web-side (instant to boothbop.com, bundles into next iOS build) ·
 **[N]** native plugin (Xcode build + review) · **AS#** = App Store submission.
 
-| Wk  | Ship                                                                   | Notes                                                                                                        |
-| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 1   | **AS#1: free MVP, as-is**                                              | Screenshots + App Store Connect record + submit. The learning loop. Meanwhile: polish the default strip [W]. |
-| 2   | MVP approved/live · **AS#2: Remove-Watermark IAP** [N]                 | Wire StoreKit 2 (`com.boothbop.pro`) + Restore button; sandbox-test; submit. Web: 2–3 new color filters [W]. |
-| 3   | Captions / text-on-strip [W]                                           | Web push while review clears. TestFlight the bundle.                                                         |
-| 4   | Boomerang mode [W] · **AS#3** (web bundle)                             | Low-risk submission (all web). Repositions store to "BoothBop Pro $4.99".                                    |
-| 5   | Strip themes/layouts + a paid theme pack [W]                           | Web momentum.                                                                                                |
-| 6   | Local gallery polish + retake-single-frame [W] · **AS#4** (web bundle) | Retention + frustration-killers.                                                                             |
-| 7   | **HD full-res capture** [N] — build                                    | First "real" native plugin. TestFlight hard (full-res = OOM risk).                                           |
-| 8   | **AS#5: HD capture** · sticker packs [W]                               | Ship HD as a Pro perk.                                                                                       |
-| 9   | Seasonal theme drop + custom fonts [W]                                 | Timed re-engagement.                                                                                         |
-| 10  | Buffer / polish / metrics                                              | **Protected week.** No native feature; web-only or nothing.                                                  |
-| 11  | Depth/Portrait [N] — build/ship **AS#6**                               | Medium-large; TestFlight early.                                                                              |
-| 12  | Stabilize + **spike (not build) ARKit**                                | De-risk AR for Q2. Reposition store to "$5.99–6.99".                                                         |
+| Wk  | Ship                                                                   | Notes                                                                                                                    |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 1   | **AS#1: free MVP, as-is**                                              | Screenshots + App Store Connect record + submit. The learning loop. Meanwhile: polish the default strip [W].             |
+| 2   | MVP approved/live · **AS#2: BoothBop Pro IAP** [N]                     | Wire StoreKit 2 (`com.boothbop.app.pro.monthly`) + Restore button; sandbox-test; submit. Web: 2–3 new color filters [W]. |
+| 3   | Captions / text-on-strip [W]                                           | Web push while review clears. TestFlight the bundle.                                                                     |
+| 4   | Boomerang mode [W] · **AS#3** (web bundle)                             | Low-risk submission (all web). Repositions store to "BoothBop Pro $4.99".                                                |
+| 5   | Strip themes/layouts + a paid theme pack [W]                           | Web momentum.                                                                                                            |
+| 6   | Local gallery polish + retake-single-frame [W] · **AS#4** (web bundle) | Retention + frustration-killers.                                                                                         |
+| 7   | **HD full-res capture** [N] — build                                    | First "real" native plugin. TestFlight hard (full-res = OOM risk).                                                       |
+| 8   | **AS#5: HD capture** · sticker packs [W]                               | Ship HD as a Pro perk.                                                                                                   |
+| 9   | Seasonal theme drop + custom fonts [W]                                 | Timed re-engagement.                                                                                                     |
+| 10  | Buffer / polish / metrics                                              | **Protected week.** No native feature; web-only or nothing.                                                              |
+| 11  | Depth/Portrait [N] — build/ship **AS#6**                               | Medium-large; TestFlight early.                                                                                          |
+| 12  | Stabilize + **spike (not build) ARKit**                                | De-risk AR for Q2. Reposition store to "$5.99–6.99".                                                                     |
 
 ~12 web pushes, weekly TestFlight, **~6 App Store submissions**, AR deferred.
 

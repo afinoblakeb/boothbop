@@ -36,33 +36,39 @@ only watermark removal, keep it one-time instead.
 
 ## Next Implementation Ladder
 
-1. Local workflow polish
+1. Local workflow polish - shipped baseline
    - Session titles and favorites.
    - Save All.
    - Gallery favorite management.
    - Retaken shots persist back to the saved session.
 
-2. Export controls
+2. Export controls - shipped baseline
    - GIF/boomerang/video speed presets.
    - Refactor export orchestration out of `App.tsx`.
    - Add a save-all task planner and better cache invalidation.
 
-3. Template packs
+3. Template packs - shipped baseline
    - Introduce `src/lib/templates.ts`.
    - Move layout/color/filter combinations into explicit template definitions.
    - Mark templates as free or Pro without hard-coding product logic into
      screens.
 
-4. Entitlements
+4. Entitlements - shipped baseline
    - Add a feature-based entitlement layer over StoreKit.
    - Keep purchase implementation in `src/lib/purchases.ts`.
    - Gate Pro templates, premium looks, high quality, and watermark removal via
      capabilities instead of raw `isPro` checks.
 
-5. Import and library workflows
+5. Import and library workflows - shipped baseline
    - Add user-selected photo import.
    - Normalize imported images to square canvases immediately.
    - Keep privacy copy precise: selected images are read locally only.
+
+6. Next Pro value
+   - Party/event mode setup.
+   - More template packs by event type.
+   - Custom palettes and saved brand kits.
+   - Better print-ready exports.
 
 ## Deferred
 

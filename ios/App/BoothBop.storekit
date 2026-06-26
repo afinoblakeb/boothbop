@@ -1,6 +1,8 @@
 {
+  "appName" : "BoothBop",
   "identifier" : "B00THB0P-5T0R-3K1T-C0NF-1G0000000001",
-  "nonRenewingSubscriptions" : [],
+  "nonRenewingSubscriptions" : [
+  ],
   "products" : [
     {
       "displayPrice" : "0.99",
@@ -20,9 +22,41 @@
   ],
   "settings" : {
   },
-  "subscriptionGroups" : [],
+  "subscriptionGroups" : [
+    {
+      "id" : "B00B0B01",
+      "localizations" : [
+      ],
+      "name" : "BoothBop Pro",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+          ],
+          "codeOffers" : [
+          ],
+          "displayPrice" : "1.99",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "B00B0B02",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Premium templates, Pro looks and props, custom captions, HD exports, and watermark-free animated exports.",
+              "displayName" : "BoothBop Pro Monthly",
+              "locale" : "en_US"
+            }
+          ],
+          "productID" : "com.boothbop.app.pro.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "BoothBop Pro Monthly",
+          "subscriptionGroupID" : "B00B0B01",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
   "version" : {
-    "major" : 1,
+    "major" : 2,
     "minor" : 0
   }
 }

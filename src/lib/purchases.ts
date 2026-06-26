@@ -1,11 +1,17 @@
-// In-app purchase logic for the one-time "Remove Watermark" unlock. Wraps the
-// native StoreKit plugin (BoothBopStore) and exposes a simple isPro state. The
-// source of truth is StoreKit's `currentEntitlements` (re-checked on launch,
-// works offline, syncs across the user's devices); we mirror it into
-// localStorage for instant UI. No-ops on web (IAP is native-only).
+// In-app purchase logic for BoothBop Pro. Wraps the native StoreKit plugin
+// (BoothBopStore) and exposes a simple isPro state. The source of truth is
+// StoreKit's `currentEntitlements` (re-checked on launch, works offline, syncs
+// across the user's devices); we mirror it into localStorage for instant UI.
+// No-ops on web (IAP is native-only).
 import { isNativeShell } from "./platform";
 
-export const REMOVE_WATERMARK_ID = "com.boothbop.app.removewatermark";
+export const PRO_MONTHLY_ID = "com.boothbop.app.pro.monthly";
+export const LEGACY_REMOVE_WATERMARK_ID = "com.boothbop.app.removewatermark";
+
+export const PRO_ENTITLEMENT_IDS = [
+  PRO_MONTHLY_ID,
+  LEGACY_REMOVE_WATERMARK_ID,
+] as const;
 
 const PRO_KEY = "bb.pro";
 
@@ -29,9 +35,13 @@ export async function refreshPro(): Promise<boolean> {
   if (!isNativeShell()) return false;
   try {
     const { BoothBopStore } = await import("./storePlugin");
-    const { purchased } = await BoothBopStore.isPurchased({
-      productId: REMOVE_WATERMARK_ID,
-    });
+    const owned = await Promise.all(
+      PRO_ENTITLEMENT_IDS.map(async (productId) => {
+        const { purchased } = await BoothBopStore.isPurchased({ productId });
+        return purchased;
+      }),
+    );
+    const purchased = owned.some(Boolean);
     setProCached(purchased);
     return purchased;
   } catch {
@@ -40,12 +50,12 @@ export async function refreshPro(): Promise<boolean> {
 }
 
 /** Fetch the localized product (for showing the real price). Null on web. */
-export async function getRemoveWatermarkProduct(): Promise<ProProduct | null> {
+export async function getProProduct(): Promise<ProProduct | null> {
   if (!isNativeShell()) return null;
   try {
     const { BoothBopStore } = await import("./storePlugin");
     const { products } = await BoothBopStore.getProducts({
-      productIds: [REMOVE_WATERMARK_ID],
+      productIds: [PRO_MONTHLY_ID],
     });
     return products[0] ?? null;
   } catch {
@@ -54,11 +64,11 @@ export async function getRemoveWatermarkProduct(): Promise<ProProduct | null> {
 }
 
 /** Run the purchase flow. Returns true if the user now owns it. */
-export async function buyRemoveWatermark(): Promise<boolean> {
+export async function subscribeToPro(): Promise<boolean> {
   if (!isNativeShell()) return false;
   const { BoothBopStore } = await import("./storePlugin");
   const { purchased } = await BoothBopStore.purchase({
-    productId: REMOVE_WATERMARK_ID,
+    productId: PRO_MONTHLY_ID,
   });
   if (purchased) setProCached(true);
   return purchased;

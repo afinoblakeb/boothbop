@@ -8,6 +8,7 @@ import {
   type QualityMedia,
   type QualitySettings,
 } from "../lib/settings";
+import { proPriceLabel } from "../lib/pro";
 import {
   Button,
   Callout,
@@ -40,13 +41,11 @@ export function SettingsScreen({
   error,
   isPro,
   proPrice,
-  customCaption,
   onDest,
   onToggle,
   onQuality,
   onExportSpeed,
-  onCustomCaption,
-  onBuyRemoveWatermark,
+  onOpenPro,
   onRestorePurchase,
   onOpenIosSettings,
   onClose,
@@ -59,13 +58,11 @@ export function SettingsScreen({
   error: string | null;
   isPro: boolean;
   proPrice: string | null;
-  customCaption: string;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
   onExportSpeed: (speed: ExportSpeed) => void;
-  onCustomCaption: (caption: string) => void;
-  onBuyRemoveWatermark: () => void;
+  onOpenPro: () => void;
   onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
@@ -94,41 +91,22 @@ export function SettingsScreen({
             BoothBop Pro
           </Heading>
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-            A one-time upgrade for watermark-free exports, custom strip text,
-            premium layouts, premium looks, props, and high quality.
+            Premium templates, Pro looks, props, custom captions, HD exports,
+            and watermark-free GIFs and videos.
           </p>
           {isPro ? (
-            <>
-              <Callout
-                as="p"
-                tone="info"
-                className="mt-4 px-4 py-3 font-sans text-sm text-ink"
-              >
-                ✓ Pro unlocked — premium creative tools and watermark-free
-                exports are active.
-              </Callout>
-              <label className="mt-4 block">
-                <Heading as="span" size="sm" className="text-brown">
-                  Strip footer
-                </Heading>
-                <input
-                  value={customCaption}
-                  onChange={(e) => onCustomCaption(e.target.value)}
-                  maxLength={28}
-                  placeholder="BoothBop"
-                  className="mt-1 w-full border-2 border-ink bg-paper px-3 py-2 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
-                />
-              </label>
-            </>
+            <Callout
+              as="p"
+              tone="info"
+              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
+            >
+              Pro active. Premium creative tools and watermark-free animated
+              exports are enabled.
+            </Callout>
           ) : (
             <div className="mt-4">
-              <Button
-                variant="primary"
-                size="md"
-                fullWidth
-                onClick={onBuyRemoveWatermark}
-              >
-                Unlock Pro · {proPrice ?? "$0.99"}
+              <Button variant="primary" size="md" fullWidth onClick={onOpenPro}>
+                Start Pro - {proPriceLabel(proPrice)}
               </Button>
               <button
                 onClick={onRestorePurchase}
@@ -257,7 +235,6 @@ export function SettingsScreen({
                 ...option,
                 label:
                   option.value === "high" && !isPro ? "High Pro" : option.label,
-                disabled: option.value === "high" && !isPro,
               }))}
               itemClassName="py-2 text-sm"
             />

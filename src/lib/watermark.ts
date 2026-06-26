@@ -3,8 +3,8 @@
 // stays legible over both dark and light photos. Photo strips use the same
 // brand mark in their footer while watermarking is enabled.
 //
-// Kept as one function + a loader so the paid "remove watermark" tier skips
-// the draw/logo load.
+// Kept as one function + a loader so Pro skips the animated export mark without
+// changing the export pipeline.
 
 const SRC = `${import.meta.env.BASE_URL}watermark.png`;
 let cached: HTMLImageElement | null | undefined;

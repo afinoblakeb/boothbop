@@ -11,11 +11,7 @@ import type {
 import type { StylePreset } from "../lib/templates";
 import type { MoveDirection } from "../lib/sequence";
 import { STYLE_CAPTION_MAX } from "../lib/style";
-import {
-  isPremiumFilter,
-  isPremiumLayout,
-  isPremiumSticker,
-} from "../lib/entitlements";
+import { isPremiumFilter, isPremiumSticker } from "../lib/entitlements";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -76,6 +72,7 @@ export function ReviewScreen({
   canManageSession,
   autosaveTip,
   onOpenSettings,
+  onOpenPro,
   onDismissTip,
   onBrowseTemplates,
   onShare,
@@ -116,6 +113,7 @@ export function ReviewScreen({
   canManageSession: boolean;
   autosaveTip: boolean;
   onOpenSettings: () => void;
+  onOpenPro: () => void;
   onDismissTip: () => void;
   onBrowseTemplates: () => void;
   onShare: () => void;
@@ -276,17 +274,14 @@ export function ReviewScreen({
                     {
                       value: "2x6",
                       label: "2×6 Pro",
-                      disabled: isPremiumLayout("2x6") && !isPro,
                     },
                     {
                       value: "4x6",
                       label: "4×6 Pro",
-                      disabled: isPremiumLayout("4x6") && !isPro,
                     },
                     {
                       value: "story",
                       label: "Story Pro",
-                      disabled: isPremiumLayout("story") && !isPro,
                     },
                   ]}
                   itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2 text-sm"
@@ -334,7 +329,6 @@ export function ReviewScreen({
                 value,
                 label:
                   isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
-                disabled: isPremiumFilter(value) && !isPro,
               }))}
               itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
             />
@@ -355,7 +349,6 @@ export function ReviewScreen({
                   isPremiumSticker(value) && !isPro
                     ? `${item.label} Pro`
                     : item.label,
-                disabled: isPremiumSticker(value) && !isPro,
               }))}
               itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
             />
@@ -373,7 +366,7 @@ export function ReviewScreen({
               />
             ) : (
               <button
-                onClick={onOpenSettings}
+                onClick={onOpenPro}
                 className="flex min-h-11 w-full items-center justify-between border-2 border-ink bg-cream px-3 py-2 text-left transition active:translate-y-px"
               >
                 <span className="font-sans text-sm text-brown">
