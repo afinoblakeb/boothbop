@@ -13,10 +13,18 @@ describe("entitlements", () => {
     expect(canUseProFeature(true)).toBe(true);
   });
 
-  it("marks glam and vintage as premium filters", () => {
+  it("marks Pro looks as premium filters", () => {
     expect(isPremiumFilter("glam")).toBe(true);
     expect(isPremiumFilter("vintage")).toBe(true);
+    expect(isPremiumFilter("glam-booth")).toBe(true);
+    expect(isPremiumFilter("vintage-sepia")).toBe(true);
+    expect(isPremiumFilter("high-contrast")).toBe(true);
+    expect(isPremiumFilter("dreamy-pastel")).toBe(true);
+    expect(isPremiumFilter("night-out")).toBe(true);
+    expect(isPremiumFilter("magazine")).toBe(true);
     expect(isPremiumFilter("warm")).toBe(false);
+    expect(isPremiumFilter("soft-flash")).toBe(false);
+    expect(isPremiumFilter("cool-studio")).toBe(false);
   });
 
   it("marks large/specialty layouts as premium", () => {
@@ -34,6 +42,11 @@ describe("entitlements", () => {
   it("marks premium sticker packs", () => {
     expect(isPremiumSticker("hearts")).toBe(true);
     expect(isPremiumSticker("party")).toBe(true);
+    expect(isPremiumSticker("wedding")).toBe(true);
+    expect(isPremiumSticker("graduation")).toBe(true);
+    expect(isPremiumSticker("holiday")).toBe(true);
+    expect(isPremiumSticker("corporate")).toBe(true);
+    expect(isPremiumSticker("birthday")).toBe(false);
     expect(isPremiumSticker("sparkles")).toBe(false);
   });
 });

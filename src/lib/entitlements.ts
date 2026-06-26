@@ -11,9 +11,25 @@ export type ProFeature =
   | "premiumPreset"
   | "removeWatermark";
 
-export const PREMIUM_FILTERS: readonly FilterKey[] = ["glam", "vintage"];
+export const PREMIUM_FILTERS: readonly FilterKey[] = [
+  "glam",
+  "vintage",
+  "glam-booth",
+  "vintage-sepia",
+  "high-contrast",
+  "dreamy-pastel",
+  "night-out",
+  "magazine",
+];
 export const PREMIUM_LAYOUTS: readonly Layout[] = ["2x6", "4x6", "story"];
-export const PREMIUM_STICKERS: readonly StickerKey[] = ["hearts", "party"];
+export const PREMIUM_STICKERS: readonly StickerKey[] = [
+  "hearts",
+  "party",
+  "wedding",
+  "graduation",
+  "holiday",
+  "corporate",
+];
 
 export function canUseProFeature(isPro: boolean): boolean {
   return isPro;

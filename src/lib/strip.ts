@@ -191,10 +191,11 @@ export function composeStrip(
     // Brand logo centered, with a soft light halo so the dark parts stay
     // legible on the dark themes (carbon) — same treatment as the watermark,
     // invisible on the light themes.
-    const logoH = 64 * scale;
+    const hasCaption = Boolean(caption?.trim());
+    const logoH = (hasCaption ? 48 : 64) * scale;
     const logoW = logoH * (logo.width / logo.height);
     const lx = (width - logoW) / 2;
-    const ly = footerY + 20 * scale;
+    const ly = footerY + (hasCaption ? 12 : 20) * scale;
     ctx.save();
     ctx.shadowColor = "rgba(255,255,255,0.85)";
     ctx.shadowBlur = Math.max(4, width * 0.012);
@@ -204,7 +205,20 @@ export function composeStrip(
     ctx.drawImage(logo, lx, ly, logoW, logoH); // crisp logo on top
     ctx.restore();
 
-    drawDate(ctx, width, ly + logoH + 22 * scale, theme.text, scale);
+    if (hasCaption) {
+      const footerCaption = caption?.trim() ?? "";
+      drawCaption(
+        ctx,
+        width,
+        ly + logoH + 18 * scale,
+        theme.text,
+        scale * 0.52,
+        footerCaption,
+      );
+      drawDate(ctx, width, ly + logoH + 44 * scale, theme.text, scale);
+    } else {
+      drawDate(ctx, width, ly + logoH + 22 * scale, theme.text, scale);
+    }
     return canvas;
   }
 

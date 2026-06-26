@@ -111,6 +111,25 @@ describe("composeStrip branding", () => {
     expect(drewCaption(ctx)).toBe(false);
   });
 
+  it("can draw a custom caption with the brand logo", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
+
+    composeStrip(fourFrames(), "4x1", THEMES.classic, {
+      logo,
+      caption: "Birthday Bash",
+    });
+
+    const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
+    expect(drewLogo).toBe(true);
+    expect(
+      ctx.fillText.mock.calls.some((c) => String(c[0]) === "BIRTHDAY BASH"),
+    ).toBe(true);
+  });
+
   it("falls back to the text caption when no logo is available", () => {
     const ctx = fakeCtx();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(

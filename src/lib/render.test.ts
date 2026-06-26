@@ -17,8 +17,8 @@ describe("filter settings", () => {
   });
 
   it("round-trips a selected look", () => {
-    saveFilter("vintage");
-    expect(loadFilter()).toBe("vintage");
+    saveFilter("cool-studio");
+    expect(loadFilter()).toBe("cool-studio");
   });
 
   it("treats unknown stored looks as original", () => {
@@ -33,6 +33,16 @@ describe("filter settings", () => {
       "warm",
       "glam",
       "vintage",
+      "soft-flash",
+      "warm-film",
+      "clean-bw",
+      "cool-studio",
+      "glam-booth",
+      "vintage-sepia",
+      "high-contrast",
+      "dreamy-pastel",
+      "night-out",
+      "magazine",
     ]);
     for (const f of Object.values(FILTERS)) {
       expect(f.label.length).toBeGreaterThan(0);
@@ -46,8 +56,8 @@ describe("sticker settings", () => {
   });
 
   it("round-trips a selected sticker", () => {
-    saveSticker("party");
-    expect(loadSticker()).toBe("party");
+    saveSticker("holiday");
+    expect(loadSticker()).toBe("holiday");
   });
 
   it("treats unknown stored stickers as none", () => {
@@ -58,9 +68,14 @@ describe("sticker settings", () => {
   it("exposes user-facing sticker labels", () => {
     expect(Object.keys(STICKERS)).toEqual([
       "none",
+      "birthday",
       "sparkles",
       "hearts",
       "party",
+      "wedding",
+      "graduation",
+      "holiday",
+      "corporate",
     ]);
     for (const sticker of Object.values(STICKERS)) {
       expect(sticker.label.length).toBeGreaterThan(0);
