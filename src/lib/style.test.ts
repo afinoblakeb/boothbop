@@ -6,6 +6,7 @@ import {
   normalizeSessionStyle,
   normalizeStickerKey,
   normalizeThemeKey,
+  resolveStripCaption,
 } from "./style";
 
 describe("style normalization", () => {
@@ -23,6 +24,33 @@ describe("style normalization", () => {
   it("cleans captions for storage", () => {
     expect(cleanStyleCaption("  launch    party  ")).toBe("launch party");
     expect(cleanStyleCaption("x".repeat(80))).toHaveLength(28);
+  });
+
+  it("resolves template captions for free users", () => {
+    expect(
+      resolveStripCaption({
+        isPro: false,
+        customCaption: "Host Text",
+        templateCaption: "Birthday Bash",
+      }),
+    ).toBe("Birthday Bash");
+  });
+
+  it("lets Pro custom captions override template captions", () => {
+    expect(
+      resolveStripCaption({
+        isPro: true,
+        customCaption: "Host Text",
+        templateCaption: "Birthday Bash",
+      }),
+    ).toBe("Host Text");
+    expect(
+      resolveStripCaption({
+        isPro: true,
+        customCaption: " ",
+        templateCaption: "Birthday Bash",
+      }),
+    ).toBe("Birthday Bash");
   });
 
   it("normalizes saved session styles", () => {

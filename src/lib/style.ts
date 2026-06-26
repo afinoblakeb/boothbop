@@ -18,6 +18,20 @@ export function cleanStyleCaption(caption: string): string {
   return caption.replace(/\s+/g, " ").trim().slice(0, STYLE_CAPTION_MAX);
 }
 
+export function resolveStripCaption({
+  isPro,
+  customCaption,
+  templateCaption,
+}: {
+  isPro: boolean;
+  customCaption: string;
+  templateCaption: string;
+}): string {
+  const custom = cleanStyleCaption(customCaption);
+  if (isPro && custom) return custom;
+  return cleanStyleCaption(templateCaption);
+}
+
 export function normalizeLayout(value: unknown): Layout {
   return LAYOUTS.includes(value as Layout) ? (value as Layout) : DEFAULT_LAYOUT;
 }

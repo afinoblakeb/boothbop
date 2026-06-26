@@ -91,6 +91,7 @@ import { loadImportedFrames } from "./lib/importPhotos";
 import { moveItem, type MoveDirection } from "./lib/sequence";
 import {
   cleanStyleCaption,
+  resolveStripCaption,
   type SessionStyle,
   type ThemeKey,
 } from "./lib/style";
@@ -244,6 +245,7 @@ export default function App() {
   function resetFreshReviewLayout(): Layout {
     const next = resetStripLayout();
     setLayout(next);
+    setTemplateCaption("");
     return next;
   }
 
@@ -260,12 +262,19 @@ export default function App() {
     setFilterState(preset.filter);
     saveSticker(preset.sticker);
     setStickerState(preset.sticker);
+    const nextCaption = cleanStyleCaption(preset.caption ?? "");
+    setTemplateCaption(nextCaption);
     persistActiveStyle(
       buildSessionStyle({
         layout: preset.layout,
         themeKey: preset.theme,
         filter: preset.filter,
         sticker: preset.sticker,
+        caption: resolveStripCaption({
+          isPro,
+          customCaption,
+          templateCaption: nextCaption,
+        }),
       }),
     );
     clearResults();
@@ -283,13 +292,26 @@ export default function App() {
   const [customCaption, setCustomCaptionState] = useState(
     () => localStorage.getItem("bb.pro.caption") ?? "",
   );
+  const [templateCaption, setTemplateCaption] = useState("");
   function setCustomCaption(value: string) {
     const next = cleanStyleCaption(value);
     localStorage.setItem("bb.pro.caption", next);
     setCustomCaptionState(next);
-    persistActiveStyle(buildSessionStyle({ caption: isPro ? next : "" }));
+    persistActiveStyle(
+      buildSessionStyle({
+        caption: resolveStripCaption({
+          isPro,
+          customCaption: next,
+          templateCaption,
+        }),
+      }),
+    );
   }
-  const stripCaption = isPro ? customCaption.trim() : "";
+  const stripCaption = resolveStripCaption({
+    isPro,
+    customCaption,
+    templateCaption,
+  });
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -411,10 +433,13 @@ export default function App() {
     setThemeKeyState(style.themeKey);
     setFilterState(nextFilter);
     setStickerState(nextSticker);
+    const caption = cleanStyleCaption(style.caption ?? "");
     if (isPro) {
-      const caption = cleanStyleCaption(style.caption ?? "");
       localStorage.setItem("bb.pro.caption", caption);
       setCustomCaptionState(caption);
+      setTemplateCaption("");
+    } else {
+      setTemplateCaption(caption);
     }
     return locked;
   }
