@@ -5,7 +5,8 @@ export type ProContext =
   | "look"
   | "props"
   | "caption"
-  | "quality";
+  | "quality"
+  | "party";
 
 export interface ProOfferCopy {
   eyebrow: string;
@@ -25,6 +26,7 @@ const CONTEXT_TITLES: Record<ProContext, string> = {
   props: "Unlock Pro Props",
   caption: "Unlock Custom Captions",
   quality: "Unlock HD Exports",
+  party: "Unlock Party Mode",
 };
 
 const CONTEXT_EYEBROWS: Record<ProContext, string> = {
@@ -35,6 +37,7 @@ const CONTEXT_EYEBROWS: Record<ProContext, string> = {
   props: "Premium prop pack",
   caption: "Premium personalization",
   quality: "Premium export",
+  party: "Event-host mode",
 };
 
 export function proPriceLabel(price: string | null): string {

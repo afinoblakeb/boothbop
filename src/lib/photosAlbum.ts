@@ -62,6 +62,15 @@ export async function ensurePhotosPermission(
   return "denied";
 }
 
+export function canSaveWithPhotosPermission(
+  dest: AutosaveDest,
+  status: PermissionResult,
+): boolean {
+  return (
+    status === "granted" || (dest === "cameraRoll" && status === "limited")
+  );
+}
+
 /** Open BoothBop's page in iOS Settings so the user can change Photos access. */
 export async function openIosSettings(): Promise<void> {
   if (!isNativeShell()) return;

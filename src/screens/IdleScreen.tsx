@@ -15,6 +15,7 @@ export function IdleScreen({
   demoSets = [],
   onStartDemo,
   installPrompt,
+  partyMode,
   error,
 }: {
   onStart: () => void;
@@ -24,6 +25,7 @@ export function IdleScreen({
   demoSets?: readonly { id: number; label: string }[];
   onStartDemo?: (setNum: number) => void;
   installPrompt: InstallPromptEvent | null;
+  partyMode: boolean;
   error: string | null;
 }) {
   const importRef = useRef<HTMLInputElement>(null);
@@ -42,6 +44,12 @@ export function IdleScreen({
           grab your photo strip!
         </p>
 
+        {partyMode && (
+          <p className="mt-2 max-w-xs border-2 border-ink bg-paper px-3 py-2 font-sans text-xs uppercase tracking-wide text-brown">
+            Party Mode is ready for guests.
+          </p>
+        )}
+
         <Button
           variant="primary"
           size="lg"
@@ -50,64 +58,68 @@ export function IdleScreen({
           className="mt-4 max-w-xs"
         >
           <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-          Take Photos
+          {partyMode ? "Start Booth" : "Take Photos"}
         </Button>
 
-        <button
-          onClick={onBrowseTemplates}
-          className="mt-3 flex min-h-16 w-full max-w-xs items-center justify-between border-2 border-ink bg-teal px-4 text-left text-cream transition active:translate-y-px"
-        >
-          <span>
-            <span className="block font-display text-2xl uppercase tracking-wide">
-              Browse Templates
-            </span>
-            <span className="block font-sans text-xs uppercase tracking-wide opacity-85">
-              12 looks to start with
-            </span>
-          </span>
-          <span className="flex gap-1" aria-hidden="true">
-            <span className="h-9 w-3 border-2 border-ink bg-cream" />
-            <span className="h-9 w-3 border-2 border-ink bg-mustard" />
-            <span className="h-9 w-3 border-2 border-ink bg-orange" />
-          </span>
-        </button>
+        {!partyMode && (
+          <>
+            <button
+              onClick={onBrowseTemplates}
+              className="mt-3 flex min-h-16 w-full max-w-xs items-center justify-between border-2 border-ink bg-teal px-4 text-left text-cream transition active:translate-y-px"
+            >
+              <span>
+                <span className="block font-display text-2xl uppercase tracking-wide">
+                  Browse Templates
+                </span>
+                <span className="block font-sans text-xs uppercase tracking-wide opacity-85">
+                  12 looks to start with
+                </span>
+              </span>
+              <span className="flex gap-1" aria-hidden="true">
+                <span className="h-9 w-3 border-2 border-ink bg-cream" />
+                <span className="h-9 w-3 border-2 border-ink bg-mustard" />
+                <span className="h-9 w-3 border-2 border-ink bg-orange" />
+              </span>
+            </button>
 
-        <Button
-          variant="secondary"
-          size="lg"
-          fullWidth
-          onClick={onOpenGallery}
-          className="mt-3 max-w-xs"
-        >
-          <BrandIcon name="gallery" className="h-8 w-8" />
-          My Photos
-        </Button>
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={onOpenGallery}
+              className="mt-3 max-w-xs"
+            >
+              <BrandIcon name="gallery" className="h-8 w-8" />
+              My Photos
+            </Button>
 
-        <Button
-          variant="secondary"
-          size="md"
-          fullWidth
-          onClick={() => importRef.current?.click()}
-          className="mt-3 max-w-xs"
-        >
-          <BrandIcon name="gallery" className="h-6 w-6" />
-          Import 4 Photos
-        </Button>
-        <input
-          ref={importRef}
-          type="file"
-          accept="image/*"
-          multiple
-          className="hidden"
-          onChange={(e) => {
-            if (e.currentTarget.files?.length) {
-              onImportPhotos(e.currentTarget.files);
-              e.currentTarget.value = "";
-            }
-          }}
-        />
+            <Button
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={() => importRef.current?.click()}
+              className="mt-3 max-w-xs"
+            >
+              <BrandIcon name="gallery" className="h-6 w-6" />
+              Import 4 Photos
+            </Button>
+            <input
+              ref={importRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                if (e.currentTarget.files?.length) {
+                  onImportPhotos(e.currentTarget.files);
+                  e.currentTarget.value = "";
+                }
+              }}
+            />
+          </>
+        )}
 
-        {demoSets.length > 0 && onStartDemo && (
+        {!partyMode && demoSets.length > 0 && onStartDemo && (
           <div className="mt-3 grid w-full max-w-xs grid-cols-3 gap-2">
             {demoSets.map((set) => (
               <button
@@ -122,7 +134,7 @@ export function IdleScreen({
           </div>
         )}
 
-        <InstallCard installPrompt={installPrompt} />
+        {!partyMode && <InstallCard installPrompt={installPrompt} />}
 
         {error && (
           <Callout

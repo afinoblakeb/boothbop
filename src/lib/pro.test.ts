@@ -18,12 +18,14 @@ describe("pro", () => {
       "props",
       "caption",
       "quality",
+      "party",
     ];
     const titles = contexts.map((context) => proOfferCopy(context, null).title);
 
     expect(new Set(titles).size).toBe(contexts.length);
     expect(titles).toContain("Unlock Pro Templates");
     expect(titles).toContain("Unlock Custom Captions");
+    expect(titles).toContain("Unlock Party Mode");
   });
 
   it("keeps the core value props visible on every paywall", () => {

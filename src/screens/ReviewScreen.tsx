@@ -65,6 +65,7 @@ export function ReviewScreen({
   note,
   shareFilesOk,
   savingAll,
+  partyMode,
   thumbs,
   sessionTitle,
   sessionFavorite,
@@ -106,6 +107,7 @@ export function ReviewScreen({
   note: string | null;
   shareFilesOk: boolean;
   savingAll: boolean;
+  partyMode: boolean;
   thumbs: string[];
   sessionTitle: string;
   sessionFavorite: boolean;
@@ -140,6 +142,7 @@ export function ReviewScreen({
         : "Save Photo";
   const isBusy = generating !== null;
   const [editOpen, setEditOpen] = useState(false);
+  const retakeLabel = partyMode ? "Next Guest" : "Take Again";
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
     : "mt-2 flex h-[clamp(300px,52vh,500px)] w-full shrink-0 items-center justify-center overflow-hidden";
@@ -176,18 +179,24 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      <div className="mt-4 grid w-full grid-cols-[7rem_minmax(0,1fr)] gap-3">
-        <Button
-          variant={editOpen ? "primary" : "secondary"}
-          size="md"
-          onClick={() => setEditOpen((open) => !open)}
-          aria-expanded={editOpen}
-          aria-controls="review-editor"
-          className="h-14 px-3"
-        >
-          <SlidersIcon className="h-6 w-6" />
-          Edit
-        </Button>
+      <div
+        className={`mt-4 grid w-full gap-3 ${
+          partyMode ? "grid-cols-1" : "grid-cols-[7rem_minmax(0,1fr)]"
+        }`}
+      >
+        {!partyMode && (
+          <Button
+            variant={editOpen ? "primary" : "secondary"}
+            size="md"
+            onClick={() => setEditOpen((open) => !open)}
+            aria-expanded={editOpen}
+            aria-controls="review-editor"
+            className="h-14 px-3"
+          >
+            <SlidersIcon className="h-6 w-6" />
+            Edit
+          </Button>
+        )}
         {shareFilesOk ? (
           <Button
             variant="primary"
@@ -229,22 +238,40 @@ export function ReviewScreen({
         </Callout>
       )}
 
-      {!editOpen && (
+      {(partyMode || !editOpen) && (
         <>
-          <button
-            onClick={onRetake}
-            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 px-3 font-display text-lg uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-          >
-            <RefreshIcon className="h-5 w-5" />
-            Take Again
-          </button>
+          {partyMode ? (
+            <Button
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={onRetake}
+              className="mt-3"
+            >
+              <RefreshIcon className="h-6 w-6" />
+              {retakeLabel}
+            </Button>
+          ) : (
+            <button
+              onClick={onRetake}
+              className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 px-3 font-display text-lg uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+            >
+              <RefreshIcon className="h-5 w-5" />
+              {retakeLabel}
+            </button>
+          )}
+          {partyMode && (
+            <p className="mt-1 max-w-xs text-center font-sans text-xs text-teal">
+              Party Mode keeps this style ready for the next guest.
+            </p>
+          )}
           <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
             Photos stay on this device. BoothBop never uploads or stores them.
           </p>
         </>
       )}
 
-      {editOpen && (
+      {!partyMode && editOpen && (
         <section
           id="review-editor"
           className="mt-4 min-h-0 w-full flex-1 overflow-y-auto border-t-2 border-ink pt-4"
@@ -526,7 +553,7 @@ export function ReviewScreen({
             className="mt-3"
           >
             <RefreshIcon className="h-6 w-6" />
-            Take Again
+            {retakeLabel}
           </Button>
 
           <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">

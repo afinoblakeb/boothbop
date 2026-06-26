@@ -59,7 +59,16 @@ import {
   type QualitySettings,
 } from "./lib/settings";
 import {
+  loadPartyModeConfig,
+  cleanPartyPasscodeInput,
+  normalizePartyPasscode,
+  savePartyModeConfig,
+  verifyPartyPasscode,
+  type PartyModeConfig,
+} from "./lib/partyMode";
+import {
   ensurePhotosPermission,
+  canSaveWithPhotosPermission,
   openIosSettings,
   saveToPhotos,
   type PermissionResult,
@@ -111,6 +120,7 @@ import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
 import { ProScreen } from "./screens/ProScreen";
+import { PartyExitModal } from "./screens/PartyExitModal";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -162,6 +172,8 @@ export default function App() {
   const [proContext, setProContext] = useState<ProContext>("settings");
   const [proBusy, setProBusy] = useState(false);
   const [proError, setProError] = useState<string | null>(null);
+  const [showPartyExit, setShowPartyExit] = useState(false);
+  const [partyExitError, setPartyExitError] = useState<string | null>(null);
   const [shareFilesOk, setShareFilesOk] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -265,6 +277,9 @@ export default function App() {
   // cached locally for instant UI.
   const [isPro, setIsPro] = useState(isProCached());
   const [proProduct, setProProduct] = useState<ProProduct | null>(null);
+  const [partyConfig, setPartyConfig] =
+    useState<PartyModeConfig>(loadPartyModeConfig);
+  const partyMode = partyConfig.enabled && isPro;
   const [customCaption, setCustomCaptionState] = useState(
     () => localStorage.getItem("bb.pro.caption") ?? "",
   );
@@ -322,7 +337,10 @@ export default function App() {
       saveStripLayout("4x1");
       setLayout("4x1");
     }
-  }, [filter, isPro, layout, quality, sticker]);
+    if (partyConfig.enabled) {
+      updatePartyConfig({ ...partyConfig, enabled: false });
+    }
+  }, [filter, isPro, layout, partyConfig, quality, sticker]);
 
   function clearActiveSession() {
     setActiveSessionId(null);
@@ -481,10 +499,48 @@ export default function App() {
   }
 
   const [captureSound, setCaptureSoundState] = useState(loadCaptureSound);
+
   function toggleCaptureSound() {
     const next = !captureSound;
     saveCaptureSound(next);
     setCaptureSoundState(next);
+  }
+
+  function updatePartyConfig(next: PartyModeConfig) {
+    savePartyModeConfig(next);
+    setPartyConfig(next);
+  }
+
+  function changePartyMode(on: boolean) {
+    if (on && !isPro) {
+      openPro("party");
+      return;
+    }
+    updatePartyConfig({
+      ...partyConfig,
+      enabled: on,
+      passcode: on
+        ? normalizePartyPasscode(partyConfig.passcode)
+        : partyConfig.passcode,
+    });
+  }
+
+  function changePartyPasscode(passcode: string) {
+    updatePartyConfig({
+      ...partyConfig,
+      passcode: cleanPartyPasscodeInput(passcode),
+    });
+  }
+
+  function verifyPartyExit(passcode: string) {
+    if (!verifyPartyPasscode(partyConfig, passcode)) {
+      setPartyExitError("That code did not match.");
+      return;
+    }
+    updatePartyConfig({ ...partyConfig, enabled: false });
+    setShowPartyExit(false);
+    setPartyExitError(null);
+    cancelToHome();
   }
 
   const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
@@ -901,7 +957,7 @@ export default function App() {
           /* gallery update is best-effort */
         }
       }
-      pregenerate(next);
+      if (!partyMode) pregenerate(next);
       setFormat("strip");
       setPhase("review");
       return;
@@ -955,7 +1011,7 @@ export default function App() {
     // instant and the short video finishes before the user can navigate away (a
     // backgrounded MediaRecorder stretches the clip). Then auto-save, also in
     // the background. Neither blocks the review screen.
-    pregenerate(captured);
+    if (!partyMode) pregenerate(captured);
     void autoSaveToAlbum(captured, autosave);
 
     setFormat("strip");
@@ -990,7 +1046,7 @@ export default function App() {
       await wait(240);
       setFlash(false);
       setRetakeIndex(null);
-      pregenerate(next);
+      if (!partyMode) pregenerate(next);
       setFormat("strip");
       setPhase("review");
       return;
@@ -1024,7 +1080,7 @@ export default function App() {
       if (shot < SHOTS - 1) await wait(750);
     }
 
-    pregenerate(captured);
+    if (!partyMode) pregenerate(captured);
     setNote("Demo shoot complete.");
     setFormat("strip");
     setPhase("review");
@@ -1085,6 +1141,22 @@ export default function App() {
     setFrames([]);
     setFormat("strip");
     openCamera();
+  }
+
+  function nextGuest() {
+    if (!partyMode) {
+      retake();
+      return;
+    }
+    if (demoSetNum !== null) {
+      void openDemoCamera(demoSetNum);
+      return;
+    }
+    clearResults();
+    clearActiveSession();
+    setFrames([]);
+    setFormat("strip");
+    void openCamera({ preserveStyle: true });
   }
 
   function startTemplate(preset: StylePreset) {
@@ -1314,7 +1386,7 @@ export default function App() {
     } catch {
       status = "denied";
     }
-    if (status !== "granted") return;
+    if (!canSaveWithPhotosPermission(settings.dest, status)) return;
 
     // Snapshot the theme so a set saved over a few seconds stays consistent even
     // if the user changes the color on the review screen mid-save.
@@ -1551,10 +1623,17 @@ export default function App() {
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">
       <TopBar
-        onHome={cancelToHome}
+        onHome={
+          partyMode
+            ? () => {
+                setPartyExitError(null);
+                setShowPartyExit(true);
+              }
+            : cancelToHome
+        }
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
-        showActions={phase !== "capturing" && !showMigration}
+        showActions={phase !== "capturing" && !showMigration && !partyMode}
       />
 
       {phase === "idle" &&
@@ -1562,13 +1641,14 @@ export default function App() {
           <MigrationScreen onContinue={dismissMigration} />
         ) : (
           <IdleScreen
-            onStart={() => void openCamera()}
+            onStart={() => void openCamera({ preserveStyle: partyMode })}
             onBrowseTemplates={() => setShowTemplates(true)}
             onOpenGallery={() => setShowGallery(true)}
             onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
             onStartDemo={(setNum) => void openDemoCamera(setNum)}
             installPrompt={installPrompt}
+            partyMode={partyMode}
             error={error}
           />
         ))}
@@ -1587,6 +1667,7 @@ export default function App() {
           captureSound={captureSound}
           cameraFacing={cameraFacing}
           mirrorPreview={mirrorPreview}
+          partyMode={partyMode}
           onToggleFacing={toggleCameraFacing}
           onToggleMirror={() => setMirror(!mirrorPreview)}
           onToggleSound={toggleCaptureSound}
@@ -1617,6 +1698,7 @@ export default function App() {
           note={note}
           shareFilesOk={shareFilesOk}
           savingAll={savingAll}
+          partyMode={partyMode}
           thumbs={thumbs}
           sessionTitle={sessionTitle}
           sessionFavorite={sessionFavorite}
@@ -1633,7 +1715,7 @@ export default function App() {
           onSessionTitle={changeSessionTitle}
           onToggleFavorite={toggleSessionFavorite}
           onCustomCaption={setCustomCaption}
-          onRetake={retake}
+          onRetake={nextGuest}
           onRetakeShot={retakeShot}
           onMoveShot={moveShot}
         />
@@ -1668,11 +1750,16 @@ export default function App() {
           error={autosaveError}
           isPro={isPro}
           proPrice={proProduct?.price ?? null}
+          partyMode={partyConfig.enabled}
+          partyPasscode={partyConfig.passcode}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
           onExportSpeed={changeExportSpeed}
           onOpenPro={() => openPro("settings")}
+          onOpenPartyMode={() => openPro("party")}
+          onPartyMode={changePartyMode}
+          onPartyPasscode={changePartyPasscode}
           onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
@@ -1690,6 +1777,17 @@ export default function App() {
           onStartPro={purchasePro}
           onRestore={restorePro}
           onClose={() => setShowPro(false)}
+        />
+      )}
+
+      {showPartyExit && (
+        <PartyExitModal
+          error={partyExitError}
+          onVerify={verifyPartyExit}
+          onClose={() => {
+            setPartyExitError(null);
+            setShowPartyExit(false);
+          }}
         />
       )}
     </div>

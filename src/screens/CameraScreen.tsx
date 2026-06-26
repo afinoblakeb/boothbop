@@ -27,6 +27,7 @@ export function CameraScreen({
   captureSound,
   cameraFacing,
   mirrorPreview,
+  partyMode,
   onToggleFacing,
   onToggleMirror,
   onToggleSound,
@@ -44,6 +45,7 @@ export function CameraScreen({
   captureSound: boolean;
   cameraFacing: CameraFacing;
   mirrorPreview: boolean;
+  partyMode: boolean;
   onToggleFacing: () => void;
   onToggleMirror: () => void;
   onToggleSound: () => void;
@@ -121,7 +123,16 @@ export function CameraScreen({
       <div className="mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
-            {isDemo ? (
+            {partyMode ? (
+              <div className="mb-3 border-2 border-ink bg-paper px-3 py-2 text-left">
+                <Heading as="p" size="sm" className="text-ink">
+                  Party Mode
+                </Heading>
+                <p className="font-sans text-xs uppercase tracking-wide text-brown">
+                  Host controls are locked for guests.
+                </p>
+              </div>
+            ) : isDemo ? (
               <div className="mb-3 grid grid-cols-2 gap-2">
                 <Heading
                   as="p"
@@ -168,28 +179,32 @@ export function CameraScreen({
                 </button>
               </div>
             )}
-            <div className="mb-3 flex items-center justify-center gap-2">
-              <Heading as="span" size="sm" className="text-brown">
-                Countdown
-              </Heading>
-              <SegmentedControl
-                label="Countdown seconds"
-                value={delay}
-                onChange={setDelay}
-                options={CAPTURE_DELAYS.map((value) => ({
-                  value,
-                  label: `${value}s`,
-                }))}
-                itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2.5 text-lg"
-              />
-            </div>
+            {!partyMode && (
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <Heading as="span" size="sm" className="text-brown">
+                  Countdown
+                </Heading>
+                <SegmentedControl
+                  label="Countdown seconds"
+                  value={delay}
+                  onChange={setDelay}
+                  options={CAPTURE_DELAYS.map((value) => ({
+                    value,
+                    label: `${value}s`,
+                  }))}
+                  itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2.5 text-lg"
+                />
+              </div>
+            )}
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-              {retakeIndex === null
-                ? isDemo
-                  ? "Run Demo Shoot"
-                  : "Take Photos"
-                : `Retake Shot ${retakeIndex + 1}`}
+              {partyMode
+                ? "Start Booth"
+                : retakeIndex === null
+                  ? isDemo
+                    ? "Run Demo Shoot"
+                    : "Take Photos"
+                  : `Retake Shot ${retakeIndex + 1}`}
             </Button>
           </>
         ) : (
