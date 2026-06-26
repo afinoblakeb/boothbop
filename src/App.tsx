@@ -1564,6 +1564,7 @@ export default function App() {
           thumbs={thumbs}
           sessionTitle={sessionTitle}
           sessionFavorite={sessionFavorite}
+          customCaption={customCaption}
           canManageSession={activeSessionId !== null}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           onOpenSettings={openSettings}
@@ -1573,6 +1574,7 @@ export default function App() {
           onSaveAll={saveAllCurrent}
           onSessionTitle={changeSessionTitle}
           onToggleFavorite={toggleSessionFavorite}
+          onCustomCaption={setCustomCaption}
           onRetake={retake}
           onRetakeShot={retakeShot}
           onMoveShot={moveShot}

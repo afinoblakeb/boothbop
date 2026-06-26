@@ -10,6 +10,7 @@ import type {
 } from "../lib/render";
 import type { StylePreset } from "../lib/templates";
 import type { MoveDirection } from "../lib/sequence";
+import { STYLE_CAPTION_MAX } from "../lib/style";
 import {
   isPremiumFilter,
   isPremiumLayout,
@@ -45,7 +46,7 @@ const THEME_LABELS: Record<string, string> = {
   carbon: "Carbon",
 };
 
-/** The result screen: format tabs, live preview, strip styling, and actions. */
+/** The result screen: preview, fixed actions, and a scrollable editor drawer. */
 export function ReviewScreen({
   format,
   onSelectFormat,
@@ -71,6 +72,7 @@ export function ReviewScreen({
   thumbs,
   sessionTitle,
   sessionFavorite,
+  customCaption,
   canManageSession,
   autosaveTip,
   onOpenSettings,
@@ -80,6 +82,7 @@ export function ReviewScreen({
   onSaveAll,
   onSessionTitle,
   onToggleFavorite,
+  onCustomCaption,
   onRetake,
   onRetakeShot,
   onMoveShot,
@@ -108,6 +111,7 @@ export function ReviewScreen({
   thumbs: string[];
   sessionTitle: string;
   sessionFavorite: boolean;
+  customCaption: string;
   canManageSession: boolean;
   autosaveTip: boolean;
   onOpenSettings: () => void;
@@ -117,6 +121,7 @@ export function ReviewScreen({
   onSaveAll: () => void;
   onSessionTitle: (title: string) => void;
   onToggleFavorite: () => void;
+  onCustomCaption: (caption: string) => void;
   onRetake: () => void;
   onRetakeShot: (index: number) => void;
   onMoveShot: (index: number, direction: MoveDirection) => void;
@@ -137,10 +142,10 @@ export function ReviewScreen({
   const [editOpen, setEditOpen] = useState(false);
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
-    : "mt-3 flex h-[clamp(300px,60vh,580px)] w-full shrink-0 items-center justify-center overflow-hidden";
+    : "mt-2 flex h-[clamp(300px,52vh,500px)] w-full shrink-0 items-center justify-center overflow-hidden";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto py-4 pb-6">
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-hidden py-3 pb-4">
       {/* Live preview of the selected output */}
       <div className={previewFrameClass}>
         {isBusy ? (
@@ -224,10 +229,25 @@ export function ReviewScreen({
         </Callout>
       )}
 
+      {!editOpen && (
+        <>
+          <button
+            onClick={onRetake}
+            className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 px-3 font-display text-lg uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+          >
+            <RefreshIcon className="h-5 w-5" />
+            Take Again
+          </button>
+          <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
+            Photos stay on this device. BoothBop never uploads or stores them.
+          </p>
+        </>
+      )}
+
       {editOpen && (
         <section
           id="review-editor"
-          className="mt-4 w-full border-t-2 border-ink pt-4"
+          className="mt-4 min-h-0 w-full flex-1 overflow-y-auto border-t-2 border-ink pt-4"
         >
           <SectionLabel className="mb-1 text-center">Output</SectionLabel>
           <SegmentedControl
@@ -239,97 +259,6 @@ export function ReviewScreen({
             itemClassName="py-3 text-xl"
           />
 
-          {canManageSession && (
-            <div className="mt-4 flex w-full items-end gap-2">
-              <label className="min-w-0 flex-1">
-                <SectionLabel className="mb-1">Session</SectionLabel>
-                <input
-                  value={sessionTitle}
-                  maxLength={SESSION_TITLE_MAX}
-                  onChange={(e) => onSessionTitle(e.target.value)}
-                  placeholder="Name this set"
-                  className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
-                />
-              </label>
-              <button
-                onClick={onToggleFavorite}
-                aria-label={sessionFavorite ? "Unfavorite" : "Favorite"}
-                aria-pressed={sessionFavorite}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center border-2 border-ink transition active:translate-y-px ${
-                  sessionFavorite ? "bg-mustard text-ink" : "bg-paper text-ink"
-                }`}
-              >
-                <StarIcon className="h-6 w-6" filled={sessionFavorite} />
-              </button>
-            </div>
-          )}
-
-          <div className="mt-4 w-full">
-            <SectionLabel className="mb-1 text-center">Look</SectionLabel>
-            <SegmentedControl
-              className="mx-auto"
-              label="Photo look"
-              value={filter}
-              onChange={setFilter}
-              options={(
-                Object.entries(filters) as [FilterKey, FilterDef][]
-              ).map(([value, f]) => ({
-                value,
-                label:
-                  isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
-                disabled: isPremiumFilter(value) && !isPro,
-              }))}
-              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="mt-3 w-full">
-            <SectionLabel className="mb-1 text-center">Props</SectionLabel>
-            <SegmentedControl
-              className="mx-auto"
-              label="Photo props"
-              value={sticker}
-              onChange={setSticker}
-              options={(
-                Object.entries(stickers) as [StickerKey, StickerDef][]
-              ).map(([value, item]) => ({
-                value,
-                label:
-                  isPremiumSticker(value) && !isPro
-                    ? `${item.label} Pro`
-                    : item.label,
-                disabled: isPremiumSticker(value) && !isPro,
-              }))}
-              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
-            />
-          </div>
-
-          <div className="mt-4 w-full">
-            <SectionLabel className="mb-1 text-center">Presets</SectionLabel>
-            <div className="grid grid-cols-3 gap-2">
-              {stylePresets.map((preset) => {
-                const locked = preset.pro && !isPro;
-                return (
-                  <button
-                    key={preset.id}
-                    onClick={() => onApplyPreset(preset)}
-                    className={`min-h-[46px] border-2 border-ink px-2 py-2 font-display text-sm uppercase tracking-wide transition active:translate-y-px ${
-                      locked ? "bg-cream text-brown" : "bg-paper text-ink"
-                    }`}
-                  >
-                    <span className="block leading-none">{preset.label}</span>
-                    {preset.pro && (
-                      <span className="mt-1 block font-sans text-[10px] font-bold uppercase tracking-wide text-orange-dark">
-                        Pro
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Strip-only styling controls */}
           {format === "strip" ? (
             <>
               <div className="mt-4">
@@ -391,6 +320,96 @@ export function ReviewScreen({
           )}
 
           <div className="mt-4 w-full">
+            <SectionLabel className="mb-1 text-center">Look</SectionLabel>
+            <SegmentedControl
+              className="mx-auto"
+              label="Photo look"
+              value={filter}
+              onChange={setFilter}
+              options={(
+                Object.entries(filters) as [FilterKey, FilterDef][]
+              ).map(([value, f]) => ({
+                value,
+                label:
+                  isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
+                disabled: isPremiumFilter(value) && !isPro,
+              }))}
+              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="mt-3 w-full">
+            <SectionLabel className="mb-1 text-center">Props</SectionLabel>
+            <SegmentedControl
+              className="mx-auto"
+              label="Photo props"
+              value={sticker}
+              onChange={setSticker}
+              options={(
+                Object.entries(stickers) as [StickerKey, StickerDef][]
+              ).map(([value, item]) => ({
+                value,
+                label:
+                  isPremiumSticker(value) && !isPro
+                    ? `${item.label} Pro`
+                    : item.label,
+                disabled: isPremiumSticker(value) && !isPro,
+              }))}
+              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="mt-4 w-full">
+            <SectionLabel className="mb-1">Caption</SectionLabel>
+            {isPro ? (
+              <input
+                value={customCaption}
+                maxLength={STYLE_CAPTION_MAX}
+                onChange={(e) => onCustomCaption(e.target.value)}
+                placeholder="BoothBop"
+                className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+              />
+            ) : (
+              <button
+                onClick={onOpenSettings}
+                className="flex min-h-11 w-full items-center justify-between border-2 border-ink bg-cream px-3 py-2 text-left transition active:translate-y-px"
+              >
+                <span className="font-sans text-sm text-brown">
+                  Custom footer text is Pro.
+                </span>
+                <span className="font-display text-base uppercase tracking-wide text-orange-dark">
+                  Pro
+                </span>
+              </button>
+            )}
+          </div>
+
+          {canManageSession && (
+            <div className="mt-4 flex w-full items-end gap-2">
+              <label className="min-w-0 flex-1">
+                <SectionLabel className="mb-1">Session</SectionLabel>
+                <input
+                  value={sessionTitle}
+                  maxLength={SESSION_TITLE_MAX}
+                  onChange={(e) => onSessionTitle(e.target.value)}
+                  placeholder="Name this set"
+                  className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+                />
+              </label>
+              <button
+                onClick={onToggleFavorite}
+                aria-label={sessionFavorite ? "Unfavorite" : "Favorite"}
+                aria-pressed={sessionFavorite}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center border-2 border-ink transition active:translate-y-px ${
+                  sessionFavorite ? "bg-mustard text-ink" : "bg-paper text-ink"
+                }`}
+              >
+                <StarIcon className="h-6 w-6" filled={sessionFavorite} />
+              </button>
+            </div>
+          )}
+
+          <div className="mt-4 w-full">
             <SectionLabel className="mb-1 text-center">Shots</SectionLabel>
             <div className="grid grid-cols-4 gap-2">
               {thumbs.map((src, i) => (
@@ -432,6 +451,30 @@ export function ReviewScreen({
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+
+          <div className="mt-4 w-full">
+            <SectionLabel className="mb-1 text-center">Templates</SectionLabel>
+            <div className="grid grid-cols-3 gap-2">
+              {stylePresets.map((preset) => {
+                const locked = preset.pro && !isPro;
+                return (
+                  <button
+                    key={preset.id}
+                    onClick={() => onApplyPreset(preset)}
+                    className={`min-h-[50px] border-2 border-ink px-2 py-2 font-display text-sm uppercase tracking-wide transition active:translate-y-px ${
+                      locked ? "bg-cream text-brown" : "bg-paper text-ink"
+                    }`}
+                  >
+                    <span className="block leading-none">{preset.label}</span>
+                    <span className="mt-1 block font-sans text-[10px] font-bold uppercase tracking-wide text-brown">
+                      {preset.category}
+                      {preset.pro ? " / Pro" : ""}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
