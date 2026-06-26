@@ -9,6 +9,7 @@ import type { InstallPromptEvent } from "../types";
 /** The home screen: brand, pitch, the two primary actions, install nudge, legal. */
 export function IdleScreen({
   onStart,
+  onBrowseTemplates,
   onOpenGallery,
   onImportPhotos,
   demoSets = [],
@@ -17,6 +18,7 @@ export function IdleScreen({
   error,
 }: {
   onStart: () => void;
+  onBrowseTemplates: () => void;
   onOpenGallery: () => void;
   onImportPhotos: (files: FileList) => void;
   demoSets?: readonly { id: number; label: string }[];
@@ -50,6 +52,25 @@ export function IdleScreen({
           <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
           Take Photos
         </Button>
+
+        <button
+          onClick={onBrowseTemplates}
+          className="mt-3 flex min-h-16 w-full max-w-xs items-center justify-between border-2 border-ink bg-teal px-4 text-left text-cream transition active:translate-y-px"
+        >
+          <span>
+            <span className="block font-display text-2xl uppercase tracking-wide">
+              Browse Templates
+            </span>
+            <span className="block font-sans text-xs uppercase tracking-wide opacity-85">
+              12 looks to start with
+            </span>
+          </span>
+          <span className="flex gap-1" aria-hidden="true">
+            <span className="h-9 w-3 border-2 border-ink bg-cream" />
+            <span className="h-9 w-3 border-2 border-ink bg-mustard" />
+            <span className="h-9 w-3 border-2 border-ink bg-orange" />
+          </span>
+        </button>
 
         <Button
           variant="secondary"

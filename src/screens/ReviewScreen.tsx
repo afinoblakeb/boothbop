@@ -77,6 +77,7 @@ export function ReviewScreen({
   autosaveTip,
   onOpenSettings,
   onDismissTip,
+  onBrowseTemplates,
   onShare,
   onDownload,
   onSaveAll,
@@ -116,6 +117,7 @@ export function ReviewScreen({
   autosaveTip: boolean;
   onOpenSettings: () => void;
   onDismissTip: () => void;
+  onBrowseTemplates: () => void;
   onShare: () => void;
   onDownload: () => void;
   onSaveAll: () => void;
@@ -456,6 +458,15 @@ export function ReviewScreen({
 
           <div className="mt-4 w-full">
             <SectionLabel className="mb-1 text-center">Templates</SectionLabel>
+            <Button
+              variant="secondary"
+              size="md"
+              fullWidth
+              onClick={onBrowseTemplates}
+              className="mb-3"
+            >
+              Browse Template Gallery
+            </Button>
             <div className="grid grid-cols-3 gap-2">
               {stylePresets.map((preset) => {
                 const locked = preset.pro && !isPro;

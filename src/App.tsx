@@ -108,6 +108,7 @@ import { CameraScreen } from "./screens/CameraScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -154,6 +155,7 @@ export default function App() {
 
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -704,8 +706,13 @@ export default function App() {
 
   async function openCamera({
     preserveFrames = false,
+    preserveStyle = false,
     retake = null,
-  }: { preserveFrames?: boolean; retake?: number | null } = {}) {
+  }: {
+    preserveFrames?: boolean;
+    preserveStyle?: boolean;
+    retake?: number | null;
+  } = {}) {
     setError(null);
     abortRef.current = false;
     setDemoSetNum(null);
@@ -714,7 +721,7 @@ export default function App() {
     setRetakeIndex(retake);
     if (!preserveFrames) {
       clearActiveSession();
-      resetFreshReviewLayout();
+      if (!preserveStyle) resetFreshReviewLayout();
     }
     try {
       const stream = await startCamera(cameraFacing);
@@ -875,7 +882,7 @@ export default function App() {
       return;
     }
 
-    const freshLayout = resetFreshReviewLayout();
+    const freshLayout = layout;
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -1053,6 +1060,29 @@ export default function App() {
     setFrames([]);
     setFormat("strip");
     openCamera();
+  }
+
+  function startTemplate(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      setShowSettings(true);
+      return;
+    }
+    applyStylePreset(preset);
+    setShowTemplates(false);
+    void openCamera({ preserveStyle: true });
+  }
+
+  function applyTemplateToCurrent(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      setShowSettings(true);
+      return;
+    }
+    applyStylePreset(preset);
+    setShowTemplates(false);
+  }
+
+  function unlockTemplate() {
+    setShowSettings(true);
   }
 
   function retakeShot(index: number) {
@@ -1507,7 +1537,8 @@ export default function App() {
           <MigrationScreen onContinue={dismissMigration} />
         ) : (
           <IdleScreen
-            onStart={openCamera}
+            onStart={() => void openCamera()}
+            onBrowseTemplates={() => setShowTemplates(true)}
             onOpenGallery={() => setShowGallery(true)}
             onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
@@ -1569,6 +1600,7 @@ export default function App() {
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           onOpenSettings={openSettings}
           onDismissTip={dismissAutosaveTip}
+          onBrowseTemplates={() => setShowTemplates(true)}
           onShare={shareCurrent}
           onDownload={downloadCurrent}
           onSaveAll={saveAllCurrent}
@@ -1586,6 +1618,17 @@ export default function App() {
           onClose={() => setShowGallery(false)}
           onOpen={openSession}
           demo={DEMO}
+        />
+      )}
+
+      {showTemplates && (
+        <TemplateGalleryScreen
+          isPro={isPro}
+          hasCurrentCapture={frames.length >= SHOTS}
+          onClose={() => setShowTemplates(false)}
+          onStart={startTemplate}
+          onApplyToCurrent={applyTemplateToCurrent}
+          onUnlockPro={unlockTemplate}
         />
       )}
 
