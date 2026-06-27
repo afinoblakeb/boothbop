@@ -7,6 +7,7 @@ import {
   pickRandomStylePreset,
   presetsByCategory,
   stylePresetMetaLabel,
+  stylePresetPackLabel,
   TEMPLATE_LAYOUT_LABELS,
   type StylePreset,
   type TemplateCategory,
@@ -187,6 +188,9 @@ function TemplateCard({
         <p className="mt-1 font-sans text-[11px] uppercase tracking-wide text-warmgray">
           {stylePresetMetaLabel(preset)}
         </p>
+        <p className="mt-0.5 font-sans text-[11px] font-bold uppercase tracking-wide text-brown">
+          {stylePresetPackLabel(preset)}
+        </p>
       </div>
     </button>
   );
@@ -216,6 +220,7 @@ function TemplateDetail({
   const locked = preset.pro && !isPro;
   const caption = resolveTemplateCaption(preset.caption ?? "", eventName);
   const chips = [
+    stylePresetPackLabel(preset),
     TEMPLATE_LAYOUT_LABELS[preset.layout],
     FILTERS[preset.filter].label,
     preset.sticker === "none" ? null : STICKERS[preset.sticker].label,

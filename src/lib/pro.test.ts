@@ -35,10 +35,10 @@ describe("pro", () => {
 
     expect(copy.cta).toBe("Start Pro - $1.99/month");
     expect(copy.body).toMatch(/optional/i);
-    expect(copy.body).toMatch(/premium looks/i);
+    expect(copy.body).toMatch(/premium template drops/i);
     expect(copy.body).toMatch(/print sheets/i);
     expect(copy.body).toMatch(/watermark-free/i);
-    expect(copy.bullets.join(" ")).toMatch(/premium templates/i);
+    expect(copy.bullets.join(" ")).toMatch(/premium template packs/i);
     expect(copy.bullets.join(" ")).toMatch(/BoothBop branding/i);
     expect(copy.bullets).toHaveLength(3);
   });

@@ -57,9 +57,9 @@ export function proOfferCopy(
   return {
     eyebrow: CONTEXT_EYEBROWS[context],
     title: CONTEXT_TITLES[context],
-    body: "BoothBop Pro is optional. The free booth still makes strips, GIFs, boomerangs, and videos; Pro adds premium looks, custom captions, print sheets, HD exports, and watermark-free saved outputs. Your photos stay on this device.",
+    body: "BoothBop Pro is optional. The free booth still makes strips, GIFs, boomerangs, and videos; Pro adds premium template drops, custom captions, print sheets, HD exports, and watermark-free saved outputs. Your photos stay on this device.",
     bullets: [
-      "Premium templates, layouts, looks, and props",
+      "Premium template packs and creative drops",
       "Custom captions, HD exports, and 4x6 print sheets",
       "Remove BoothBop branding from newly saved strips, GIFs, and videos",
     ],

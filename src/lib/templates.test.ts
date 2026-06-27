@@ -12,13 +12,16 @@ import {
   TEMPLATE_CATALOG,
   TEMPLATE_BACKLOG,
   TEMPLATE_CATEGORIES,
+  TEMPLATE_PACKS,
   availableStylePresets,
   findStylePreset,
   isStylePresetAvailable,
   pickRandomStylePreset,
   presetsByCategory,
   stylePresetMetaLabel,
+  stylePresetPackLabel,
   templateCategoryLabel,
+  templatePackForPreset,
   type StylePreset,
 } from "./templates";
 
@@ -106,6 +109,19 @@ describe("style presets", () => {
     for (const preset of TEMPLATE_CATALOG) {
       expect(PREVIEW_DEMO_SET[preset.id]).toBeGreaterThanOrEqual(1);
       expect(PREVIEW_DEMO_SET[preset.id]).toBeLessThanOrEqual(3);
+    }
+  });
+
+  it("assigns every template to honest free or Pro pack metadata", () => {
+    expect(TEMPLATE_PACKS.filter((pack) => !pack.pro)).toHaveLength(2);
+    expect(TEMPLATE_PACKS.filter((pack) => pack.pro)).toHaveLength(7);
+
+    for (const preset of TEMPLATE_CATALOG) {
+      const pack = templatePackForPreset(preset);
+      expect(pack).toBeDefined();
+      expect(pack.pro).toBe(preset.pro);
+      expect(stylePresetPackLabel(preset)).toContain(pack.label);
+      expect(stylePresetPackLabel(preset)).toContain(pack.badge);
     }
   });
 

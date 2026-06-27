@@ -21,6 +21,76 @@ export const TEMPLATE_CATEGORIES: { id: TemplateCategory; label: string }[] = [
   { id: "friends", label: "Friends" },
 ];
 
+export type TemplatePackId =
+  | "starter"
+  | "occasion-starters"
+  | "classic-drop"
+  | "birthday-drop"
+  | "wedding-drop"
+  | "nightout-drop"
+  | "graduation-drop"
+  | "holiday-drop"
+  | "friends-drop";
+
+export interface TemplatePack {
+  id: TemplatePackId;
+  label: string;
+  pro: boolean;
+  badge: "Free" | "Pro Drop";
+}
+
+export const TEMPLATE_PACKS: readonly TemplatePack[] = [
+  { id: "starter", label: "Starter Pack", pro: false, badge: "Free" },
+  {
+    id: "occasion-starters",
+    label: "Occasion Starters",
+    pro: false,
+    badge: "Free",
+  },
+  {
+    id: "classic-drop",
+    label: "Classic Pro Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "birthday-drop",
+    label: "Birthday Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "wedding-drop",
+    label: "Wedding Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "nightout-drop",
+    label: "Night Out Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "graduation-drop",
+    label: "Grad Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "holiday-drop",
+    label: "Holiday Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+  {
+    id: "friends-drop",
+    label: "Friends Pack",
+    pro: true,
+    badge: "Pro Drop",
+  },
+];
+
 export const TEMPLATE_LAYOUT_LABELS: Record<Layout, string> = {
   "4x1": "Classic strip",
   "2x2": "Grid",
@@ -414,6 +484,39 @@ export const TEMPLATE_CATALOG = [
 
 export type StylePresetId = (typeof TEMPLATE_CATALOG)[number]["id"];
 
+const TEMPLATE_PACK_BY_ID: Record<StylePresetId, TemplatePackId> = {
+  classic: "starter",
+  noir: "starter",
+  foursquare: "starter",
+  "birthday-spark": "occasion-starters",
+  "just-married": "occasion-starters",
+  "neon-noir": "occasion-starters",
+  "sweet-sixteen": "birthday-drop",
+  vows: "wedding-drop",
+  "party-story": "birthday-drop",
+  midnight: "nightout-drop",
+  "golden-hour": "holiday-drop",
+  besties: "friends-drop",
+  goldenrod: "starter",
+  "sunday-best": "classic-drop",
+  "confetti-pop": "birthday-drop",
+  "make-a-wish": "birthday-drop",
+  forever: "occasion-starters",
+  reception: "wedding-drop",
+  eternal: "wedding-drop",
+  "after-hours": "occasion-starters",
+  disco: "nightout-drop",
+  vip: "nightout-drop",
+  "class-of-26": "occasion-starters",
+  tassel: "graduation-drop",
+  "cum-laude": "graduation-drop",
+  "we-did-it": "graduation-drop",
+  "cocoa-cozy": "occasion-starters",
+  frostbite: "occasion-starters",
+  "photo-dump": "occasion-starters",
+  weekend: "occasion-starters",
+};
+
 export function findStylePreset(id: string): StylePreset | null {
   return TEMPLATE_CATALOG.find((preset) => preset.id === id) ?? null;
 }
@@ -455,6 +558,21 @@ export function templateCategoryLabel(category: TemplateCategory): string {
   return (
     TEMPLATE_CATEGORIES.find((item) => item.id === category)?.label ?? category
   );
+}
+
+export function templatePack(id: TemplatePackId): TemplatePack {
+  return TEMPLATE_PACKS.find((pack) => pack.id === id) ?? TEMPLATE_PACKS[0];
+}
+
+export function templatePackForPreset(
+  preset: Pick<StylePreset, "id">,
+): TemplatePack {
+  return templatePack(TEMPLATE_PACK_BY_ID[preset.id as StylePresetId]);
+}
+
+export function stylePresetPackLabel(preset: Pick<StylePreset, "id">): string {
+  const pack = templatePackForPreset(preset);
+  return `${pack.label} / ${pack.badge}`;
 }
 
 export function stylePresetMetaLabel(
