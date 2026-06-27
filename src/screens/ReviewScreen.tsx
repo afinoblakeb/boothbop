@@ -65,6 +65,7 @@ export function ReviewScreen({
   error,
   note,
   shareFilesOk,
+  native,
   savingAll,
   partyMode,
   partyResetSeconds,
@@ -79,7 +80,7 @@ export function ReviewScreen({
   onDismissTip,
   onBrowseTemplates,
   onShare,
-  onDownload,
+  onSave,
   onSaveAll,
   onSessionTitle,
   onToggleFavorite,
@@ -108,6 +109,7 @@ export function ReviewScreen({
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
+  native: boolean;
   savingAll: boolean;
   partyMode: boolean;
   partyResetSeconds: PartyResetSeconds;
@@ -122,7 +124,7 @@ export function ReviewScreen({
   onDismissTip: () => void;
   onBrowseTemplates: () => void;
   onShare: () => void;
-  onDownload: () => void;
+  onSave: () => void;
   onSaveAll: () => void;
   onSessionTitle: (title: string) => void;
   onToggleFavorite: () => void;
@@ -133,20 +135,21 @@ export function ReviewScreen({
 }) {
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
-    { id: "print", label: "Print" },
     { id: "gif", label: "GIF" },
     { id: "boomerang", label: "Boom" },
     ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
+    { id: "print", label: isPro ? "Print" : "Print Pro" },
   ];
-  const saveLabel =
+  const downloadLabel =
     format === "video"
-      ? "Save Video"
+      ? "Download Video"
       : format === "print"
-        ? "Save Sheet"
+        ? "Download Sheet"
         : format === "gif" || format === "boomerang"
-          ? "Save GIF"
-          : "Save Photo";
+          ? "Download GIF"
+          : "Download PNG";
   const isBusy = generating !== null;
+  const canShare = native || shareFilesOk;
   const [editOpen, setEditOpen] = useState(false);
   const [partyActionTaken, setPartyActionTaken] = useState(false);
   const [partyCountdown, setPartyCountdown] =
@@ -161,7 +164,7 @@ export function ReviewScreen({
     !partyActionTaken;
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
-    : "mt-2 flex h-[clamp(300px,52vh,500px)] w-full shrink-0 items-center justify-center overflow-hidden";
+    : "mt-2 flex h-[clamp(260px,42vh,440px)] w-full shrink-0 items-center justify-center overflow-hidden";
 
   useEffect(() => {
     onRetakeRef.current = onRetake;
@@ -225,11 +228,30 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      <div
-        className={`mt-4 grid w-full gap-3 ${
-          partyMode ? "grid-cols-1" : "grid-cols-[7rem_minmax(0,1fr)]"
-        }`}
-      >
+      <section className="mt-3 w-full">
+        <SectionLabel className="mb-1 text-center">Output</SectionLabel>
+        <SegmentedControl
+          ariaRole="tab"
+          fullWidth
+          value={format}
+          onChange={onSelectFormat}
+          options={tabs.map((t) => ({ value: t.id, label: t.label }))}
+          itemClassName="py-3 text-base"
+        />
+        <p className="mt-2 text-center font-sans text-xs text-warmgray">
+          {format === "print"
+            ? "4x6 sheet export for two 2x6 strips."
+            : format === "boomerang"
+              ? "Rebounds your four photos forward and back."
+              : format === "gif"
+                ? "Loops your four photos as a GIF."
+                : format === "video"
+                  ? "Loops your four photos as a video."
+                  : "Classic four-photo strip."}
+        </p>
+      </section>
+
+      <div className="mt-3 grid w-full grid-cols-2 gap-3">
         {!partyMode && (
           <Button
             variant={editOpen ? "primary" : "secondary"}
@@ -243,29 +265,28 @@ export function ReviewScreen({
             Edit
           </Button>
         )}
-        {shareFilesOk ? (
+        <Button
+          variant="primary"
+          size="md"
+          fullWidth
+          onClick={() => runGuestAction(onSave)}
+          disabled={isBusy || !previewUrl}
+          className={partyMode ? "col-span-2 h-14 px-3" : "h-14 px-3"}
+        >
+          <DownloadIcon className="h-6 w-6" />
+          {native ? "Save to Photos" : downloadLabel}
+        </Button>
+        {canShare && (
           <Button
-            variant="primary"
+            variant="secondary"
             size="md"
             fullWidth
             onClick={() => runGuestAction(onShare)}
             disabled={isBusy || !previewUrl}
-            className="h-14 px-3"
+            className="col-span-2 h-12 px-3"
           >
-            <ShareIcon className="h-6 w-6" />
-            Save / Share
-          </Button>
-        ) : (
-          <Button
-            variant="primary"
-            size="md"
-            fullWidth
-            onClick={() => runGuestAction(onDownload)}
-            disabled={isBusy || !previewUrl}
-            className="h-14 px-3"
-          >
-            <DownloadIcon className="h-6 w-6" />
-            {saveLabel}
+            <ShareIcon className="h-5 w-5" />
+            Share
           </Button>
         )}
       </div>
@@ -326,16 +347,6 @@ export function ReviewScreen({
           id="review-editor"
           className="mt-4 min-h-0 w-full flex-1 overflow-y-auto border-t-2 border-ink pt-4"
         >
-          <SectionLabel className="mb-1 text-center">Output</SectionLabel>
-          <SegmentedControl
-            ariaRole="tab"
-            fullWidth
-            value={format}
-            onChange={onSelectFormat}
-            options={tabs.map((t) => ({ value: t.id, label: t.label }))}
-            itemClassName="py-3 text-base"
-          />
-
           {format === "strip" ? (
             <>
               <div className="mt-4">

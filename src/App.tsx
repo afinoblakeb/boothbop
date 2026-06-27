@@ -1641,7 +1641,40 @@ export default function App() {
 
   async function downloadCurrent() {
     const media = await currentMedia();
-    if (media) triggerDownload(media.blob, media.filename);
+    if (!media) return;
+    if (isNativeShell()) {
+      setError(null);
+      setNote(null);
+      try {
+        const status = await ensurePhotosPermission("cameraRoll", true);
+        if (status !== "granted" && status !== "limited") {
+          setError("Photos access is needed to save.");
+          return;
+        }
+        await saveToPhotos(
+          media.blob,
+          format === "video" ? "video" : "image",
+          "cameraRoll",
+        );
+        setNote(
+          format === "video" ? "Saved video to Photos." : "Saved to Photos.",
+        );
+        void tapHaptic("Light");
+      } catch {
+        setError("Couldn't save to Photos.");
+      }
+      return;
+    }
+    triggerDownload(media.blob, media.filename);
+    setNote(
+      format === "video"
+        ? "Downloaded video."
+        : format === "gif" || format === "boomerang"
+          ? "Downloaded GIF."
+          : format === "print"
+            ? "Downloaded print sheet."
+            : "Downloaded PNG.",
+    );
   }
 
   async function saveAllCurrent() {
@@ -1829,6 +1862,7 @@ export default function App() {
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
+          native={isNativeShell()}
           savingAll={savingAll}
           partyMode={partyMode}
           partyResetSeconds={partyConfig.resetSeconds}
@@ -1843,7 +1877,7 @@ export default function App() {
           onDismissTip={dismissAutosaveTip}
           onBrowseTemplates={() => setShowTemplates(true)}
           onShare={shareCurrent}
-          onDownload={downloadCurrent}
+          onSave={downloadCurrent}
           onSaveAll={saveAllCurrent}
           onSessionTitle={changeSessionTitle}
           onToggleFavorite={toggleSessionFavorite}
