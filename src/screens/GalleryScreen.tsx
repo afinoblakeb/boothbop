@@ -160,8 +160,12 @@ export function GalleryScreen({
 
 async function loadGallerySessions(): Promise<Session[]> {
   const saved = await listSessions();
-  const { loadSampleSessions } = await import("../lib/demo");
-  return [...(await loadSampleSessions()), ...saved];
+  try {
+    const { loadSampleSessions } = await import("../lib/demo");
+    return [...(await loadSampleSessions()), ...saved];
+  } catch {
+    return saved;
+  }
 }
 
 function isSampleSessionId(id: string): boolean {
