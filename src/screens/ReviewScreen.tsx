@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { SESSION_TITLE_MAX } from "../lib/gallery";
 import type { PartyResetSeconds } from "../lib/partyMode";
@@ -43,7 +43,40 @@ const THEME_LABELS: Record<string, string> = {
   carbon: "Carbon",
 };
 
-/** The result screen: preview, fixed actions, and a scrollable editor drawer. */
+function EditorChoiceGrid<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: { value: T; label: ReactNode }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <div role="group" aria-label={label} className="grid grid-cols-2 gap-2">
+      {options.map((option) => {
+        const selected = option.value === value;
+        return (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            aria-pressed={selected}
+            className={`flex min-h-11 items-center justify-center border-2 border-ink px-2 py-2 text-center font-display text-base uppercase leading-none tracking-wide transition active:translate-y-px ${
+              selected ? "bg-orange text-cream" : "bg-paper text-ink"
+            }`}
+          >
+            {option.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The result screen: preview, actions, and an editor that scrolls with the page. */
 export function ReviewScreen({
   format,
   onSelectFormat,
@@ -159,6 +192,7 @@ export function ReviewScreen({
   const [partyCountdown, setPartyCountdown] =
     useState<number>(partyResetSeconds);
   const onRetakeRef = useRef(onRetake);
+  const editorRef = useRef<HTMLElement | null>(null);
   const retakeLabel = partyMode ? "Next Guest" : "Take Again";
   const resetActive =
     partyMode &&
@@ -167,11 +201,14 @@ export function ReviewScreen({
     !isBusy &&
     !guestActionPending;
   const showQuickRetake = !partyMode && !editOpen && thumbs.length >= 4;
+  const buttonSize = editOpen ? "sm" : "md";
+  const actionHeight = editOpen ? "h-11" : "h-14";
+  const secondaryActionHeight = editOpen ? "h-10" : "h-12";
   const previewFrameClass = editOpen
-    ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
+    ? "mt-2 flex h-[clamp(120px,22svh,260px)] w-full shrink-0 items-center justify-center overflow-hidden"
     : showQuickRetake
-      ? "mt-2 flex h-[clamp(220px,36vh,380px)] w-full shrink-0 items-center justify-center overflow-hidden"
-      : "mt-2 flex h-[clamp(260px,42vh,440px)] w-full shrink-0 items-center justify-center overflow-hidden";
+      ? "mt-2 flex h-[clamp(150px,30svh,360px)] w-full shrink-0 items-center justify-center overflow-hidden"
+      : "mt-2 flex h-[clamp(170px,34svh,400px)] w-full shrink-0 items-center justify-center overflow-hidden";
 
   useEffect(() => {
     onRetakeRef.current = onRetake;
@@ -198,6 +235,14 @@ export function ReviewScreen({
     return () => window.clearInterval(id);
   }, [partyResetSeconds, resetActive]);
 
+  useEffect(() => {
+    if (!editOpen) return;
+    const id = window.requestAnimationFrame(() => {
+      editorRef.current?.scrollIntoView({ block: "start" });
+    });
+    return () => window.cancelAnimationFrame(id);
+  }, [editOpen]);
+
   function runGuestAction(action: () => void | Promise<void>) {
     if (!partyMode) {
       void action();
@@ -208,7 +253,7 @@ export function ReviewScreen({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center overflow-hidden py-3 pb-4">
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overflow-x-hidden py-2 pb-4">
       {/* Live preview of the selected output */}
       <div className={previewFrameClass}>
         {isBusy ? (
@@ -239,27 +284,31 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      <section className="mt-3 w-full">
-        <SectionLabel className="mb-1 text-center">Output</SectionLabel>
+      <section className="mt-2 w-full">
+        {!editOpen && (
+          <SectionLabel className="mb-1 text-center">Output</SectionLabel>
+        )}
         <SegmentedControl
           ariaRole="tab"
           fullWidth
           value={format}
           onChange={onSelectFormat}
           options={tabs.map((t) => ({ value: t.id, label: t.label }))}
-          itemClassName="py-3 text-base"
+          itemClassName={editOpen ? "py-2 text-sm" : "py-3 text-base"}
         />
-        <p className="mt-2 text-center font-sans text-xs text-warmgray">
-          {format === "print"
-            ? "4x6 sheet export for two 2x6 strips."
-            : format === "boomerang"
-              ? "Rebounds your four photos forward and back."
-              : format === "gif"
-                ? "Loops your four photos as a GIF."
-                : format === "video"
-                  ? "Loops your four photos as a video."
-                  : "Classic four-photo strip."}
-        </p>
+        {!editOpen && (
+          <p className="mt-2 text-center font-sans text-xs text-warmgray">
+            {format === "print"
+              ? "4x6 sheet export for two 2x6 strips."
+              : format === "boomerang"
+                ? "Rebounds your four photos forward and back."
+                : format === "gif"
+                  ? "Loops your four photos as a GIF."
+                  : format === "video"
+                    ? "Loops your four photos as a video."
+                    : "Classic four-photo strip."}
+          </p>
+        )}
       </section>
 
       {showQuickRetake && (
@@ -293,54 +342,66 @@ export function ReviewScreen({
         </section>
       )}
 
-      <div className="mt-3 grid w-full grid-cols-2 gap-3">
+      <div className="mt-2 grid w-full grid-cols-2 gap-2">
         {!partyMode && (
           <Button
             variant={editOpen ? "primary" : "secondary"}
-            size="md"
+            size={buttonSize}
             onClick={() => setEditOpen((open) => !open)}
             aria-expanded={editOpen}
             aria-controls="review-editor"
-            className="h-14 px-3"
+            className={`${actionHeight} px-3`}
           >
-            <SlidersIcon className="h-6 w-6" />
+            <SlidersIcon className={editOpen ? "h-5 w-5" : "h-6 w-6"} />
             Edit
           </Button>
         )}
         <Button
           variant="primary"
-          size="md"
+          size={buttonSize}
           fullWidth
           onClick={() => runGuestAction(onSave)}
           disabled={isBusy || !previewUrl}
-          className={partyMode ? "col-span-2 h-14 px-3" : "h-14 px-3"}
+          className={
+            partyMode
+              ? `col-span-2 ${actionHeight} px-3`
+              : `${actionHeight} px-3`
+          }
         >
-          <DownloadIcon className="h-6 w-6" />
+          <DownloadIcon className={editOpen ? "h-5 w-5" : "h-6 w-6"} />
           {native ? "Save to Photos" : downloadLabel}
         </Button>
         {canShare && (
           <Button
             variant="secondary"
-            size="md"
+            size={buttonSize}
             fullWidth
             onClick={() => runGuestAction(onShare)}
             disabled={isBusy || !previewUrl}
-            className={partyMode ? "col-span-2 h-12 px-3" : "h-12 px-3"}
+            className={
+              partyMode
+                ? `col-span-2 ${secondaryActionHeight} px-3`
+                : `${secondaryActionHeight} px-3`
+            }
           >
-            <ShareIcon className="h-5 w-5" />
+            <ShareIcon className={editOpen ? "h-4 w-4" : "h-5 w-5"} />
             Share
           </Button>
         )}
         {!partyMode && (
           <Button
             variant="secondary"
-            size="md"
+            size={buttonSize}
             fullWidth
             onClick={onSaveAll}
             disabled={isBusy || savingAll || thumbs.length < 4}
-            className={`${canShare ? "h-12" : "col-span-2 h-12"} px-3`}
+            className={`${
+              canShare
+                ? secondaryActionHeight
+                : `col-span-2 ${secondaryActionHeight}`
+            } px-3`}
           >
-            <DownloadIcon className="h-5 w-5" />
+            <DownloadIcon className={editOpen ? "h-4 w-4" : "h-5 w-5"} />
             {savingAll ? "Saving Files…" : "Save All Files"}
           </Button>
         )}
@@ -420,15 +481,15 @@ export function ReviewScreen({
 
       {!partyMode && editOpen && (
         <section
+          ref={editorRef}
           id="review-editor"
-          className="mt-4 min-h-0 w-full flex-1 overflow-y-auto border-t-2 border-ink pt-4"
+          className="mt-3 w-full border-t-2 border-ink pt-3 pb-6"
         >
           {format === "strip" ? (
             <>
               <div className="mt-4">
                 <SectionLabel className="mb-1 text-center">Layout</SectionLabel>
-                <SegmentedControl
-                  className="mx-auto"
+                <EditorChoiceGrid
                   label="Strip layout"
                   value={layout}
                   onChange={setLayout}
@@ -448,20 +509,19 @@ export function ReviewScreen({
                       label: "Story Pro",
                     },
                   ]}
-                  itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2 text-sm"
                 />
               </div>
 
               <div className="mt-3">
                 <SectionLabel className="mb-1 text-center">Color</SectionLabel>
-                <div className="flex justify-center gap-3">
+                <div className="flex flex-wrap justify-center gap-2 px-1">
                   {Object.entries(THEMES).map(([key, theme]) => (
                     <button
                       key={key}
                       onClick={() => setThemeKey(key)}
                       aria-label={THEME_LABELS[key]}
                       aria-pressed={themeKey === key}
-                      className={`h-11 w-11 border-2 border-ink transition ${
+                      className={`h-10 w-10 border-2 border-ink transition ${
                         themeKey === key
                           ? "ring-4 ring-ink ring-offset-2 ring-offset-cream"
                           : ""
@@ -484,8 +544,7 @@ export function ReviewScreen({
 
           <div className="mt-4 w-full">
             <SectionLabel className="mb-1 text-center">Look</SectionLabel>
-            <SegmentedControl
-              className="mx-auto"
+            <EditorChoiceGrid
               label="Photo look"
               value={filter}
               onChange={setFilter}
@@ -496,14 +555,12 @@ export function ReviewScreen({
                 label:
                   isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
               }))}
-              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
             />
           </div>
 
           <div className="mt-3 w-full">
             <SectionLabel className="mb-1 text-center">Props</SectionLabel>
-            <SegmentedControl
-              className="mx-auto"
+            <EditorChoiceGrid
               label="Photo props"
               value={sticker}
               onChange={setSticker}
@@ -516,7 +573,6 @@ export function ReviewScreen({
                     ? `${item.label} Pro`
                     : item.label,
               }))}
-              itemClassName="flex min-h-[40px] items-center justify-center px-3 py-2 text-sm"
             />
           </div>
 

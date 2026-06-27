@@ -55,12 +55,12 @@ export function IdleScreen({
   }, []);
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-start pt-[clamp(3rem,8vh,6rem)] text-center">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-1 flex-col items-center justify-start pt-[clamp(2rem,6svh,6rem)] text-center">
         <img
           src={LOGO}
           alt="BoothBop"
-          className="mx-auto max-h-32 w-auto max-w-xs"
+          className="mx-auto max-h-[clamp(5rem,14svh,8rem)] w-auto max-w-xs"
         />
 
         <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
@@ -72,7 +72,7 @@ export function IdleScreen({
           <img
             src={sampleUrl}
             alt="Sample BoothBop photo strip"
-            className="mt-3 max-h-44 w-auto border-2 border-ink"
+            className="mt-3 max-h-[clamp(6.5rem,22svh,11rem)] w-auto border-2 border-ink"
             draggable={false}
           />
         )}
