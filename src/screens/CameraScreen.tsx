@@ -203,7 +203,7 @@ export function CameraScreen({
                 : retakeIndex === null
                   ? isDemo
                     ? "Run Demo Shoot"
-                    : "Take Photos"
+                    : "Start Countdown"
                   : `Retake Shot ${retakeIndex + 1}`}
             </Button>
           </>
