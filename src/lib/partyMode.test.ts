@@ -4,6 +4,7 @@ import {
   PARTY_RESET_SECONDS,
   cleanPartyPasscodeInput,
   loadPartyModeConfig,
+  isGuestModeActive,
   normalizePartyPasscode,
   normalizePartyResetSeconds,
   savePartyModeConfig,
@@ -29,6 +30,16 @@ describe("partyMode", () => {
       passcode: "1234",
       resetSeconds: 30,
     });
+  });
+
+  it("keeps basic guest mode active without a Pro entitlement check", () => {
+    const config: PartyModeConfig = {
+      enabled: true,
+      passcode: "1234",
+      resetSeconds: 15,
+    };
+
+    expect(isGuestModeActive(config)).toBe(true);
   });
 
   it("documents and normalizes auto-reset seconds", () => {

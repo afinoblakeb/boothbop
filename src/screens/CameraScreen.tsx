@@ -126,7 +126,7 @@ export function CameraScreen({
             {partyMode ? (
               <div className="mb-3 border-2 border-ink bg-paper px-3 py-2 text-left">
                 <Heading as="p" size="sm" className="text-ink">
-                  Party Mode
+                  Guest Mode
                 </Heading>
                 <p className="font-sans text-xs uppercase tracking-wide text-brown">
                   Host controls are locked for guests.

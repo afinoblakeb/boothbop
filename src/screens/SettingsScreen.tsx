@@ -52,7 +52,6 @@ export function SettingsScreen({
   onQuality,
   onExportSpeed,
   onOpenPro,
-  onOpenPartyMode,
   onPartyMode,
   onPartyPasscode,
   onPartyResetSeconds,
@@ -78,7 +77,6 @@ export function SettingsScreen({
   onQuality: (media: QualityMedia, q: Quality) => void;
   onExportSpeed: (speed: ExportSpeed) => void;
   onOpenPro: () => void;
-  onOpenPartyMode: () => void;
   onPartyMode: (on: boolean) => void;
   onPartyPasscode: (passcode: string) => void;
   onPartyResetSeconds: (seconds: PartyResetSeconds) => void;
@@ -112,7 +110,7 @@ export function SettingsScreen({
           </Heading>
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
             Premium templates, custom captions, print sheets, HD exports, guest
-            mode extras, and watermark-free saved outputs.
+            extras, and watermark-free saved outputs.
           </p>
           {isPro ? (
             <Callout
@@ -120,7 +118,7 @@ export function SettingsScreen({
               tone="info"
               className="mt-4 px-4 py-3 font-sans text-sm text-ink"
             >
-              Pro active. Premium creative tools, guest flows, print sheets, HD
+              Pro active. Premium creative tools, guest extras, print sheets, HD
               exports, and watermark-free saved outputs are enabled.
             </Callout>
           ) : (
@@ -140,7 +138,7 @@ export function SettingsScreen({
       )}
 
       <Heading as="h3" size="lg" className="mt-8">
-        Party Mode
+        Guest Mode
       </Heading>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
         Keep the selected template, look, props, and caption ready between
@@ -152,78 +150,74 @@ export function SettingsScreen({
             Next Guest Flow
           </Heading>
           <p className="mt-1 font-sans text-xs leading-snug text-brown">
-            Review switches to Next Guest so a host can run another booth set
-            without rebuilding the event style.
+            Review switches to Next Guest and hides editing while friends pass
+            the phone around.
           </p>
         </div>
-        {isPro ? (
-          <Toggle on={partyMode} onChange={onPartyMode} />
-        ) : (
-          <button
-            onClick={onOpenPartyMode}
-            className="shrink-0 border-2 border-ink bg-cream px-3 py-2 font-display text-base uppercase tracking-wide text-orange-dark transition active:translate-y-px"
-          >
-            Pro
-          </button>
-        )}
+        <Toggle on={partyMode} onChange={onPartyMode} />
       </div>
-      {isPro && (
-        <div className="mt-3 grid gap-4">
+      <div className="mt-3 grid gap-4">
+        {isPro && (
           <label className="block">
             <Heading as="span" size="sm" className="text-brown">
-              Event name
+              Caption name
             </Heading>
             <input
               value={eventName}
               maxLength={STYLE_CAPTION_MAX}
               onChange={(e) => onEventName(e.target.value)}
-              placeholder="Acme Gala"
+              placeholder="Birthday Night"
               className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
-              aria-label="Party Mode event name"
+              aria-label="Guest Mode caption name"
             />
             <p className="mt-1 font-sans text-xs text-warmgray">
-              Brand-ready templates use this for the {"{brand}"} footer.
+              Some templates use this as their saved caption.
             </p>
           </label>
-          <label className="block">
-            <Heading as="span" size="sm" className="text-brown">
-              Host exit code
-            </Heading>
-            <input
-              value={partyPasscode}
-              inputMode="numeric"
-              autoComplete="off"
-              maxLength={4}
-              onChange={(e) => onPartyPasscode(e.target.value)}
-              disabled={partyMode}
-              className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 text-center font-display text-2xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35 disabled:opacity-50"
-              aria-label="Party Mode host exit code"
-            />
-            <p className="mt-1 font-sans text-xs text-warmgray">
-              {partyMode
-                ? "Turn Party Mode off to change the code."
-                : "BoothBop gates the app UI. Use iOS Guided Access to lock the device."}
-            </p>
-          </label>
-          <div>
-            <Heading as="p" size="sm" className="text-brown">
-              Auto-reset review
-            </Heading>
-            <SegmentedControl
-              fullWidth
-              className="mt-1.5"
-              label="Party Mode auto-reset"
-              value={partyResetSeconds}
-              onChange={onPartyResetSeconds}
-              options={PARTY_RESET_SECONDS.map((seconds) => ({
-                value: seconds,
-                label: seconds === 0 ? "Off" : `${seconds}s`,
-              }))}
-              itemClassName="py-2 text-sm"
-            />
-          </div>
+        )}
+        <label className="block">
+          <Heading as="span" size="sm" className="text-brown">
+            Host exit code
+          </Heading>
+          <input
+            value={partyPasscode}
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={4}
+            onChange={(e) => onPartyPasscode(e.target.value)}
+            disabled={partyMode}
+            className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 text-center font-display text-2xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35 disabled:opacity-50"
+            aria-label="Guest Mode host exit code"
+          />
+          <p className="mt-1 font-sans text-xs text-warmgray">
+            {partyMode
+              ? "Turn Guest Mode off to change the code."
+              : "BoothBop gates the app UI. Use iOS Guided Access to lock the device."}
+          </p>
+        </label>
+        <div>
+          <Heading as="p" size="sm" className="text-brown">
+            Auto-reset review
+          </Heading>
+          <SegmentedControl
+            fullWidth
+            className="mt-1.5"
+            label="Guest Mode auto-reset"
+            value={partyResetSeconds}
+            onChange={onPartyResetSeconds}
+            options={PARTY_RESET_SECONDS.map((seconds) => ({
+              value: seconds,
+              label: seconds === 0 ? "Off" : `${seconds}s`,
+            }))}
+            itemClassName="py-2 text-sm"
+          />
         </div>
-      )}
+        {!isPro && native && (
+          <Button variant="secondary" size="sm" onClick={onOpenPro}>
+            Pro Extras
+          </Button>
+        )}
+      </div>
 
       <Heading as="h3" size="lg" className="mt-8">
         Auto-save to Photos

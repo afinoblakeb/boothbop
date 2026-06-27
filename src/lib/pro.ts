@@ -28,7 +28,7 @@ const CONTEXT_TITLES: Record<ProContext, string> = {
   caption: "Unlock Custom Captions",
   quality: "Unlock HD Exports",
   print: "Unlock Print Sheets",
-  party: "Unlock Party Mode",
+  party: "Unlock Guest Extras",
 };
 
 const CONTEXT_EYEBROWS: Record<ProContext, string> = {

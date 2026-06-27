@@ -27,7 +27,7 @@ describe("pro", () => {
     expect(titles).toContain("Unlock Pro Templates");
     expect(titles).toContain("Unlock Custom Captions");
     expect(titles).toContain("Unlock Print Sheets");
-    expect(titles).toContain("Unlock Party Mode");
+    expect(titles).toContain("Unlock Guest Extras");
   });
 
   it("keeps the core value props visible on every paywall", () => {

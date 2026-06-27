@@ -14,13 +14,13 @@ export function PartyExitModal({
   const [code, setCode] = useState("");
 
   return (
-    <OverlayScreen title="Exit Party Mode" onClose={onClose}>
+    <OverlayScreen title="Exit Guest Mode" onClose={onClose}>
       <div className="mt-6 border-2 border-ink bg-paper p-4">
         <Heading as="h3" size="lg" className="text-ink">
           Host Code
         </Heading>
         <p className="mt-2 font-sans text-sm leading-relaxed text-brown">
-          Enter the 4-digit host code to leave Party Mode. Use iOS Guided Access
+          Enter the 4-digit host code to leave Guest Mode. Use iOS Guided Access
           when the device itself needs to stay locked.
         </p>
         <input
@@ -30,7 +30,7 @@ export function PartyExitModal({
           maxLength={4}
           onChange={(e) => setCode(cleanPartyPasscodeInput(e.target.value))}
           className="mt-4 h-14 w-full border-2 border-ink bg-cream px-4 text-center font-display text-3xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35"
-          aria-label="Party Mode exit code"
+          aria-label="Guest Mode exit code"
         />
         {error && (
           <Callout tone="error" className="mt-3 px-3 py-2">
@@ -44,7 +44,7 @@ export function PartyExitModal({
             fullWidth
             onClick={() => onVerify(code)}
           >
-            Exit Party Mode
+            Exit Guest Mode
           </Button>
           <Button variant="secondary" size="md" fullWidth onClick={onClose}>
             Keep Booth Running

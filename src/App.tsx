@@ -62,6 +62,7 @@ import {
 } from "./lib/settings";
 import {
   loadPartyModeConfig,
+  isGuestModeActive,
   cleanPartyPasscodeInput,
   normalizePartyPasscode,
   savePartyModeConfig,
@@ -311,7 +312,7 @@ export default function App() {
   const [proProduct, setProProduct] = useState<ProProduct | null>(null);
   const [partyConfig, setPartyConfig] =
     useState<PartyModeConfig>(loadPartyModeConfig);
-  const partyMode = partyConfig.enabled && isPro;
+  const partyMode = isGuestModeActive(partyConfig);
   const [customCaption, setCustomCaptionState] = useState(
     () => localStorage.getItem("bb.pro.caption") ?? "",
   );
@@ -412,10 +413,7 @@ export default function App() {
       saveStripLayout("4x1");
       setLayout("4x1");
     }
-    if (partyConfig.enabled) {
-      updatePartyConfig({ ...partyConfig, enabled: false });
-    }
-  }, [filter, isPro, layout, partyConfig, quality, sticker]);
+  }, [filter, isPro, layout, quality, sticker]);
 
   function clearActiveSession() {
     setActiveSessionId(null);
@@ -590,10 +588,6 @@ export default function App() {
   }
 
   function changePartyMode(on: boolean) {
-    if (on && !isPro) {
-      openPro("party");
-      return;
-    }
     updatePartyConfig({
       ...partyConfig,
       enabled: on,
@@ -1927,7 +1921,6 @@ export default function App() {
           onQuality={changeQuality}
           onExportSpeed={changeExportSpeed}
           onOpenPro={() => openPro("settings")}
-          onOpenPartyMode={() => openPro("party")}
           onPartyMode={changePartyMode}
           onPartyPasscode={changePartyPasscode}
           onPartyResetSeconds={changePartyResetSeconds}
@@ -1940,7 +1933,6 @@ export default function App() {
 
       {showPartySetup && (
         <PartySetupScreen
-          isPro={isPro}
           native={isNativeShell()}
           partyMode={partyConfig.enabled}
           partyPasscode={partyConfig.passcode}
@@ -1958,7 +1950,6 @@ export default function App() {
             setShowPartySetup(false);
             openSettings();
           }}
-          onUnlockPro={() => openPro("party")}
           onStart={() => {
             setShowPartySetup(false);
             void openCamera({ preserveStyle: true });

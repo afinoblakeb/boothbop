@@ -48,7 +48,7 @@ export function IdleScreen({
 
         {partyMode && (
           <p className="mt-2 max-w-xs border-2 border-ink bg-paper px-3 py-2 font-sans text-xs uppercase tracking-wide text-brown">
-            Party Mode is ready for guests.
+            Guest Mode is ready for friends.
           </p>
         )}
 

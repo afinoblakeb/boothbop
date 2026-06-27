@@ -56,6 +56,10 @@ export function savePartyModeConfig(config: PartyModeConfig): void {
   );
 }
 
+export function isGuestModeActive(config: PartyModeConfig): boolean {
+  return config.enabled;
+}
+
 export function verifyPartyPasscode(
   config: PartyModeConfig,
   input: string,

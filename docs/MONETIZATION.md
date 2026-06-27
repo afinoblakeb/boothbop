@@ -27,6 +27,7 @@ the free/Pro split must be clear before a user hits a locked control. So:
 | 4-shot booth, countdown, on-device gallery                              | **Free** | The core loop — never gate it                        |
 | Strip + GIF + video export                                              | **Free** | Branded unless Pro removes BoothBop branding         |
 | Photo strip                                                             | **Free** | Keep useful; Pro can remove BoothBop branding        |
+| Basic Guest Mode lock/reset                                             | **Free** | Safety/usability for handing the phone around        |
 | 2–3 base filters/looks                                                  | **Free** | Pretty output → more shares                          |
 | Boomerang loop                                                          | **Free** | Shareable = growth; keep it free                     |
 | Haptics, remember-settings, framing guide, "Surprise me", retake-a-shot | **Free** | These are _ease of use_ — paywalling them is hostile |

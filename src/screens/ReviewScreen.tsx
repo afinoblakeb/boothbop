@@ -123,9 +123,9 @@ export function ReviewScreen({
   onOpenPro: () => void;
   onDismissTip: () => void;
   onBrowseTemplates: () => void;
-  onShare: () => void;
-  onSave: () => void;
-  onSaveAll: () => void;
+  onShare: () => void | Promise<void>;
+  onSave: () => void | Promise<void>;
+  onSaveAll: () => void | Promise<void>;
   onSessionTitle: (title: string) => void;
   onToggleFavorite: () => void;
   onCustomCaption: (caption: string) => void;
@@ -151,7 +151,7 @@ export function ReviewScreen({
   const isBusy = generating !== null;
   const canShare = native || shareFilesOk;
   const [editOpen, setEditOpen] = useState(false);
-  const [partyActionTaken, setPartyActionTaken] = useState(false);
+  const [guestActionPending, setGuestActionPending] = useState(false);
   const [partyCountdown, setPartyCountdown] =
     useState<number>(partyResetSeconds);
   const onRetakeRef = useRef(onRetake);
@@ -161,7 +161,7 @@ export function ReviewScreen({
     partyResetSeconds > 0 &&
     previewUrl !== null &&
     !isBusy &&
-    !partyActionTaken;
+    !guestActionPending;
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
     : "mt-2 flex h-[clamp(260px,42vh,440px)] w-full shrink-0 items-center justify-center overflow-hidden";
@@ -171,7 +171,7 @@ export function ReviewScreen({
   }, [onRetake]);
 
   useEffect(() => {
-    setPartyActionTaken(false);
+    setGuestActionPending(false);
     setPartyCountdown(partyResetSeconds);
   }, [partyMode, partyResetSeconds, previewUrl]);
 
@@ -191,9 +191,13 @@ export function ReviewScreen({
     return () => window.clearInterval(id);
   }, [partyResetSeconds, resetActive]);
 
-  function runGuestAction(action: () => void) {
-    if (partyMode) setPartyActionTaken(true);
-    action();
+  function runGuestAction(action: () => void | Promise<void>) {
+    if (!partyMode) {
+      void action();
+      return;
+    }
+    setGuestActionPending(true);
+    void Promise.resolve(action()).finally(() => setGuestActionPending(false));
   }
 
   return (
@@ -331,9 +335,9 @@ export function ReviewScreen({
             <p className="mt-1 max-w-xs text-center font-sans text-xs text-teal">
               {resetActive
                 ? `Next guest starts in ${partyCountdown}s.`
-                : partyActionTaken
-                  ? "Auto-reset paused after save/share."
-                  : "Party Mode keeps this style ready for the next guest."}
+                : guestActionPending
+                  ? "Finishing save/share, then the next guest starts."
+                  : "Guest Mode keeps this style ready for the next friend."}
             </p>
           )}
           <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
