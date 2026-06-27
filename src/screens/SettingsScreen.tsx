@@ -101,48 +101,13 @@ export function SettingsScreen({
       : []),
   ];
 
-  return (
-    <OverlayScreen title="Settings" onClose={onClose}>
-      {native && (
-        <>
-          <Heading as="h3" size="lg" className="mt-6">
-            BoothBop Pro
-          </Heading>
-          <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-            Premium template drops, custom captions, print sheets, HD exports,
-            guest extras, and watermark-free saved outputs.
-          </p>
-          {isPro ? (
-            <Callout
-              as="p"
-              tone="info"
-              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
-            >
-              Pro active. Premium template drops, guest extras, print sheets, HD
-              exports, and watermark-free saved outputs are enabled.
-            </Callout>
-          ) : (
-            <div className="mt-4">
-              <Button variant="primary" size="md" fullWidth onClick={onOpenPro}>
-                Start Pro - {proPriceLabel(proPrice)}
-              </Button>
-              <button
-                onClick={onRestorePurchase}
-                className="mt-3 font-sans text-xs text-warmgray underline"
-              >
-                Restore purchase
-              </button>
-            </div>
-          )}
-        </>
-      )}
-
+  const guestModeSection = (
+    <>
       <Heading as="h3" size="lg" className="mt-8">
-        Guest Mode
+        Advanced Guest Mode
       </Heading>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-        Keep the selected template, look, props, and caption ready between
-        guests.
+        Keep the selected look ready when friends pass the phone around.
       </p>
       <div className="mt-4 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
         <div className="min-w-0 pr-4">
@@ -150,8 +115,7 @@ export function SettingsScreen({
             Next Guest Flow
           </Heading>
           <p className="mt-1 font-sans text-xs leading-snug text-brown">
-            Review switches to Next Guest and hides editing while friends pass
-            the phone around.
+            Review switches to Next Guest and hides editing between people.
           </p>
         </div>
         <Toggle on={partyMode} onChange={onPartyMode} />
@@ -192,7 +156,7 @@ export function SettingsScreen({
           <p className="mt-1 font-sans text-xs text-warmgray">
             {partyMode
               ? "Turn Guest Mode off to change the code."
-              : "BoothBop gates the app UI. Use iOS Guided Access to lock the device."}
+              : "BoothBop gates the app UI. Use iOS Guided Access for a device-level lock."}
           </p>
         </label>
         <div>
@@ -218,6 +182,44 @@ export function SettingsScreen({
           </Button>
         )}
       </div>
+    </>
+  );
+
+  return (
+    <OverlayScreen title="Settings" onClose={onClose}>
+      {native && (
+        <>
+          <Heading as="h3" size="lg" className="mt-6">
+            BoothBop Pro
+          </Heading>
+          <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+            Premium template drops, custom captions, print sheets, HD exports,
+            guest extras, and watermark-free saved outputs.
+          </p>
+          {isPro ? (
+            <Callout
+              as="p"
+              tone="info"
+              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
+            >
+              Pro active. Premium template drops, guest extras, print sheets, HD
+              exports, and watermark-free saved outputs are enabled.
+            </Callout>
+          ) : (
+            <div className="mt-4">
+              <Button variant="primary" size="md" fullWidth onClick={onOpenPro}>
+                Start Pro - {proPriceLabel(proPrice)}
+              </Button>
+              <button
+                onClick={onRestorePurchase}
+                className="mt-3 font-sans text-xs text-warmgray underline"
+              >
+                Restore purchase
+              </button>
+            </div>
+          )}
+        </>
+      )}
 
       <Heading as="h3" size="lg" className="mt-8">
         Auto-save to Photos
@@ -358,6 +360,8 @@ export function SettingsScreen({
           />
         </div>
       </div>
+
+      {guestModeSection}
 
       <LegalFooter className="mt-10 text-center" />
     </OverlayScreen>
