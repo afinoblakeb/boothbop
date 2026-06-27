@@ -1838,6 +1838,7 @@ export default function App() {
               }
             : cancelToHome
         }
+        homeLabel={partyMode ? "Exit Guest Mode" : "Home"}
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
         showActions={phase !== "capturing" && !showMigration && !partyMode}
