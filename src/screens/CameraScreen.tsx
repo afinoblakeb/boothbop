@@ -54,8 +54,17 @@ export function CameraScreen({
   onCancel: () => void;
 }) {
   const isDemo = demoPreviewUrl !== null;
+  const liveStatus =
+    countdown !== null
+      ? `Photo in ${countdown}`
+      : phase === "capturing"
+        ? `Captured ${thumbs.length} of ${SHOTS} photos`
+        : "Camera ready";
   return (
     <div className="flex flex-1 flex-col py-4">
+      <p className="sr-only" aria-live="assertive" aria-atomic="true">
+        {liveStatus}
+      </p>
       <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
         {demoPreviewUrl ? (
           <img
@@ -87,6 +96,7 @@ export function CameraScreen({
 
         <button
           onClick={onCancel}
+          aria-label={phase === "capturing" ? "Stop capture" : "Cancel camera"}
           className="absolute right-2 top-2 min-h-10 border-2 border-ink bg-cream px-3 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
         >
           {phase === "capturing" ? "Stop" : "Cancel"}
