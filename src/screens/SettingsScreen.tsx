@@ -10,6 +10,7 @@ import {
 } from "../lib/settings";
 import { PARTY_RESET_SECONDS, type PartyResetSeconds } from "../lib/partyMode";
 import { proPriceLabel } from "../lib/pro";
+import { STYLE_CAPTION_MAX } from "../lib/style";
 import {
   Button,
   Callout,
@@ -45,6 +46,7 @@ export function SettingsScreen({
   partyMode,
   partyPasscode,
   partyResetSeconds,
+  eventName,
   onDest,
   onToggle,
   onQuality,
@@ -54,6 +56,7 @@ export function SettingsScreen({
   onPartyMode,
   onPartyPasscode,
   onPartyResetSeconds,
+  onEventName,
   onRestorePurchase,
   onOpenIosSettings,
   onClose,
@@ -69,6 +72,7 @@ export function SettingsScreen({
   partyMode: boolean;
   partyPasscode: string;
   partyResetSeconds: PartyResetSeconds;
+  eventName: string;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
@@ -78,6 +82,7 @@ export function SettingsScreen({
   onPartyMode: (on: boolean) => void;
   onPartyPasscode: (passcode: string) => void;
   onPartyResetSeconds: (seconds: PartyResetSeconds) => void;
+  onEventName: (name: string) => void;
   onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
@@ -164,6 +169,22 @@ export function SettingsScreen({
       </div>
       {isPro && (
         <div className="mt-3 grid gap-4">
+          <label className="block">
+            <Heading as="span" size="sm" className="text-brown">
+              Event name
+            </Heading>
+            <input
+              value={eventName}
+              maxLength={STYLE_CAPTION_MAX}
+              onChange={(e) => onEventName(e.target.value)}
+              placeholder="Acme Gala"
+              className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+              aria-label="Party Mode event name"
+            />
+            <p className="mt-1 font-sans text-xs text-warmgray">
+              Brand-ready templates use this for the {"{brand}"} footer.
+            </p>
+          </label>
           <label className="block">
             <Heading as="span" size="sm" className="text-brown">
               Host exit code

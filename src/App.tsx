@@ -296,6 +296,7 @@ export default function App() {
           isPro,
           customCaption,
           templateCaption: nextCaption,
+          eventName: activeEventName,
         }),
       }),
     );
@@ -314,6 +315,10 @@ export default function App() {
   const [customCaption, setCustomCaptionState] = useState(
     () => localStorage.getItem("bb.pro.caption") ?? "",
   );
+  const [eventName, setEventNameState] = useState(
+    () => localStorage.getItem("bb.pro.eventName") ?? "",
+  );
+  const activeEventName = isPro ? eventName : "";
   const [templateCaption, setTemplateCaption] = useState("");
   function setCustomCaption(value: string) {
     const next = cleanStyleCaption(value);
@@ -325,6 +330,22 @@ export default function App() {
           isPro,
           customCaption: next,
           templateCaption,
+          eventName: activeEventName,
+        }),
+      }),
+    );
+  }
+  function setEventName(value: string) {
+    const next = cleanStyleCaption(value);
+    localStorage.setItem("bb.pro.eventName", next);
+    setEventNameState(next);
+    persistActiveStyle(
+      buildSessionStyle({
+        caption: resolveStripCaption({
+          isPro,
+          customCaption,
+          templateCaption,
+          eventName: next,
         }),
       }),
     );
@@ -333,6 +354,7 @@ export default function App() {
     isPro,
     customCaption,
     templateCaption,
+    eventName: activeEventName,
   });
   const partyStyleSummary = [
     LAYOUT_LABELS[layout],
@@ -1843,6 +1865,7 @@ export default function App() {
       {showTemplates && (
         <TemplateGalleryScreen
           isPro={isPro}
+          eventName={activeEventName}
           hasCurrentCapture={frames.length >= SHOTS}
           onClose={() => setShowTemplates(false)}
           onStart={startTemplate}
@@ -1864,6 +1887,7 @@ export default function App() {
           partyMode={partyConfig.enabled}
           partyPasscode={partyConfig.passcode}
           partyResetSeconds={partyConfig.resetSeconds}
+          eventName={eventName}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
@@ -1873,6 +1897,7 @@ export default function App() {
           onPartyMode={changePartyMode}
           onPartyPasscode={changePartyPasscode}
           onPartyResetSeconds={changePartyResetSeconds}
+          onEventName={setEventName}
           onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}

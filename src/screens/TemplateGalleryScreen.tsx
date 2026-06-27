@@ -7,6 +7,7 @@ import {
   type StylePreset,
   type TemplateCategory,
 } from "../lib/templates";
+import { resolveTemplateCaption } from "../lib/style";
 import { Button, Callout, Heading, OverlayScreen } from "../ui";
 
 type DemoSet = 1 | 2 | 3;
@@ -22,6 +23,7 @@ const CATEGORY_OPTIONS: { id: CategoryFilter; label: string }[] = [
 
 export function TemplateGalleryScreen({
   isPro,
+  eventName,
   hasCurrentCapture,
   onClose,
   onStart,
@@ -29,6 +31,7 @@ export function TemplateGalleryScreen({
   onUnlockPro,
 }: {
   isPro: boolean;
+  eventName: string;
   hasCurrentCapture: boolean;
   onClose: () => void;
   onStart: (preset: StylePreset) => void;
@@ -71,6 +74,7 @@ export function TemplateGalleryScreen({
           preset={selected}
           framesBySet={framesBySet}
           isPro={isPro}
+          eventName={eventName}
           hasCurrentCapture={hasCurrentCapture}
           onBack={() => setSelected(null)}
           onStart={onStart}
@@ -112,6 +116,7 @@ export function TemplateGalleryScreen({
                 key={preset.id}
                 preset={preset}
                 framesBySet={framesBySet}
+                eventName={eventName}
                 locked={preset.pro && !isPro}
                 onOpen={() => setSelected(preset)}
               />
@@ -126,11 +131,13 @@ export function TemplateGalleryScreen({
 function TemplateCard({
   preset,
   framesBySet,
+  eventName,
   locked,
   onOpen,
 }: {
   preset: StylePreset;
   framesBySet: FramesBySet;
+  eventName: string;
   locked: boolean;
   onOpen: () => void;
 }) {
@@ -143,6 +150,7 @@ function TemplateCard({
         <TemplatePreview
           preset={preset}
           framesBySet={framesBySet}
+          eventName={eventName}
           cell={120}
           className="max-h-full max-w-full"
         />
@@ -174,6 +182,7 @@ function TemplateDetail({
   preset,
   framesBySet,
   isPro,
+  eventName,
   hasCurrentCapture,
   onBack,
   onStart,
@@ -183,6 +192,7 @@ function TemplateDetail({
   preset: StylePreset;
   framesBySet: FramesBySet;
   isPro: boolean;
+  eventName: string;
   hasCurrentCapture: boolean;
   onBack: () => void;
   onStart: (preset: StylePreset) => void;
@@ -190,11 +200,12 @@ function TemplateDetail({
   onUnlockPro: (preset: StylePreset) => void;
 }) {
   const locked = preset.pro && !isPro;
+  const caption = resolveTemplateCaption(preset.caption ?? "", eventName);
   const chips = [
     preset.layout,
     preset.filter,
     preset.sticker,
-    preset.caption ?? null,
+    caption || null,
   ].filter(Boolean);
 
   return (
@@ -210,6 +221,7 @@ function TemplateDetail({
         <TemplatePreview
           preset={preset}
           framesBySet={framesBySet}
+          eventName={eventName}
           cell={220}
           className="max-h-[52vh] max-w-full"
         />
@@ -272,11 +284,13 @@ function TemplateDetail({
 function TemplatePreview({
   preset,
   framesBySet,
+  eventName,
   cell,
   className = "",
 }: {
   preset: StylePreset;
   framesBySet: FramesBySet;
+  eventName: string;
   cell: number;
   className?: string;
 }) {
@@ -288,9 +302,9 @@ function TemplatePreview({
       watermark: false,
       filter: preset.filter,
       sticker: preset.sticker,
-      caption: preset.caption,
+      caption: resolveTemplateCaption(preset.caption ?? "", eventName),
     }).toDataURL("image/png");
-  }, [cell, frames, preset]);
+  }, [cell, eventName, frames, preset]);
 
   if (!url) {
     return (

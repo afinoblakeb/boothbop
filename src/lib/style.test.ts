@@ -7,6 +7,7 @@ import {
   normalizeStickerKey,
   normalizeThemeKey,
   resolveStripCaption,
+  resolveTemplateCaption,
 } from "./style";
 
 describe("style normalization", () => {
@@ -36,12 +37,26 @@ describe("style normalization", () => {
     ).toBe("Birthday Bash");
   });
 
+  it("replaces brand tokens with the event name", () => {
+    expect(resolveTemplateCaption("{brand}", "Acme Gala")).toBe("Acme Gala");
+    expect(resolveTemplateCaption("{brand}", "")).toBe("");
+    expect(
+      resolveStripCaption({
+        isPro: false,
+        customCaption: "Host Text",
+        templateCaption: "{brand}",
+        eventName: "Launch Night",
+      }),
+    ).toBe("Launch Night");
+  });
+
   it("lets Pro custom captions override template captions", () => {
     expect(
       resolveStripCaption({
         isPro: true,
         customCaption: "Host Text",
         templateCaption: "Birthday Bash",
+        eventName: "Launch Night",
       }),
     ).toBe("Host Text");
     expect(

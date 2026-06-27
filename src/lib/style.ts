@@ -18,18 +18,29 @@ export function cleanStyleCaption(caption: string): string {
   return caption.replace(/\s+/g, " ").trim().slice(0, STYLE_CAPTION_MAX);
 }
 
+export function resolveTemplateCaption(
+  templateCaption: string,
+  eventName = "",
+): string {
+  const event = cleanStyleCaption(eventName);
+  const caption = templateCaption.replace(/\{brand\}/gi, event);
+  return cleanStyleCaption(caption);
+}
+
 export function resolveStripCaption({
   isPro,
   customCaption,
   templateCaption,
+  eventName = "",
 }: {
   isPro: boolean;
   customCaption: string;
   templateCaption: string;
+  eventName?: string;
 }): string {
   const custom = cleanStyleCaption(customCaption);
   if (isPro && custom) return custom;
-  return cleanStyleCaption(templateCaption);
+  return resolveTemplateCaption(templateCaption, eventName);
 }
 
 export function normalizeLayout(value: unknown): Layout {
