@@ -337,7 +337,7 @@ export function ReviewScreen({
             className={`${canShare ? "h-12" : "col-span-2 h-12"} px-3`}
           >
             <DownloadIcon className="h-5 w-5" />
-            {savingAll ? "Saving All…" : "Save All"}
+            {savingAll ? "Saving Files…" : "Save All Files"}
           </Button>
         )}
       </div>
