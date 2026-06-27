@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { BrandIcon, GearIcon } from "../icons";
 import { Button, Callout } from "../ui";
 import { LOGO } from "../constants";
@@ -31,6 +31,7 @@ export function IdleScreen({
   error: string | null;
 }) {
   const importRef = useRef<HTMLInputElement>(null);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -96,22 +97,33 @@ export function IdleScreen({
               </button>
             </div>
 
-            <div className="mt-3 flex max-w-xs flex-wrap justify-center gap-x-5 gap-y-2">
-              <button
-                onClick={() => importRef.current?.click()}
-                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-              >
-                <BrandIcon name="gallery" className="h-5 w-5" />
-                Import
-              </button>
-              <button
-                onClick={onOpenPartySetup}
-                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-              >
-                <GearIcon className="h-5 w-5" />
-                Guest Setup
-              </button>
-            </div>
+            <button
+              onClick={() => setMoreOpen((open) => !open)}
+              aria-expanded={moreOpen}
+              className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+            >
+              <GearIcon className="h-5 w-5" />
+              More
+            </button>
+
+            {moreOpen && (
+              <div className="mt-2 flex max-w-xs flex-wrap justify-center gap-x-5 gap-y-2">
+                <button
+                  onClick={() => importRef.current?.click()}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+                >
+                  <BrandIcon name="gallery" className="h-5 w-5" />
+                  Import
+                </button>
+                <button
+                  onClick={onOpenPartySetup}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+                >
+                  <GearIcon className="h-5 w-5" />
+                  Guest Setup
+                </button>
+              </div>
+            )}
             <input
               ref={importRef}
               type="file"
@@ -143,7 +155,9 @@ export function IdleScreen({
           </div>
         )}
 
-        {!partyMode && <InstallCard installPrompt={installPrompt} />}
+        {!partyMode && moreOpen && (
+          <InstallCard installPrompt={installPrompt} />
+        )}
 
         {error && (
           <Callout
