@@ -3,6 +3,7 @@ import { composeStrip, THEMES } from "../lib/strip";
 import {
   PREVIEW_DEMO_SET,
   TEMPLATE_CATEGORIES,
+  pickRandomStylePreset,
   presetsByCategory,
   type StylePreset,
   type TemplateCategory,
@@ -86,6 +87,16 @@ export function TemplateGalleryScreen({
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
             Pick a look, preview it with real demo photos, then start shooting.
           </p>
+
+          <Button
+            variant="primary"
+            size="md"
+            fullWidth
+            onClick={() => onStart(pickRandomStylePreset(isPro))}
+            className="mt-4"
+          >
+            Surprise Me
+          </Button>
 
           {error && (
             <Callout tone="error" className="mt-4 px-3 py-2">

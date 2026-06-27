@@ -12,8 +12,10 @@ import {
   TEMPLATE_CATALOG,
   TEMPLATE_BACKLOG,
   TEMPLATE_CATEGORIES,
+  availableStylePresets,
   findStylePreset,
   isStylePresetAvailable,
+  pickRandomStylePreset,
   presetsByCategory,
   type StylePreset,
 } from "./templates";
@@ -107,5 +109,20 @@ describe("style presets", () => {
     expect(isStylePresetAvailable(free, false)).toBe(true);
     expect(isStylePresetAvailable(pro, false)).toBe(false);
     expect(isStylePresetAvailable(pro, true)).toBe(true);
+  });
+
+  it("picks random templates from the user's available tier", () => {
+    const freePresets = availableStylePresets(false);
+    const proPresets = availableStylePresets(true);
+    expect(freePresets).toHaveLength(14);
+    expect(freePresets.every((preset) => !preset.pro)).toBe(true);
+    expect(proPresets).toHaveLength(TEMPLATE_CATALOG.length);
+    expect(pickRandomStylePreset(false, () => 0).id).toBe(freePresets[0].id);
+    expect(pickRandomStylePreset(false, () => 0.999).id).toBe(
+      freePresets[freePresets.length - 1].id,
+    );
+    expect(pickRandomStylePreset(true, () => 0.999).id).toBe(
+      TEMPLATE_CATALOG[TEMPLATE_CATALOG.length - 1].id,
+    );
   });
 });

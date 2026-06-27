@@ -417,6 +417,24 @@ export function isStylePresetAvailable(
   return !preset.pro || isPro;
 }
 
+export function availableStylePresets(isPro: boolean): readonly StylePreset[] {
+  return TEMPLATE_CATALOG.filter((preset) =>
+    isStylePresetAvailable(preset, isPro),
+  );
+}
+
+export function pickRandomStylePreset(
+  isPro: boolean,
+  random = Math.random,
+): StylePreset {
+  const presets = availableStylePresets(isPro);
+  const index = Math.min(
+    presets.length - 1,
+    Math.floor(Math.max(0, random()) * presets.length),
+  );
+  return presets[index] ?? STYLE_PRESETS[0];
+}
+
 export function presetsByCategory(
   category: TemplateCategory | "all",
 ): readonly StylePreset[] {
