@@ -138,9 +138,7 @@ export function ReviewScreen({
     { id: "gif", label: "GIF" },
     { id: "boomerang", label: "Boom" },
     ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
-    ...(!partyMode
-      ? [{ id: "print" as Format, label: isPro ? "Print" : "Print Pro" }]
-      : []),
+    ...(isPro && !partyMode ? [{ id: "print" as Format, label: "Print" }] : []),
   ];
   const downloadLabel =
     format === "video"
