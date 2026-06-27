@@ -1841,7 +1841,12 @@ export default function App() {
         homeLabel={partyMode ? "Exit Guest Mode" : "Home"}
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
-        showActions={phase !== "capturing" && !showMigration && !partyMode}
+        showActions={
+          phase !== "idle" &&
+          phase !== "capturing" &&
+          !showMigration &&
+          !partyMode
+        }
       />
 
       {phase === "idle" &&
@@ -1853,6 +1858,7 @@ export default function App() {
             onBrowseTemplates={() => setShowTemplates(true)}
             onOpenPartySetup={() => setShowPartySetup(true)}
             onOpenGallery={() => setShowGallery(true)}
+            onOpenSettings={openSettings}
             onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
             onStartDemo={(setNum) => void openDemoCamera(setNum)}

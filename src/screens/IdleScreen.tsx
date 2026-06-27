@@ -12,6 +12,7 @@ export function IdleScreen({
   onBrowseTemplates,
   onOpenPartySetup,
   onOpenGallery,
+  onOpenSettings,
   onImportPhotos,
   demoSets = [],
   onStartDemo,
@@ -23,6 +24,7 @@ export function IdleScreen({
   onBrowseTemplates: () => void;
   onOpenPartySetup: () => void;
   onOpenGallery: () => void;
+  onOpenSettings: () => void;
   onImportPhotos: (files: FileList) => void;
   demoSets?: readonly { id: number; label: string }[];
   onStartDemo?: (setNum: number) => void;
@@ -121,6 +123,13 @@ export function IdleScreen({
                 >
                   <GearIcon className="h-5 w-5" />
                   Guest Setup
+                </button>
+                <button
+                  onClick={onOpenSettings}
+                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+                >
+                  <GearIcon className="h-5 w-5" />
+                  Settings
                 </button>
               </div>
             )}
