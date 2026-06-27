@@ -8,6 +8,7 @@ import {
   type QualityMedia,
   type QualitySettings,
 } from "../lib/settings";
+import { PARTY_RESET_SECONDS, type PartyResetSeconds } from "../lib/partyMode";
 import { proPriceLabel } from "../lib/pro";
 import {
   Button,
@@ -43,6 +44,7 @@ export function SettingsScreen({
   proPrice,
   partyMode,
   partyPasscode,
+  partyResetSeconds,
   onDest,
   onToggle,
   onQuality,
@@ -51,6 +53,7 @@ export function SettingsScreen({
   onOpenPartyMode,
   onPartyMode,
   onPartyPasscode,
+  onPartyResetSeconds,
   onRestorePurchase,
   onOpenIosSettings,
   onClose,
@@ -65,6 +68,7 @@ export function SettingsScreen({
   proPrice: string | null;
   partyMode: boolean;
   partyPasscode: string;
+  partyResetSeconds: PartyResetSeconds;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
@@ -73,6 +77,7 @@ export function SettingsScreen({
   onOpenPartyMode: () => void;
   onPartyMode: (on: boolean) => void;
   onPartyPasscode: (passcode: string) => void;
+  onPartyResetSeconds: (seconds: PartyResetSeconds) => void;
   onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
@@ -158,26 +163,45 @@ export function SettingsScreen({
         )}
       </div>
       {isPro && (
-        <label className="mt-3 block">
-          <Heading as="span" size="sm" className="text-brown">
-            Host exit code
-          </Heading>
-          <input
-            value={partyPasscode}
-            inputMode="numeric"
-            autoComplete="off"
-            maxLength={4}
-            onChange={(e) => onPartyPasscode(e.target.value)}
-            disabled={partyMode}
-            className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 text-center font-display text-2xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35 disabled:opacity-50"
-            aria-label="Party Mode host exit code"
-          />
-          <p className="mt-1 font-sans text-xs text-warmgray">
-            {partyMode
-              ? "Turn Party Mode off to change the code."
-              : "BoothBop gates the app UI. Use iOS Guided Access to lock the device."}
-          </p>
-        </label>
+        <div className="mt-3 grid gap-4">
+          <label className="block">
+            <Heading as="span" size="sm" className="text-brown">
+              Host exit code
+            </Heading>
+            <input
+              value={partyPasscode}
+              inputMode="numeric"
+              autoComplete="off"
+              maxLength={4}
+              onChange={(e) => onPartyPasscode(e.target.value)}
+              disabled={partyMode}
+              className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 text-center font-display text-2xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35 disabled:opacity-50"
+              aria-label="Party Mode host exit code"
+            />
+            <p className="mt-1 font-sans text-xs text-warmgray">
+              {partyMode
+                ? "Turn Party Mode off to change the code."
+                : "BoothBop gates the app UI. Use iOS Guided Access to lock the device."}
+            </p>
+          </label>
+          <div>
+            <Heading as="p" size="sm" className="text-brown">
+              Auto-reset review
+            </Heading>
+            <SegmentedControl
+              fullWidth
+              className="mt-1.5"
+              label="Party Mode auto-reset"
+              value={partyResetSeconds}
+              onChange={onPartyResetSeconds}
+              options={PARTY_RESET_SECONDS.map((seconds) => ({
+                value: seconds,
+                label: seconds === 0 ? "Off" : `${seconds}s`,
+              }))}
+              itemClassName="py-2 text-sm"
+            />
+          </div>
+        </div>
       )}
 
       <Heading as="h3" size="lg" className="mt-8">

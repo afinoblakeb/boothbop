@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { SESSION_TITLE_MAX } from "../lib/gallery";
+import type { PartyResetSeconds } from "../lib/partyMode";
 import { THEMES, type Layout } from "../lib/strip";
 import type {
   FilterDef,
@@ -66,6 +67,7 @@ export function ReviewScreen({
   shareFilesOk,
   savingAll,
   partyMode,
+  partyResetSeconds,
   thumbs,
   sessionTitle,
   sessionFavorite,
@@ -108,6 +110,7 @@ export function ReviewScreen({
   shareFilesOk: boolean;
   savingAll: boolean;
   partyMode: boolean;
+  partyResetSeconds: PartyResetSeconds;
   thumbs: string[];
   sessionTitle: string;
   sessionFavorite: boolean;
@@ -142,10 +145,50 @@ export function ReviewScreen({
         : "Save Photo";
   const isBusy = generating !== null;
   const [editOpen, setEditOpen] = useState(false);
+  const [partyActionTaken, setPartyActionTaken] = useState(false);
+  const [partyCountdown, setPartyCountdown] =
+    useState<number>(partyResetSeconds);
+  const onRetakeRef = useRef(onRetake);
   const retakeLabel = partyMode ? "Next Guest" : "Take Again";
+  const resetActive =
+    partyMode &&
+    partyResetSeconds > 0 &&
+    previewUrl !== null &&
+    !isBusy &&
+    !partyActionTaken;
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
     : "mt-2 flex h-[clamp(300px,52vh,500px)] w-full shrink-0 items-center justify-center overflow-hidden";
+
+  useEffect(() => {
+    onRetakeRef.current = onRetake;
+  }, [onRetake]);
+
+  useEffect(() => {
+    setPartyActionTaken(false);
+    setPartyCountdown(partyResetSeconds);
+  }, [partyMode, partyResetSeconds, previewUrl]);
+
+  useEffect(() => {
+    if (!resetActive) return;
+    setPartyCountdown(partyResetSeconds);
+    const id = window.setInterval(() => {
+      setPartyCountdown((current) => {
+        if (current <= 1) {
+          window.clearInterval(id);
+          onRetakeRef.current();
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [partyResetSeconds, resetActive]);
+
+  function runGuestAction(action: () => void) {
+    if (partyMode) setPartyActionTaken(true);
+    action();
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center overflow-hidden py-3 pb-4">
@@ -202,7 +245,7 @@ export function ReviewScreen({
             variant="primary"
             size="md"
             fullWidth
-            onClick={onShare}
+            onClick={() => runGuestAction(onShare)}
             disabled={isBusy || !previewUrl}
             className="h-14 px-3"
           >
@@ -214,7 +257,7 @@ export function ReviewScreen({
             variant="primary"
             size="md"
             fullWidth
-            onClick={onDownload}
+            onClick={() => runGuestAction(onDownload)}
             disabled={isBusy || !previewUrl}
             className="h-14 px-3"
           >
@@ -262,7 +305,11 @@ export function ReviewScreen({
           )}
           {partyMode && (
             <p className="mt-1 max-w-xs text-center font-sans text-xs text-teal">
-              Party Mode keeps this style ready for the next guest.
+              {resetActive
+                ? `Next guest starts in ${partyCountdown}s.`
+                : partyActionTaken
+                  ? "Auto-reset paused after save/share."
+                  : "Party Mode keeps this style ready for the next guest."}
             </p>
           )}
           <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">

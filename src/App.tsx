@@ -65,6 +65,7 @@ import {
   savePartyModeConfig,
   verifyPartyPasscode,
   type PartyModeConfig,
+  type PartyResetSeconds,
 } from "./lib/partyMode";
 import {
   ensurePhotosPermission,
@@ -555,6 +556,10 @@ export default function App() {
       ...partyConfig,
       passcode: cleanPartyPasscodeInput(passcode),
     });
+  }
+
+  function changePartyResetSeconds(resetSeconds: PartyResetSeconds) {
+    updatePartyConfig({ ...partyConfig, resetSeconds });
   }
 
   function verifyPartyExit(passcode: string) {
@@ -1724,6 +1729,7 @@ export default function App() {
           shareFilesOk={shareFilesOk}
           savingAll={savingAll}
           partyMode={partyMode}
+          partyResetSeconds={partyConfig.resetSeconds}
           thumbs={thumbs}
           sessionTitle={sessionTitle}
           sessionFavorite={sessionFavorite}
@@ -1777,6 +1783,7 @@ export default function App() {
           proPrice={proProduct?.price ?? null}
           partyMode={partyConfig.enabled}
           partyPasscode={partyConfig.passcode}
+          partyResetSeconds={partyConfig.resetSeconds}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
@@ -1785,6 +1792,7 @@ export default function App() {
           onOpenPartyMode={() => openPro("party")}
           onPartyMode={changePartyMode}
           onPartyPasscode={changePartyPasscode}
+          onPartyResetSeconds={changePartyResetSeconds}
           onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}

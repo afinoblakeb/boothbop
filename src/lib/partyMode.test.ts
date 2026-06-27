@@ -1,11 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   PARTY_DEFAULT_PASSCODE,
+  PARTY_RESET_SECONDS,
   cleanPartyPasscodeInput,
   loadPartyModeConfig,
   normalizePartyPasscode,
+  normalizePartyResetSeconds,
   savePartyModeConfig,
   verifyPartyPasscode,
+  type PartyModeConfig,
 } from "./partyMode";
 
 beforeEach(() => localStorage.clear());
@@ -15,15 +18,25 @@ describe("partyMode", () => {
     expect(loadPartyModeConfig()).toEqual({
       enabled: false,
       passcode: PARTY_DEFAULT_PASSCODE,
+      resetSeconds: 0,
     });
   });
 
   it("round-trips an enabled config", () => {
-    savePartyModeConfig({ enabled: true, passcode: "1234" });
+    savePartyModeConfig({ enabled: true, passcode: "1234", resetSeconds: 30 });
     expect(loadPartyModeConfig()).toEqual({
       enabled: true,
       passcode: "1234",
+      resetSeconds: 30,
     });
+  });
+
+  it("documents and normalizes auto-reset seconds", () => {
+    expect(PARTY_RESET_SECONDS).toEqual([0, 15, 30, 60]);
+    expect(normalizePartyResetSeconds("15")).toBe(15);
+    expect(normalizePartyResetSeconds(60)).toBe(60);
+    expect(normalizePartyResetSeconds("45")).toBe(0);
+    expect(normalizePartyResetSeconds(null)).toBe(0);
   });
 
   it("normalizes invalid stored passcodes to the default", () => {
@@ -39,7 +52,11 @@ describe("partyMode", () => {
   });
 
   it("verifies the passcode exactly after input cleanup", () => {
-    const config = { enabled: true, passcode: "2468" };
+    const config: PartyModeConfig = {
+      enabled: true,
+      passcode: "2468",
+      resetSeconds: 0,
+    };
     expect(verifyPartyPasscode(config, "2468")).toBe(true);
     expect(verifyPartyPasscode(config, "24 68")).toBe(true);
     expect(verifyPartyPasscode(config, "246")).toBe(false);
