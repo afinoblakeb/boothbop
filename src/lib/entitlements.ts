@@ -28,7 +28,7 @@ export const PREMIUM_STICKERS: readonly StickerKey[] = [
   "wedding",
   "graduation",
   "holiday",
-  "corporate",
+  "friends",
 ];
 
 export function canUseProFeature(isPro: boolean): boolean {

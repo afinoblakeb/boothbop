@@ -37,17 +37,19 @@ describe("style normalization", () => {
     ).toBe("Birthday Bash");
   });
 
-  it("replaces brand tokens with the event name", () => {
-    expect(resolveTemplateCaption("{brand}", "Acme Gala")).toBe("Acme Gala");
-    expect(resolveTemplateCaption("{brand}", "")).toBe("");
+  it("replaces name tokens with the saved caption name", () => {
+    expect(resolveTemplateCaption("{name}", "Birthday Night")).toBe(
+      "Birthday Night",
+    );
+    expect(resolveTemplateCaption("{name}", "")).toBe("");
     expect(
       resolveStripCaption({
         isPro: false,
         customCaption: "Host Text",
-        templateCaption: "{brand}",
-        eventName: "Launch Night",
+        templateCaption: "{name}",
+        eventName: "Grad Night",
       }),
-    ).toBe("Launch Night");
+    ).toBe("Grad Night");
   });
 
   it("lets Pro custom captions override template captions", () => {

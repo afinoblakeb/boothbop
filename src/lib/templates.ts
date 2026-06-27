@@ -9,7 +9,7 @@ export type TemplateCategory =
   | "nightout"
   | "graduation"
   | "holiday"
-  | "corporate";
+  | "friends";
 
 export const TEMPLATE_CATEGORIES: { id: TemplateCategory; label: string }[] = [
   { id: "classic", label: "Classic" },
@@ -18,7 +18,7 @@ export const TEMPLATE_CATEGORIES: { id: TemplateCategory; label: string }[] = [
   { id: "nightout", label: "Night Out" },
   { id: "graduation", label: "Graduation" },
   { id: "holiday", label: "Holiday" },
-  { id: "corporate", label: "Corporate" },
+  { id: "friends", label: "Friends" },
 ];
 
 export interface StylePreset {
@@ -47,7 +47,7 @@ export const PREVIEW_DEMO_SET: Record<string, 1 | 2 | 3> = {
   "party-story": 1,
   midnight: 2,
   "golden-hour": 3,
-  keynote: 3,
+  besties: 3,
   goldenrod: 3,
   "sunday-best": 3,
   "confetti-pop": 1,
@@ -64,8 +64,8 @@ export const PREVIEW_DEMO_SET: Record<string, 1 | 2 | 3> = {
   "we-did-it": 3,
   "cocoa-cozy": 3,
   frostbite: 3,
-  boardroom: 3,
-  mixer: 3,
+  "photo-dump": 3,
+  weekend: 3,
 };
 
 export const STYLE_PRESETS = [
@@ -188,15 +188,15 @@ export const STYLE_PRESETS = [
     caption: "Cheers",
   },
   {
-    id: "keynote",
-    label: "Keynote",
-    category: "corporate",
+    id: "besties",
+    label: "Besties",
+    category: "friends",
     pro: true,
     layout: "4x6",
     theme: "classic",
     filter: "mono",
     sticker: "none",
-    caption: "{brand}",
+    caption: "Besties",
   },
 ] as const satisfies readonly StylePreset[];
 
@@ -376,26 +376,26 @@ export const TEMPLATE_BACKLOG = [
     caption: "Let It Snow",
   },
   {
-    id: "boardroom",
-    label: "Boardroom",
-    category: "corporate",
+    id: "photo-dump",
+    label: "Photo Dump",
+    category: "friends",
     pro: false,
     layout: "4x1",
     theme: "carbon",
     filter: "mono",
     sticker: "none",
-    caption: "{brand}",
+    caption: "Photo Dump",
   },
   {
-    id: "mixer",
-    label: "Mixer",
-    category: "corporate",
+    id: "weekend",
+    label: "Weekend",
+    category: "friends",
     pro: false,
     layout: "2x2",
     theme: "olive",
     filter: "none",
     sticker: "none",
-    caption: "{brand}",
+    caption: "Weekend",
   },
 ] as const satisfies readonly StylePreset[];
 

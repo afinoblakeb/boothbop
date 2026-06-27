@@ -84,6 +84,20 @@ describe("style presets", () => {
       "cum-laude",
       "we-did-it",
     ]);
+    expect(presetsByCategory("friends").map((preset) => preset.id)).toEqual([
+      "besties",
+      "photo-dump",
+      "weekend",
+    ]);
+  });
+
+  it("keeps launch templates consumer-facing", () => {
+    expect(TEMPLATE_CATEGORIES.map((category) => category.id)).not.toContain(
+      "corporate",
+    );
+    for (const preset of allPresets) {
+      expect(preset.caption ?? "").not.toContain("{brand}");
+    }
   });
 
   it("has demo preview hints for every catalog preset", () => {

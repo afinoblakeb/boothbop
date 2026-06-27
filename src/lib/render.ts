@@ -27,7 +27,7 @@ export type StickerKey =
   | "wedding"
   | "graduation"
   | "holiday"
-  | "corporate";
+  | "friends";
 export type MotionMode = "loop" | "boomerang";
 
 export interface FilterDef {
@@ -115,7 +115,7 @@ export const STICKERS: Record<StickerKey, StickerDef> = {
   wedding: { label: "Wedding" },
   graduation: { label: "Grad" },
   holiday: { label: "Holiday" },
-  corporate: { label: "Brand" },
+  friends: { label: "Friends" },
 };
 
 const FILTER_KEY = "bb.filter";

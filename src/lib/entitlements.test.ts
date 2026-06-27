@@ -45,7 +45,7 @@ describe("entitlements", () => {
     expect(isPremiumSticker("wedding")).toBe(true);
     expect(isPremiumSticker("graduation")).toBe(true);
     expect(isPremiumSticker("holiday")).toBe(true);
-    expect(isPremiumSticker("corporate")).toBe(true);
+    expect(isPremiumSticker("friends")).toBe(true);
     expect(isPremiumSticker("birthday")).toBe(false);
     expect(isPremiumSticker("sparkles")).toBe(false);
   });

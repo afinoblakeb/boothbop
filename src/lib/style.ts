@@ -20,10 +20,10 @@ export function cleanStyleCaption(caption: string): string {
 
 export function resolveTemplateCaption(
   templateCaption: string,
-  eventName = "",
+  captionName = "",
 ): string {
-  const event = cleanStyleCaption(eventName);
-  const caption = templateCaption.replace(/\{brand\}/gi, event);
+  const name = cleanStyleCaption(captionName);
+  const caption = templateCaption.replace(/\{name\}/gi, name);
   return cleanStyleCaption(caption);
 }
 
