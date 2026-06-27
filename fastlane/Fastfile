@@ -25,7 +25,7 @@ end
 platform :ios do
   desc "Build the web app and copy it into the native iOS project"
   lane :prepare do
-    # Plain production build (no VITE_DEMO → no screenshot loader/sample photos).
+    # Plain production build; VITE_DEMO stays off so screenshot shoot buttons hide.
     sh("cd .. && npm run build && npx cap sync ios")
   end
 

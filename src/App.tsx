@@ -139,8 +139,8 @@ interface MediaResult {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Screenshot mode: a flag-gated sample loader (see lib/demo.ts) for producing
-// App Store screenshots without a camera. Off in the submission build.
+// Screenshot mode: flag-gated demo shoot buttons for producing App Store
+// screenshots without a camera. Gallery sample sets are available in all builds.
 const DEMO = import.meta.env.DEV || import.meta.env.VITE_DEMO === "1";
 const DEMO_SETS = [
   { id: 1, label: "Birthday" },

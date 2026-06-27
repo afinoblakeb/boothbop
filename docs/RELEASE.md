@@ -39,8 +39,8 @@ bundle exec fastlane release    # build + upload + push listing + submit for rev
 bundle exec fastlane metadata   # push listing/screenshots only (no new build)
 ```
 
-- `prepare` runs `npm run build && npx cap sync ios` (plain prod build — no demo
-  loader / sample photos).
+- `prepare` runs `npm run build && npx cap sync ios` (plain prod build — sample
+  Gallery sets are included; screenshot demo shoot buttons stay hidden).
 - `release` submits with **manual release** (you click Release after approval).
 - Bump the version/build first: edit `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`
   in `ios/App/App.xcodeproj/project.pbxproj` (or `fastlane increment_*`).
