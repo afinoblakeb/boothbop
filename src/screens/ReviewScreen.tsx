@@ -75,9 +75,11 @@ export function ReviewScreen({
   customCaption,
   canManageSession,
   autosaveTip,
+  localSaveNotice,
   onOpenSettings,
   onOpenPro,
   onDismissTip,
+  onDismissLocalSaveNotice,
   onBrowseTemplates,
   onShare,
   onSave,
@@ -119,9 +121,11 @@ export function ReviewScreen({
   customCaption: string;
   canManageSession: boolean;
   autosaveTip: boolean;
+  localSaveNotice: boolean;
   onOpenSettings: () => void;
   onOpenPro: () => void;
   onDismissTip: () => void;
+  onDismissLocalSaveNotice: () => void;
   onBrowseTemplates: () => void;
   onShare: () => void | Promise<void>;
   onSave: () => void | Promise<void>;
@@ -353,6 +357,26 @@ export function ReviewScreen({
           className="mt-4 px-4 py-3 font-sans text-sm text-orange-dark"
         >
           {error}
+        </Callout>
+      )}
+
+      {localSaveNotice && !partyMode && (
+        <Callout
+          tone="info"
+          className="mt-3 flex w-full items-center gap-2 px-3 py-2 text-left"
+        >
+          <p className="flex-1 font-sans text-xs text-ink">
+            Saved in BoothBop Gallery on this device. Use{" "}
+            {native ? "Save to Photos" : "Download"} or Share when you want a
+            copy outside the app.
+          </p>
+          <IconButton
+            aria-label="Dismiss local save notice"
+            onClick={onDismissLocalSaveNotice}
+            className="shrink-0 text-lg leading-none text-brown"
+          >
+            ✕
+          </IconButton>
         </Callout>
       )}
 

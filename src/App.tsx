@@ -208,6 +208,14 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [sessionTitle, setSessionTitleState] = useState("");
   const [sessionFavorite, setSessionFavorite] = useState(false);
+  const [localSaveNoticeSeen, setLocalSaveNoticeSeen] = useState(
+    () => localStorage.getItem("bb.localSaveNoticeSeen") === "1",
+  );
+
+  function dismissLocalSaveNotice() {
+    localStorage.setItem("bb.localSaveNoticeSeen", "1");
+    setLocalSaveNoticeSeen(true);
+  }
 
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
@@ -1923,9 +1931,11 @@ export default function App() {
           customCaption={customCaption}
           canManageSession={activeSessionId !== null}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
+          localSaveNotice={activeSessionId !== null && !localSaveNoticeSeen}
           onOpenSettings={openSettings}
           onOpenPro={() => openPro("caption")}
           onDismissTip={dismissAutosaveTip}
+          onDismissLocalSaveNotice={dismissLocalSaveNotice}
           onBrowseTemplates={() => setShowTemplates(true)}
           onShare={shareCurrent}
           onSave={downloadCurrent}
