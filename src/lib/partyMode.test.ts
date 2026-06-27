@@ -3,6 +3,7 @@ import {
   PARTY_DEFAULT_PASSCODE,
   PARTY_RESET_SECONDS,
   cleanPartyPasscodeInput,
+  guestGalleryCountLabel,
   loadPartyModeConfig,
   isGuestModeActive,
   normalizePartyPasscode,
@@ -40,6 +41,13 @@ describe("partyMode", () => {
     };
 
     expect(isGuestModeActive(config)).toBe(true);
+  });
+
+  it("labels the local gallery save count for guest setup", () => {
+    expect(guestGalleryCountLabel(null)).toBe("Checking BoothBop Gallery.");
+    expect(guestGalleryCountLabel(0)).toBe("0 saved sets in BoothBop Gallery.");
+    expect(guestGalleryCountLabel(1)).toBe("1 saved set in BoothBop Gallery.");
+    expect(guestGalleryCountLabel(4)).toBe("4 saved sets in BoothBop Gallery.");
   });
 
   it("documents and normalizes auto-reset seconds", () => {

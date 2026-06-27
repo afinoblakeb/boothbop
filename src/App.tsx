@@ -25,6 +25,7 @@ import {
   blobToCanvas,
   canvasToBlob,
   cleanSessionTitle,
+  listSessions,
   requestPersistence,
   saveSession,
   SESSION_TITLE_MAX,
@@ -193,6 +194,9 @@ export default function App() {
   const [showTemplates, setShowTemplates] = useState(false);
   const [showPro, setShowPro] = useState(false);
   const [showPartySetup, setShowPartySetup] = useState(false);
+  const [savedSessionCount, setSavedSessionCount] = useState<number | null>(
+    null,
+  );
   const [proContext, setProContext] = useState<ProContext>("settings");
   const [proBusy, setProBusy] = useState(false);
   const [proError, setProError] = useState<string | null>(null);
@@ -370,6 +374,22 @@ export default function App() {
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
   const [brandLogo, setBrandLogo] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (!showPartySetup) return;
+    let active = true;
+    setSavedSessionCount(null);
+    listSessions()
+      .then((sessions) => {
+        if (active) setSavedSessionCount(sessions.length);
+      })
+      .catch(() => {
+        if (active) setSavedSessionCount(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showPartySetup]);
 
   // Auto-save-to-Photos settings + permission handling (native iOS).
   const {
@@ -1938,6 +1958,7 @@ export default function App() {
           partyPasscode={partyConfig.passcode}
           partyResetSeconds={partyConfig.resetSeconds}
           autosave={autosave}
+          savedSessionCount={savedSessionCount}
           styleSummary={partyStyleSummary}
           onPartyMode={changePartyMode}
           onPartyPasscode={changePartyPasscode}

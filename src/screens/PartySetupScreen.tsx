@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import { PARTY_RESET_SECONDS, type PartyResetSeconds } from "../lib/partyMode";
+import {
+  PARTY_RESET_SECONDS,
+  guestGalleryCountLabel,
+  type PartyResetSeconds,
+} from "../lib/partyMode";
 import { anyAutosaveOn, type AutosaveSettings } from "../lib/settings";
 import { BrandIcon, GearIcon, SlidersIcon } from "../icons";
 import {
@@ -16,6 +20,7 @@ export function PartySetupScreen({
   partyPasscode,
   partyResetSeconds,
   autosave,
+  savedSessionCount,
   styleSummary,
   onPartyMode,
   onPartyPasscode,
@@ -30,6 +35,7 @@ export function PartySetupScreen({
   partyPasscode: string;
   partyResetSeconds: PartyResetSeconds;
   autosave: AutosaveSettings;
+  savedSessionCount: number | null;
   styleSummary: string;
   onPartyMode: (on: boolean) => void;
   onPartyPasscode: (passcode: string) => void;
@@ -46,6 +52,13 @@ export function PartySetupScreen({
     autosave.video ? "Video" : null,
   ].filter(Boolean);
   const autosaveReady = native && anyAutosaveOn(autosave);
+  const photosSaveLabel = autosaveReady
+    ? `${autosaveFormats.join(", ")} to ${
+        autosave.dest === "album" ? "BoothBop album" : "camera roll"
+      }.`
+    : native
+      ? "Photos auto-save is off."
+      : "Photos auto-save is available in the iOS app.";
   const primaryLabel = partyMode ? "Start Booth" : "Turn On Guest Mode";
 
   function primaryAction() {
@@ -100,19 +113,16 @@ export function PartySetupScreen({
         </SetupPanel>
 
         <SetupPanel
-          title="Photos save"
-          status={autosaveReady ? "On" : "Off"}
-          statusTone={autosaveReady ? "ready" : "warning"}
+          title="Save status"
+          status={autosaveReady ? "Photos On" : "Gallery"}
+          statusTone={savedSessionCount === null ? "neutral" : "ready"}
           icon={<BrandIcon name="gallery" className="h-5 w-5" />}
         >
-          <p className="font-sans text-sm text-brown">
-            {native
-              ? autosaveReady
-                ? `${autosaveFormats.join(", ")} to ${
-                    autosave.dest === "album" ? "BoothBop album" : "camera roll"
-                  }.`
-                : "Auto-save is off for this session."
-              : "Auto-save is available in the iOS app."}
+          <p className="font-sans text-sm leading-relaxed text-brown">
+            Finished sets save locally.{" "}
+            {guestGalleryCountLabel(savedSessionCount)}
+            <br />
+            {photosSaveLabel}
           </p>
           <Button
             variant="secondary"

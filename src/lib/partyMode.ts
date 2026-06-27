@@ -60,6 +60,11 @@ export function isGuestModeActive(config: PartyModeConfig): boolean {
   return config.enabled;
 }
 
+export function guestGalleryCountLabel(count: number | null): string {
+  if (count === null) return "Checking BoothBop Gallery.";
+  return `${count} saved ${count === 1 ? "set" : "sets"} in BoothBop Gallery.`;
+}
+
 export function verifyPartyPasscode(
   config: PartyModeConfig,
   input: string,
