@@ -227,6 +227,7 @@ export default function App() {
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
     clearResults();
+    queueActiveFormatRegeneration();
   }
 
   const [exportSpeed, setExportSpeedState] =
@@ -236,6 +237,7 @@ export default function App() {
     saveExportSpeed(speed);
     setExportSpeedState(speed);
     clearResults();
+    queueActiveFormatRegeneration();
   }
 
   const [filter, setFilterState] = useState<FilterKey>(loadFilter);
@@ -248,6 +250,7 @@ export default function App() {
     setFilterState(f);
     persistActiveStyle(buildSessionStyle({ filter: f }));
     clearResults();
+    queueActiveFormatRegeneration();
   }
 
   const [sticker, setStickerState] = useState<StickerKey>(loadSticker);
@@ -260,6 +263,7 @@ export default function App() {
     setStickerState(next);
     persistActiveStyle(buildSessionStyle({ sticker: next }));
     clearResults();
+    queueActiveFormatRegeneration();
   }
 
   function changeLayout(next: Layout) {
@@ -540,6 +544,20 @@ export default function App() {
     boomerang?: Promise<Blob>;
     video?: Promise<VideoResult>;
   }>({});
+  const pendingFormatRegeneration = useRef<Exclude<
+    Format,
+    "print" | "strip"
+  > | null>(null);
+
+  function queueActiveFormatRegeneration() {
+    if (
+      phase === "review" &&
+      (format === "gif" || format === "boomerang" || format === "video")
+    ) {
+      pendingFormatRegeneration.current = format;
+    }
+  }
+
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
     return (mediaCache.current.gif ??= loadWatermark()
       .then((watermarkImg) =>
@@ -1504,6 +1522,15 @@ export default function App() {
       setGenerating(null);
     }
   }
+
+  useEffect(() => {
+    const pending = pendingFormatRegeneration.current;
+    if (!pending || phase !== "review" || frames.length < SHOTS || generating) {
+      return;
+    }
+    pendingFormatRegeneration.current = null;
+    void ensureFormatFrom(pending, frames);
+  });
 
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
   // are never encoded twice (the review tabs draw from the same cache).

@@ -159,12 +159,151 @@ export interface DrawRect {
   height: number;
 }
 
-export function drawFrame(
+type Rgba = readonly [number, number, number, number];
+
+const clampByte = (value: number) =>
+  Math.max(0, Math.min(255, Math.round(value)));
+
+function luminance(r: number, g: number, b: number) {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function applyBrightness(rgb: [number, number, number], amount: number) {
+  rgb[0] *= amount;
+  rgb[1] *= amount;
+  rgb[2] *= amount;
+}
+
+function applyContrast(rgb: [number, number, number], amount: number) {
+  rgb[0] = (rgb[0] - 128) * amount + 128;
+  rgb[1] = (rgb[1] - 128) * amount + 128;
+  rgb[2] = (rgb[2] - 128) * amount + 128;
+}
+
+function applySaturation(rgb: [number, number, number], amount: number) {
+  const luma = luminance(rgb[0], rgb[1], rgb[2]);
+  rgb[0] = luma + (rgb[0] - luma) * amount;
+  rgb[1] = luma + (rgb[1] - luma) * amount;
+  rgb[2] = luma + (rgb[2] - luma) * amount;
+}
+
+function applyGrayscale(rgb: [number, number, number], amount: number) {
+  const luma = luminance(rgb[0], rgb[1], rgb[2]);
+  rgb[0] = rgb[0] * (1 - amount) + luma * amount;
+  rgb[1] = rgb[1] * (1 - amount) + luma * amount;
+  rgb[2] = rgb[2] * (1 - amount) + luma * amount;
+}
+
+function applySepia(rgb: [number, number, number], amount: number) {
+  const [r, g, b] = rgb;
+  const sepiaR = r * 0.393 + g * 0.769 + b * 0.189;
+  const sepiaG = r * 0.349 + g * 0.686 + b * 0.168;
+  const sepiaB = r * 0.272 + g * 0.534 + b * 0.131;
+  rgb[0] = r * (1 - amount) + sepiaR * amount;
+  rgb[1] = g * (1 - amount) + sepiaG * amount;
+  rgb[2] = b * (1 - amount) + sepiaB * amount;
+}
+
+function applyHueRotate(rgb: [number, number, number], degrees: number) {
+  const angle = (degrees * Math.PI) / 180;
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const [r, g, b] = rgb;
+  rgb[0] =
+    (0.213 + cos * 0.787 - sin * 0.213) * r +
+    (0.715 - cos * 0.715 - sin * 0.715) * g +
+    (0.072 - cos * 0.072 + sin * 0.928) * b;
+  rgb[1] =
+    (0.213 - cos * 0.213 + sin * 0.143) * r +
+    (0.715 + cos * 0.285 + sin * 0.14) * g +
+    (0.072 - cos * 0.072 - sin * 0.283) * b;
+  rgb[2] =
+    (0.213 - cos * 0.213 - sin * 0.787) * r +
+    (0.715 - cos * 0.715 + sin * 0.715) * g +
+    (0.072 + cos * 0.928 + sin * 0.072) * b;
+}
+
+export function applyFilterToRgba(
+  rgba: Rgba,
+  filter: FilterKey,
+): [number, number, number, number] {
+  const rgb: [number, number, number] = [rgba[0], rgba[1], rgba[2]];
+
+  if (filter === "mono") {
+    applyGrayscale(rgb, 1);
+    applyContrast(rgb, 1.14);
+  } else if (filter === "warm") {
+    applySepia(rgb, 0.28);
+    applySaturation(rgb, 1.22);
+    applyContrast(rgb, 1.06);
+    applyBrightness(rgb, 1.03);
+  } else if (filter === "glam") {
+    applyGrayscale(rgb, 1);
+    applyContrast(rgb, 1.28);
+    applyBrightness(rgb, 1.08);
+  } else if (filter === "vintage") {
+    applySepia(rgb, 0.42);
+    applySaturation(rgb, 0.86);
+    applyContrast(rgb, 1.12);
+  } else if (filter === "soft-flash") {
+    applyBrightness(rgb, 1.12);
+    applyContrast(rgb, 0.96);
+    applySaturation(rgb, 0.95);
+  } else if (filter === "warm-film") {
+    applySepia(rgb, 0.32);
+    applySaturation(rgb, 1.25);
+    applyContrast(rgb, 1.05);
+    applyBrightness(rgb, 1.02);
+  } else if (filter === "clean-bw") {
+    applyGrayscale(rgb, 1);
+    applyContrast(rgb, 1.08);
+    applyBrightness(rgb, 1.03);
+  } else if (filter === "cool-studio") {
+    applySaturation(rgb, 1.05);
+    applyContrast(rgb, 1.1);
+    applyBrightness(rgb, 1.02);
+    applyHueRotate(rgb, -8);
+  } else if (filter === "glam-booth") {
+    applyGrayscale(rgb, 1);
+    applyContrast(rgb, 1.3);
+    applyBrightness(rgb, 1.12);
+  } else if (filter === "vintage-sepia") {
+    applySepia(rgb, 0.5);
+    applySaturation(rgb, 0.8);
+    applyContrast(rgb, 1.14);
+    applyBrightness(rgb, 0.98);
+  } else if (filter === "high-contrast") {
+    applyContrast(rgb, 1.32);
+    applySaturation(rgb, 1.18);
+  } else if (filter === "dreamy-pastel") {
+    applySaturation(rgb, 0.82);
+    applyContrast(rgb, 0.9);
+    applyBrightness(rgb, 1.1);
+  } else if (filter === "night-out") {
+    applyContrast(rgb, 1.2);
+    applySaturation(rgb, 1.1);
+    applyBrightness(rgb, 0.92);
+  } else if (filter === "magazine") {
+    applyGrayscale(rgb, 0.3);
+    applyContrast(rgb, 1.22);
+    applySaturation(rgb, 0.9);
+    applyBrightness(rgb, 1.04);
+  }
+
+  return [
+    clampByte(rgb[0]),
+    clampByte(rgb[1]),
+    clampByte(rgb[2]),
+    clampByte(rgba[3]),
+  ];
+}
+
+function drawWithCanvasFilter(
   ctx: CanvasRenderingContext2D,
   frame: HTMLCanvasElement,
   dest: DrawRect,
-  { filter = "none", sticker = "none" }: DrawFrameOptions = {},
-): void {
+  filter: FilterKey,
+) {
   const def = FILTERS[filter];
   ctx.save();
   try {
@@ -184,6 +323,79 @@ export function drawFrame(
     dest.height,
   );
   ctx.restore();
+}
+
+function drawFilteredFrame(
+  ctx: CanvasRenderingContext2D,
+  frame: HTMLCanvasElement,
+  dest: DrawRect,
+  filter: FilterKey,
+) {
+  if (filter === "none") {
+    ctx.drawImage(
+      frame,
+      0,
+      0,
+      frame.width,
+      frame.height,
+      dest.x,
+      dest.y,
+      dest.width,
+      dest.height,
+    );
+    return;
+  }
+
+  const width = Math.max(1, Math.round(dest.width));
+  const height = Math.max(1, Math.round(dest.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const source = canvas.getContext("2d", { willReadFrequently: true });
+  if (!source) {
+    drawWithCanvasFilter(ctx, frame, dest, filter);
+    return;
+  }
+
+  try {
+    source.drawImage(
+      frame,
+      0,
+      0,
+      frame.width,
+      frame.height,
+      0,
+      0,
+      width,
+      height,
+    );
+    const image = source.getImageData(0, 0, width, height);
+    const { data } = image;
+    for (let i = 0; i < data.length; i += 4) {
+      const [r, g, b, a] = applyFilterToRgba(
+        [data[i], data[i + 1], data[i + 2], data[i + 3]],
+        filter,
+      );
+      data[i] = r;
+      data[i + 1] = g;
+      data[i + 2] = b;
+      data[i + 3] = a;
+    }
+    source.putImageData(image, 0, 0);
+    ctx.drawImage(canvas, dest.x, dest.y, dest.width, dest.height);
+  } catch {
+    drawWithCanvasFilter(ctx, frame, dest, filter);
+  }
+}
+
+export function drawFrame(
+  ctx: CanvasRenderingContext2D,
+  frame: HTMLCanvasElement,
+  dest: DrawRect,
+  { filter = "none", sticker = "none" }: DrawFrameOptions = {},
+): void {
+  const def = FILTERS[filter];
+  drawFilteredFrame(ctx, frame, dest, filter);
   drawOverlay(ctx, dest, def.overlay);
   drawSticker(ctx, dest, sticker);
 }

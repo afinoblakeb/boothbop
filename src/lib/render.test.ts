@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   FILTERS,
   STICKERS,
+  applyFilterToRgba,
   loadFilter,
   loadSticker,
   motionSequence,
@@ -47,6 +48,19 @@ describe("filter settings", () => {
     for (const f of Object.values(FILTERS)) {
       expect(f.label.length).toBeGreaterThan(0);
     }
+  });
+
+  it("applies look filters without depending on canvas filter support", () => {
+    const original = [120, 80, 40, 255] as const;
+
+    const mono = applyFilterToRgba(original, "mono");
+    expect(mono[0]).toBe(mono[1]);
+    expect(mono[1]).toBe(mono[2]);
+    expect(mono).not.toEqual(original);
+
+    const warm = applyFilterToRgba(original, "warm");
+    expect(warm).not.toEqual(original);
+    expect(warm[0]).toBeGreaterThan(warm[2]);
   });
 });
 
