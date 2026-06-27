@@ -17,6 +17,8 @@ import {
   isStylePresetAvailable,
   pickRandomStylePreset,
   presetsByCategory,
+  stylePresetMetaLabel,
+  templateCategoryLabel,
   type StylePreset,
 } from "./templates";
 
@@ -105,6 +107,17 @@ describe("style presets", () => {
       expect(PREVIEW_DEMO_SET[preset.id]).toBeGreaterThanOrEqual(1);
       expect(PREVIEW_DEMO_SET[preset.id]).toBeLessThanOrEqual(3);
     }
+  });
+
+  it("formats consumer-facing template metadata labels", () => {
+    expect(templateCategoryLabel("nightout")).toBe("Night Out");
+    expect(templateCategoryLabel("friends")).toBe("Friends");
+    expect(stylePresetMetaLabel(findStylePreset("party-story")!)).toBe(
+      "Birthday / Story",
+    );
+    expect(stylePresetMetaLabel(findStylePreset("classic")!)).toBe(
+      "Classic / Classic strip",
+    );
   });
 
   it("marks premium presets consistently with entitlement rules", () => {

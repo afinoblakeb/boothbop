@@ -9,7 +9,7 @@ import type {
   StickerDef,
   StickerKey,
 } from "../lib/render";
-import type { StylePreset } from "../lib/templates";
+import { stylePresetMetaLabel, type StylePreset } from "../lib/templates";
 import type { MoveDirection } from "../lib/sequence";
 import { STYLE_CAPTION_MAX } from "../lib/style";
 import { isPremiumFilter, isPremiumSticker } from "../lib/entitlements";
@@ -567,7 +567,7 @@ export function ReviewScreen({
                   >
                     <span className="block leading-none">{preset.label}</span>
                     <span className="mt-1 block font-sans text-[10px] font-bold uppercase tracking-wide text-brown">
-                      {preset.category}
+                      {stylePresetMetaLabel(preset)}
                       {preset.pro ? " / Pro" : ""}
                     </span>
                   </button>

@@ -21,6 +21,14 @@ export const TEMPLATE_CATEGORIES: { id: TemplateCategory; label: string }[] = [
   { id: "friends", label: "Friends" },
 ];
 
+export const TEMPLATE_LAYOUT_LABELS: Record<Layout, string> = {
+  "4x1": "Classic strip",
+  "2x2": "Grid",
+  "2x6": "2x6 strip",
+  "4x6": "4x6 sheet",
+  story: "Story",
+};
+
 export interface StylePreset {
   id: string;
   label: string;
@@ -441,4 +449,18 @@ export function presetsByCategory(
   return category === "all"
     ? TEMPLATE_CATALOG
     : TEMPLATE_CATALOG.filter((preset) => preset.category === category);
+}
+
+export function templateCategoryLabel(category: TemplateCategory): string {
+  return (
+    TEMPLATE_CATEGORIES.find((item) => item.id === category)?.label ?? category
+  );
+}
+
+export function stylePresetMetaLabel(
+  preset: Pick<StylePreset, "category" | "layout">,
+): string {
+  return `${templateCategoryLabel(preset.category)} / ${
+    TEMPLATE_LAYOUT_LABELS[preset.layout]
+  }`;
 }

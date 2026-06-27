@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { composeStrip, THEMES } from "../lib/strip";
+import { FILTERS, STICKERS } from "../lib/render";
 import {
   PREVIEW_DEMO_SET,
   TEMPLATE_CATEGORIES,
   pickRandomStylePreset,
   presetsByCategory,
+  stylePresetMetaLabel,
+  TEMPLATE_LAYOUT_LABELS,
   type StylePreset,
   type TemplateCategory,
 } from "../lib/templates";
@@ -182,7 +185,7 @@ function TemplateCard({
           </span>
         </div>
         <p className="mt-1 font-sans text-[11px] uppercase tracking-wide text-warmgray">
-          {preset.category} / {preset.layout}
+          {stylePresetMetaLabel(preset)}
         </p>
       </div>
     </button>
@@ -213,9 +216,9 @@ function TemplateDetail({
   const locked = preset.pro && !isPro;
   const caption = resolveTemplateCaption(preset.caption ?? "", eventName);
   const chips = [
-    preset.layout,
-    preset.filter,
-    preset.sticker,
+    TEMPLATE_LAYOUT_LABELS[preset.layout],
+    FILTERS[preset.filter].label,
+    preset.sticker === "none" ? null : STICKERS[preset.sticker].label,
     caption || null,
   ].filter(Boolean);
 
