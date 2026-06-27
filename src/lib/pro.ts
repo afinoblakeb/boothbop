@@ -6,6 +6,7 @@ export type ProContext =
   | "props"
   | "caption"
   | "quality"
+  | "print"
   | "party";
 
 export interface ProOfferCopy {
@@ -26,6 +27,7 @@ const CONTEXT_TITLES: Record<ProContext, string> = {
   props: "Unlock Pro Props",
   caption: "Unlock Custom Captions",
   quality: "Unlock HD Exports",
+  print: "Unlock Print Sheets",
   party: "Unlock Party Mode",
 };
 
@@ -37,6 +39,7 @@ const CONTEXT_EYEBROWS: Record<ProContext, string> = {
   props: "Premium prop pack",
   caption: "Premium personalization",
   quality: "Premium export",
+  print: "Premium print export",
   party: "Event-host mode",
 };
 
@@ -54,10 +57,10 @@ export function proOfferCopy(
   return {
     eyebrow: CONTEXT_EYEBROWS[context],
     title: CONTEXT_TITLES[context],
-    body: "BoothBop Pro unlocks every premium template, Pro looks and props, custom captions, HD GIFs and video, and watermark-free animated exports. Your photos stay on this device.",
+    body: "BoothBop Pro unlocks every premium template, Pro looks and props, custom captions, Party Mode, print sheets, HD GIFs and video, and watermark-free animated exports. Your photos stay on this device.",
     bullets: [
-      "Premium event templates and specialty strip layouts",
-      "Glam, vintage, party, wedding, holiday, and brand-ready looks",
+      "30-template catalog with premium layouts and 4x6 print sheets",
+      "Party Mode with guest reset, event names, and brand-ready templates",
       "Watermark-free HD GIFs and videos with custom captions",
     ],
     cta: `Start Pro - ${label}`,

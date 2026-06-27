@@ -1377,7 +1377,7 @@ export default function App() {
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
     if (f === "print" && !isPro) {
-      openPro("layout");
+      openPro("print");
       return;
     }
     setFormat(f);

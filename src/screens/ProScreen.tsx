@@ -35,7 +35,7 @@ export function ProScreen({
         </Heading>
         <p className="mt-3 font-sans text-sm leading-relaxed text-brown">
           {isPro
-            ? "Every premium template, look, prop, caption, HD export, and watermark-free animated export is active on this device."
+            ? "Every premium template, look, prop, caption, Party Mode flow, print sheet, HD export, and watermark-free animated export is active on this device."
             : copy.body}
         </p>
       </section>

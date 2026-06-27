@@ -18,6 +18,7 @@ describe("pro", () => {
       "props",
       "caption",
       "quality",
+      "print",
       "party",
     ];
     const titles = contexts.map((context) => proOfferCopy(context, null).title);
@@ -25,6 +26,7 @@ describe("pro", () => {
     expect(new Set(titles).size).toBe(contexts.length);
     expect(titles).toContain("Unlock Pro Templates");
     expect(titles).toContain("Unlock Custom Captions");
+    expect(titles).toContain("Unlock Print Sheets");
     expect(titles).toContain("Unlock Party Mode");
   });
 
@@ -33,6 +35,8 @@ describe("pro", () => {
 
     expect(copy.cta).toBe("Start Pro - $1.99/month");
     expect(copy.body).toMatch(/premium template/i);
+    expect(copy.body).toMatch(/Party Mode/i);
+    expect(copy.body).toMatch(/print sheets/i);
     expect(copy.body).toMatch(/watermark-free/i);
     expect(copy.bullets).toHaveLength(3);
   });
