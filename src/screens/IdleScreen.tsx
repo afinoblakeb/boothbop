@@ -34,7 +34,7 @@ export function IdleScreen({
 
   return (
     <div className="flex flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
+      <div className="flex flex-1 flex-col items-center justify-start pt-[clamp(3rem,8vh,6rem)] text-center">
         <img
           src={LOGO}
           alt="BoothBop"
