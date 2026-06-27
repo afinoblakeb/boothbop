@@ -164,9 +164,12 @@ export function ReviewScreen({
     previewUrl !== null &&
     !isBusy &&
     !guestActionPending;
+  const showQuickRetake = !partyMode && !editOpen && thumbs.length >= 4;
   const previewFrameClass = editOpen
     ? "mt-3 flex h-[clamp(220px,34vh,420px)] w-full shrink-0 items-center justify-center overflow-hidden"
-    : "mt-2 flex h-[clamp(260px,42vh,440px)] w-full shrink-0 items-center justify-center overflow-hidden";
+    : showQuickRetake
+      ? "mt-2 flex h-[clamp(220px,36vh,380px)] w-full shrink-0 items-center justify-center overflow-hidden"
+      : "mt-2 flex h-[clamp(260px,42vh,440px)] w-full shrink-0 items-center justify-center overflow-hidden";
 
   useEffect(() => {
     onRetakeRef.current = onRetake;
@@ -256,6 +259,37 @@ export function ReviewScreen({
                   : "Classic four-photo strip."}
         </p>
       </section>
+
+      {showQuickRetake && (
+        <section className="mt-3 w-full">
+          <div className="mb-1 flex items-center justify-between">
+            <SectionLabel>Retake One</SectionLabel>
+            <span className="font-sans text-[11px] font-bold uppercase tracking-wide text-warmgray">
+              Tap a frame
+            </span>
+          </div>
+          <div className="grid grid-cols-4 gap-2">
+            {thumbs.map((src, i) => (
+              <button
+                key={i}
+                onClick={() => onRetakeShot(i)}
+                className="group relative aspect-square min-h-0 overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+                aria-label={`Retake shot ${i + 1}`}
+              >
+                <img
+                  src={src}
+                  alt=""
+                  className="h-full w-full object-cover"
+                  draggable={false}
+                />
+                <span className="absolute inset-x-0 bottom-0 border-t-2 border-ink bg-cream/95 py-0.5 font-display text-xs uppercase tracking-wide text-ink">
+                  {i + 1}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="mt-3 grid w-full grid-cols-2 gap-3">
         {!partyMode && (
