@@ -68,6 +68,7 @@ import {
   normalizePartyPasscode,
   savePartyModeConfig,
   verifyPartyPasscode,
+  type GuestOutputFormat,
   type PartyModeConfig,
   type PartyResetSeconds,
 } from "./lib/partyMode";
@@ -628,6 +629,25 @@ export default function App() {
     updatePartyConfig({ ...partyConfig, resetSeconds });
   }
 
+  function changePartyOutputFormat(outputFormat: GuestOutputFormat) {
+    updatePartyConfig({ ...partyConfig, outputFormat });
+  }
+
+  function guestReviewFormat(): GuestOutputFormat {
+    if (!partyMode) return "strip";
+    if (partyConfig.outputFormat === "video" && !isVideoSupported()) {
+      return "strip";
+    }
+    return partyConfig.outputFormat;
+  }
+
+  function enterReview(src: HTMLCanvasElement[]) {
+    const nextFormat = guestReviewFormat();
+    setFormat(nextFormat);
+    setPhase("review");
+    if (nextFormat !== "strip") void ensureFormatFrom(nextFormat, src);
+  }
+
   function verifyPartyExit(passcode: string) {
     if (!verifyPartyPasscode(partyConfig, passcode)) {
       setPartyExitError("That code did not match.");
@@ -1054,8 +1074,7 @@ export default function App() {
         }
       }
       if (!partyMode) pregenerate(next);
-      setFormat("strip");
-      setPhase("review");
+      enterReview(next);
       return;
     }
 
@@ -1110,8 +1129,7 @@ export default function App() {
     if (!partyMode) pregenerate(captured);
     void autoSaveToAlbum(captured, autosave);
 
-    setFormat("strip");
-    setPhase("review");
+    enterReview(captured);
   }
 
   async function runDemoSequence(src: HTMLCanvasElement[]) {
@@ -1143,8 +1161,7 @@ export default function App() {
       setFlash(false);
       setRetakeIndex(null);
       if (!partyMode) pregenerate(next);
-      setFormat("strip");
-      setPhase("review");
+      enterReview(next);
       return;
     }
 
@@ -1178,8 +1195,7 @@ export default function App() {
 
     if (!partyMode) pregenerate(captured);
     setNote("Demo shoot complete.");
-    setFormat("strip");
-    setPhase("review");
+    enterReview(captured);
   }
 
   // Warm the GIF/video cache and populate the review results so switching tabs
@@ -1397,16 +1413,26 @@ export default function App() {
     setFormat(f);
     setError(null);
     setNote(null);
-    if (f === "gif" && !gifResult) await ensureGif();
-    if (f === "boomerang" && !boomerangResult) await ensureBoomerang();
-    if (f === "video" && !videoResult) await ensureVideo();
+    if (f === "gif" && !gifResult) await ensureGifFrom(frames);
+    if (f === "boomerang" && !boomerangResult)
+      await ensureBoomerangFrom(frames);
+    if (f === "video" && !videoResult) await ensureVideoFrom(frames);
   }
 
-  async function ensureGif() {
+  async function ensureFormatFrom(
+    nextFormat: Exclude<Format, "print" | "strip">,
+    src: HTMLCanvasElement[],
+  ) {
+    if (nextFormat === "gif") await ensureGifFrom(src);
+    if (nextFormat === "boomerang") await ensureBoomerangFrom(src);
+    if (nextFormat === "video") await ensureVideoFrom(src);
+  }
+
+  async function ensureGifFrom(src: HTMLCanvasElement[]) {
     setGenerating("gif");
     try {
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = await getGifBlob(frames);
+      const blob = await getGifBlob(src);
       setGifResult((r) =>
         r
           ? r
@@ -1423,11 +1449,11 @@ export default function App() {
     }
   }
 
-  async function ensureBoomerang() {
+  async function ensureBoomerangFrom(src: HTMLCanvasElement[]) {
     setGenerating("boomerang");
     try {
       await wait(30);
-      const blob = await getBoomerangBlob(frames);
+      const blob = await getBoomerangBlob(src);
       setBoomerangResult((r) =>
         r
           ? r
@@ -1444,14 +1470,14 @@ export default function App() {
     }
   }
 
-  async function ensureVideo() {
+  async function ensureVideoFrom(src: HTMLCanvasElement[]) {
     if (!isVideoSupported()) {
       setError("Video recording isn't supported in this browser.");
       return;
     }
     setGenerating("video");
     try {
-      const { blob, extension } = await getVideoResult(frames);
+      const { blob, extension } = await getVideoResult(src);
       setVideoResult((r) =>
         r
           ? r
@@ -1957,12 +1983,15 @@ export default function App() {
           partyMode={partyConfig.enabled}
           partyPasscode={partyConfig.passcode}
           partyResetSeconds={partyConfig.resetSeconds}
+          partyOutputFormat={partyConfig.outputFormat}
+          videoSupported={isVideoSupported()}
           autosave={autosave}
           savedSessionCount={savedSessionCount}
           styleSummary={partyStyleSummary}
           onPartyMode={changePartyMode}
           onPartyPasscode={changePartyPasscode}
           onPartyResetSeconds={changePartyResetSeconds}
+          onPartyOutputFormat={changePartyOutputFormat}
           onBrowseTemplates={() => {
             setShowPartySetup(false);
             setShowTemplates(true);

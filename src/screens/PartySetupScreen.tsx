@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import {
+  GUEST_OUTPUT_FORMATS,
   PARTY_RESET_SECONDS,
   guestGalleryCountLabel,
+  type GuestOutputFormat,
   type PartyResetSeconds,
 } from "../lib/partyMode";
 import { anyAutosaveOn, type AutosaveSettings } from "../lib/settings";
@@ -19,12 +21,15 @@ export function PartySetupScreen({
   partyMode,
   partyPasscode,
   partyResetSeconds,
+  partyOutputFormat,
+  videoSupported,
   autosave,
   savedSessionCount,
   styleSummary,
   onPartyMode,
   onPartyPasscode,
   onPartyResetSeconds,
+  onPartyOutputFormat,
   onBrowseTemplates,
   onOpenSettings,
   onStart,
@@ -34,12 +39,15 @@ export function PartySetupScreen({
   partyMode: boolean;
   partyPasscode: string;
   partyResetSeconds: PartyResetSeconds;
+  partyOutputFormat: GuestOutputFormat;
+  videoSupported: boolean;
   autosave: AutosaveSettings;
   savedSessionCount: number | null;
   styleSummary: string;
   onPartyMode: (on: boolean) => void;
   onPartyPasscode: (passcode: string) => void;
   onPartyResetSeconds: (seconds: PartyResetSeconds) => void;
+  onPartyOutputFormat: (format: GuestOutputFormat) => void;
   onBrowseTemplates: () => void;
   onOpenSettings: () => void;
   onStart: () => void;
@@ -59,6 +67,18 @@ export function PartySetupScreen({
     : native
       ? "Photos auto-save is off."
       : "Photos auto-save is available in the iOS app.";
+  const outputOptions = GUEST_OUTPUT_FORMATS.map((format) => ({
+    value: format,
+    label:
+      format === "strip"
+        ? "Strip"
+        : format === "boomerang"
+          ? "Boom"
+          : format === "gif"
+            ? "GIF"
+            : "Video",
+    disabled: format === "video" && !videoSupported,
+  }));
   const primaryLabel = partyMode ? "Start Booth" : "Turn On Guest Mode";
 
   function primaryAction() {
@@ -91,6 +111,34 @@ export function PartySetupScreen({
           >
             Browse Templates
           </Button>
+        </SetupPanel>
+
+        <SetupPanel
+          title="Guest output"
+          status={
+            partyOutputFormat === "boomerang"
+              ? "Boom"
+              : partyOutputFormat === "gif"
+                ? "GIF"
+                : partyOutputFormat === "video" && videoSupported
+                  ? "Video"
+                  : "Strip"
+          }
+          statusTone="ready"
+          icon={<BrandIcon name="gallery" className="h-5 w-5" />}
+        >
+          <SegmentedControl
+            fullWidth
+            label="Guest Mode starting output"
+            value={
+              partyOutputFormat === "video" && !videoSupported
+                ? "strip"
+                : partyOutputFormat
+            }
+            onChange={onPartyOutputFormat}
+            options={outputOptions}
+            itemClassName="py-2 text-sm"
+          />
         </SetupPanel>
 
         <SetupPanel

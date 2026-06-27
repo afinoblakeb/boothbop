@@ -1,11 +1,13 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   PARTY_DEFAULT_PASSCODE,
+  GUEST_OUTPUT_FORMATS,
   PARTY_RESET_SECONDS,
   cleanPartyPasscodeInput,
   guestGalleryCountLabel,
   loadPartyModeConfig,
   isGuestModeActive,
+  normalizeGuestOutputFormat,
   normalizePartyPasscode,
   normalizePartyResetSeconds,
   savePartyModeConfig,
@@ -21,15 +23,22 @@ describe("partyMode", () => {
       enabled: false,
       passcode: PARTY_DEFAULT_PASSCODE,
       resetSeconds: 0,
+      outputFormat: "strip",
     });
   });
 
   it("round-trips an enabled config", () => {
-    savePartyModeConfig({ enabled: true, passcode: "1234", resetSeconds: 30 });
+    savePartyModeConfig({
+      enabled: true,
+      passcode: "1234",
+      resetSeconds: 30,
+      outputFormat: "boomerang",
+    });
     expect(loadPartyModeConfig()).toEqual({
       enabled: true,
       passcode: "1234",
       resetSeconds: 30,
+      outputFormat: "boomerang",
     });
   });
 
@@ -38,6 +47,7 @@ describe("partyMode", () => {
       enabled: true,
       passcode: "1234",
       resetSeconds: 15,
+      outputFormat: "strip",
     };
 
     expect(isGuestModeActive(config)).toBe(true);
@@ -58,6 +68,19 @@ describe("partyMode", () => {
     expect(normalizePartyResetSeconds(null)).toBe(0);
   });
 
+  it("documents and normalizes guest output formats", () => {
+    expect(GUEST_OUTPUT_FORMATS).toEqual([
+      "strip",
+      "gif",
+      "boomerang",
+      "video",
+    ]);
+    expect(normalizeGuestOutputFormat("gif")).toBe("gif");
+    expect(normalizeGuestOutputFormat("boomerang")).toBe("boomerang");
+    expect(normalizeGuestOutputFormat("print")).toBe("strip");
+    expect(normalizeGuestOutputFormat(null)).toBe("strip");
+  });
+
   it("normalizes invalid stored passcodes to the default", () => {
     expect(normalizePartyPasscode("12")).toBe(PARTY_DEFAULT_PASSCODE);
     expect(normalizePartyPasscode("abcd")).toBe(PARTY_DEFAULT_PASSCODE);
@@ -75,6 +98,7 @@ describe("partyMode", () => {
       enabled: true,
       passcode: "2468",
       resetSeconds: 0,
+      outputFormat: "strip",
     };
     expect(verifyPartyPasscode(config, "2468")).toBe(true);
     expect(verifyPartyPasscode(config, "24 68")).toBe(true);

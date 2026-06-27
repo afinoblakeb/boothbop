@@ -2,17 +2,26 @@ export interface PartyModeConfig {
   enabled: boolean;
   passcode: string;
   resetSeconds: PartyResetSeconds;
+  outputFormat: GuestOutputFormat;
 }
 
 export const PARTY_PASSCODE_LENGTH = 4;
 export const PARTY_DEFAULT_PASSCODE = "0000";
 export const PARTY_RESET_SECONDS = [0, 15, 30, 60] as const;
 export type PartyResetSeconds = (typeof PARTY_RESET_SECONDS)[number];
+export const GUEST_OUTPUT_FORMATS = [
+  "strip",
+  "gif",
+  "boomerang",
+  "video",
+] as const;
+export type GuestOutputFormat = (typeof GUEST_OUTPUT_FORMATS)[number];
 
 const KEYS = {
   enabled: "bb.party.enabled",
   passcode: "bb.party.passcode",
   resetSeconds: "bb.party.resetSeconds",
+  outputFormat: "bb.party.outputFormat",
 } as const;
 
 export function normalizePartyPasscode(value: string | null): string {
@@ -37,12 +46,23 @@ export function normalizePartyResetSeconds(
     : 0;
 }
 
+export function normalizeGuestOutputFormat(
+  value: string | null,
+): GuestOutputFormat {
+  return GUEST_OUTPUT_FORMATS.includes(value as GuestOutputFormat)
+    ? (value as GuestOutputFormat)
+    : "strip";
+}
+
 export function loadPartyModeConfig(): PartyModeConfig {
   return {
     enabled: localStorage.getItem(KEYS.enabled) === "1",
     passcode: normalizePartyPasscode(localStorage.getItem(KEYS.passcode)),
     resetSeconds: normalizePartyResetSeconds(
       localStorage.getItem(KEYS.resetSeconds),
+    ),
+    outputFormat: normalizeGuestOutputFormat(
+      localStorage.getItem(KEYS.outputFormat),
     ),
   };
 }
@@ -53,6 +73,10 @@ export function savePartyModeConfig(config: PartyModeConfig): void {
   localStorage.setItem(
     KEYS.resetSeconds,
     String(normalizePartyResetSeconds(config.resetSeconds)),
+  );
+  localStorage.setItem(
+    KEYS.outputFormat,
+    normalizeGuestOutputFormat(config.outputFormat),
   );
 }
 
