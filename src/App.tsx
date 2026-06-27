@@ -123,6 +123,7 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
 import { ProScreen } from "./screens/ProScreen";
 import { PartyExitModal } from "./screens/PartyExitModal";
+import { PartySetupScreen } from "./screens/PartySetupScreen";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -141,6 +142,23 @@ const DEMO_SETS = [
   { id: 2, label: "Night Out" },
   { id: 3, label: "Friends" },
 ] as const;
+
+const LAYOUT_LABELS: Record<Layout, string> = {
+  "4x1": "Classic strip",
+  "2x2": "Square grid",
+  "2x6": "2x6 strip",
+  "4x6": "4x6 print",
+  story: "Story",
+};
+
+const THEME_LABELS: Record<ThemeKey, string> = {
+  classic: "Cream",
+  rust: "Rust",
+  teal: "Teal",
+  mustard: "Mustard",
+  olive: "Olive",
+  carbon: "Carbon",
+};
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -171,6 +189,7 @@ export default function App() {
   const [showGallery, setShowGallery] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showPro, setShowPro] = useState(false);
+  const [showPartySetup, setShowPartySetup] = useState(false);
   const [proContext, setProContext] = useState<ProContext>("settings");
   const [proBusy, setProBusy] = useState(false);
   const [proError, setProError] = useState<string | null>(null);
@@ -313,6 +332,15 @@ export default function App() {
     customCaption,
     templateCaption,
   });
+  const partyStyleSummary = [
+    LAYOUT_LABELS[layout],
+    THEME_LABELS[themeKey],
+    FILTERS[filter].label,
+    sticker === "none" ? null : STICKERS[sticker].label,
+    stripCaption || null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -1673,6 +1701,7 @@ export default function App() {
           <IdleScreen
             onStart={() => void openCamera({ preserveStyle: partyMode })}
             onBrowseTemplates={() => setShowTemplates(true)}
+            onOpenPartySetup={() => setShowPartySetup(true)}
             onOpenGallery={() => setShowGallery(true)}
             onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
@@ -1796,6 +1825,35 @@ export default function App() {
           onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {showPartySetup && (
+        <PartySetupScreen
+          isPro={isPro}
+          native={isNativeShell()}
+          partyMode={partyConfig.enabled}
+          partyPasscode={partyConfig.passcode}
+          partyResetSeconds={partyConfig.resetSeconds}
+          autosave={autosave}
+          styleSummary={partyStyleSummary}
+          onPartyMode={changePartyMode}
+          onPartyPasscode={changePartyPasscode}
+          onPartyResetSeconds={changePartyResetSeconds}
+          onBrowseTemplates={() => {
+            setShowPartySetup(false);
+            setShowTemplates(true);
+          }}
+          onOpenSettings={() => {
+            setShowPartySetup(false);
+            openSettings();
+          }}
+          onUnlockPro={() => openPro("party")}
+          onStart={() => {
+            setShowPartySetup(false);
+            void openCamera({ preserveStyle: true });
+          }}
+          onClose={() => setShowPartySetup(false)}
         />
       )}
 

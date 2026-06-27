@@ -1,5 +1,5 @@
 import { useRef } from "react";
-import { BrandIcon } from "../icons";
+import { BrandIcon, GearIcon } from "../icons";
 import { Button, Callout } from "../ui";
 import { LOGO } from "../constants";
 import { InstallCard } from "../components/InstallCard";
@@ -10,6 +10,7 @@ import type { InstallPromptEvent } from "../types";
 export function IdleScreen({
   onStart,
   onBrowseTemplates,
+  onOpenPartySetup,
   onOpenGallery,
   onImportPhotos,
   demoSets = [],
@@ -20,6 +21,7 @@ export function IdleScreen({
 }: {
   onStart: () => void;
   onBrowseTemplates: () => void;
+  onOpenPartySetup: () => void;
   onOpenGallery: () => void;
   onImportPhotos: (files: FileList) => void;
   demoSets?: readonly { id: number; label: string }[];
@@ -72,7 +74,7 @@ export function IdleScreen({
                   Browse Templates
                 </span>
                 <span className="block font-sans text-xs uppercase tracking-wide opacity-85">
-                  12 looks to start with
+                  30 looks to start with
                 </span>
               </span>
               <span className="flex gap-1" aria-hidden="true">
@@ -81,6 +83,17 @@ export function IdleScreen({
                 <span className="h-9 w-3 border-2 border-ink bg-orange" />
               </span>
             </button>
+
+            <Button
+              variant="secondary"
+              size="lg"
+              fullWidth
+              onClick={onOpenPartySetup}
+              className="mt-3 max-w-xs"
+            >
+              <GearIcon className="h-7 w-7" />
+              Party Setup
+            </Button>
 
             <Button
               variant="secondary"
