@@ -40,7 +40,7 @@ const CONTEXT_EYEBROWS: Record<ProContext, string> = {
   caption: "Premium personalization",
   quality: "Premium export",
   print: "Premium print export",
-  party: "Event-host mode",
+  party: "Guest mode",
 };
 
 export function proPriceLabel(price: string | null): string {
@@ -57,11 +57,11 @@ export function proOfferCopy(
   return {
     eyebrow: CONTEXT_EYEBROWS[context],
     title: CONTEXT_TITLES[context],
-    body: "BoothBop Pro unlocks every premium template, Pro looks and props, custom captions, Party Mode, print sheets, HD GIFs and video, and watermark-free animated exports. Your photos stay on this device.",
+    body: "BoothBop Pro is optional. The free booth still makes strips, GIFs, boomerangs, and videos; Pro adds premium looks, custom captions, print sheets, HD exports, and watermark-free saved outputs. Your photos stay on this device.",
     bullets: [
-      "30-template catalog with premium layouts and 4x6 print sheets",
-      "Party Mode with guest reset, event names, and brand-ready templates",
-      "Watermark-free HD GIFs and videos with custom captions",
+      "Premium templates, layouts, looks, and props",
+      "Custom captions, HD exports, and 4x6 print sheets",
+      "Remove BoothBop branding from newly saved strips, GIFs, and videos",
     ],
     cta: `Start Pro - ${label}`,
   };

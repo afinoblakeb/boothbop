@@ -35,7 +35,7 @@ export function ProScreen({
         </Heading>
         <p className="mt-3 font-sans text-sm leading-relaxed text-brown">
           {isPro
-            ? "Every premium template, look, prop, caption, Party Mode flow, print sheet, HD export, and watermark-free animated export is active on this device."
+            ? "Every premium template, look, prop, caption, print sheet, HD export, guest flow, and watermark-free export is active on this device."
             : copy.body}
         </p>
       </section>
@@ -97,8 +97,9 @@ export function ProScreen({
       </div>
 
       <p className="mt-4 text-center font-sans text-xs leading-relaxed text-warmgray">
-        Cancel anytime in App Store subscriptions. BoothBop never uploads your
-        photos or collects purchase data outside Apple.
+        Auto-renews monthly through Apple unless canceled. No trial is included.
+        Manage or cancel in App Store subscriptions. If Pro lapses, new exports
+        use the free limits; saved files stay on this device.
       </p>
     </OverlayScreen>
   );

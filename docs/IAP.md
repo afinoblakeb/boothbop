@@ -1,9 +1,9 @@
 # In-App Purchase: BoothBop Pro
 
 BoothBop Pro is the native iOS entitlement for premium templates, premium
-looks/props, custom captions, HD exports, and watermark-free GIF/video exports.
-Apple handles billing and entitlement sync; BoothBop does not collect purchase
-data.
+looks/props, custom captions, HD exports, print sheets, and watermark-free saved
+outputs. Apple handles billing and entitlement sync; BoothBop does not collect
+purchase data.
 
 - **Primary product ID:** `com.boothbop.app.pro.monthly`
 - **Type:** auto-renewable subscription
@@ -14,8 +14,8 @@ data.
   (`ios/App/App/AppDelegate.swift`) -> `src/lib/storePlugin.ts` ->
   `src/lib/purchases.ts`.
 - **Gating:** `isPro` in `App.tsx` controls all Pro UI and passes
-  `watermark: false` to GIF/video renderers. The strip footer logo stays by
-  design; it is part of the strip branding, not the removable animated watermark.
+  `watermark: false` to strip, print-sheet, GIF, boomerang, and video renderers
+  for newly generated outputs.
 
 ## How It Behaves
 
@@ -35,7 +35,8 @@ data.
 3. Run the app, tap any locked Pro template/look/layout/prop/caption/HD export,
    then tap **Start Pro**.
 4. Confirm the StoreKit test sheet shows `BoothBop Pro Monthly` at `$1.99`.
-5. After purchase, confirm Pro templates unlock and GIF/video watermarks drop.
+5. After purchase, confirm Pro templates unlock and BoothBop branding drops from
+   newly exported strips, GIFs, boomerangs, and videos.
 6. Test restore from Settings and the Pro screen.
 7. Reset state with Xcode -> Debug -> StoreKit -> Manage Transactions -> delete.
 
@@ -49,7 +50,7 @@ data.
    - Duration: 1 month
    - Price: `$1.99`
    - Display Name: `BoothBop Pro Monthly`
-   - Description: `Premium templates, Pro looks and props, custom captions, HD exports, and watermark-free animated exports.`
+   - Description: `Premium templates, Pro looks and props, custom captions, print sheets, HD exports, and watermark-free saved outputs.`
 4. Add the app privacy/product screenshots required for IAP review.
 5. Submit the first subscription with an app version that includes this build.
 

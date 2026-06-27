@@ -111,8 +111,8 @@ export function SettingsScreen({
             BoothBop Pro
           </Heading>
           <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-            Premium templates, Party Mode, print sheets, custom captions, HD
-            exports, and watermark-free GIFs and videos.
+            Premium templates, custom captions, print sheets, HD exports, guest
+            mode extras, and watermark-free saved outputs.
           </p>
           {isPro ? (
             <Callout
@@ -120,8 +120,8 @@ export function SettingsScreen({
               tone="info"
               className="mt-4 px-4 py-3 font-sans text-sm text-ink"
             >
-              Pro active. Premium creative tools, event flows, print sheets, and
-              watermark-free animated exports are enabled.
+              Pro active. Premium creative tools, guest flows, print sheets, HD
+              exports, and watermark-free saved outputs are enabled.
             </Callout>
           ) : (
             <div className="mt-4">
