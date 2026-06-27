@@ -311,7 +311,8 @@ export default function App() {
   }
 
   // BoothBop Pro (native iOS). isPro gates premium creative tools and drops the
-  // removable watermark from GIF/video exports. StoreKit is the source of truth;
+  // removable BoothBop mark from strip, GIF, boomerang, and video exports.
+  // StoreKit is the source of truth;
   // cached locally for instant UI.
   const [isPro, setIsPro] = useState(isProCached());
   const [proProduct, setProProduct] = useState<ProProduct | null>(null);
@@ -854,18 +855,23 @@ export default function App() {
     setShowPro(true);
   }
 
-  // Buy Pro. On success, drop cached (watermarked) GIF/video so they re-encode
-  // clean the next time their tab is opened.
+  function completeProActivation(message: string) {
+    setIsPro(true);
+    clearResults();
+    setFormat("strip");
+    setShowPro(false);
+    setNote(message);
+  }
+
+  // Buy Pro. On success, drop cached branded media and return to the strip,
+  // which re-renders immediately without the removable BoothBop mark.
   async function purchasePro() {
     setError(null);
     setProError(null);
     setProBusy(true);
     try {
       if (await subscribeToPro()) {
-        setIsPro(true);
-        clearResults();
-        setShowPro(false);
-        setNote("BoothBop Pro active.");
+        completeProActivation("BoothBop Pro active.");
       } else {
         setProError("The purchase was cancelled or is still pending.");
       }
@@ -882,10 +888,7 @@ export default function App() {
     setProBusy(true);
     try {
       if (await restorePurchases()) {
-        setIsPro(true);
-        clearResults();
-        setShowPro(false);
-        setNote("Purchase restored.");
+        completeProActivation("Purchase restored.");
       } else {
         setProError("No previous Pro purchase was found.");
         setProContext("settings");
