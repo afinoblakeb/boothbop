@@ -1932,7 +1932,6 @@ export default function App() {
         <GalleryScreen
           onClose={() => setShowGallery(false)}
           onOpen={openSession}
-          demo={DEMO}
         />
       )}
 

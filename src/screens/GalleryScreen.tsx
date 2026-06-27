@@ -16,11 +16,9 @@ import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 export function GalleryScreen({
   onClose,
   onOpen,
-  demo = false,
 }: {
   onClose: () => void;
   onOpen: (session: Session) => void;
-  demo?: boolean;
 }) {
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -28,16 +26,16 @@ export function GalleryScreen({
     sessions?.filter((session) => !favoritesOnly || session.favorite) ?? null;
   const hasFavorites = sessions?.some((session) => session.favorite) ?? false;
 
-  const reload = () => loadGallerySessions(demo).then(setSessions);
+  const reload = () => loadGallerySessions().then(setSessions);
   useEffect(() => {
     let active = true;
-    loadGallerySessions(demo).then((items) => {
+    loadGallerySessions().then((items) => {
       if (active) setSessions(items);
     });
     return () => {
       active = false;
     };
-  }, [demo]);
+  }, []);
 
   async function remove(id: string) {
     await deleteSession(id);
@@ -59,7 +57,7 @@ export function GalleryScreen({
     <OverlayScreen title="BoothBop Gallery" onClose={onClose}>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
         Tap a set to reopen its strip, GIF, or video. These are saved in
-        BoothBop on this device.
+        BoothBop on this device; sample sets are included for trying looks.
       </p>
 
       {sessions === null ? (
@@ -135,14 +133,14 @@ export function GalleryScreen({
                       onOpen={() => onOpen(s)}
                       onDelete={() => remove(s.id)}
                       onFavorite={() => favorite(s)}
-                      demo={isDemoSessionId(s.id)}
+                      sample={isSampleSessionId(s.id)}
                     />
                   ))}
                 </div>
               </section>
             ))}
           </div>
-          {sessions.some((s) => !isDemoSessionId(s.id)) && (
+          {sessions.some((s) => !isSampleSessionId(s.id)) && (
             <Button
               variant="danger"
               size="md"
@@ -160,22 +158,21 @@ export function GalleryScreen({
   );
 }
 
-async function loadGallerySessions(demo: boolean): Promise<Session[]> {
+async function loadGallerySessions(): Promise<Session[]> {
   const saved = await listSessions();
-  if (!demo) return saved;
   const { loadSampleSessions } = await import("../lib/demo");
   return [...(await loadSampleSessions()), ...saved];
 }
 
-function isDemoSessionId(id: string): boolean {
+function isSampleSessionId(id: string): boolean {
   return id.startsWith("demo-");
 }
 
 function galleryCountLabel(sessions: Session[]): string {
-  const demo = sessions.filter((s) => isDemoSessionId(s.id)).length;
-  const saved = sessions.length - demo;
-  if (demo && saved) return `${demo} demo + ${saved} saved`;
-  if (demo) return `${demo} demo ${demo === 1 ? "set" : "sets"}`;
+  const samples = sessions.filter((s) => isSampleSessionId(s.id)).length;
+  const saved = sessions.length - samples;
+  if (samples && saved) return `${samples} samples + ${saved} saved`;
+  if (samples) return `${samples} sample ${samples === 1 ? "set" : "sets"}`;
   return `${saved} saved ${saved === 1 ? "set" : "sets"}`;
 }
 
@@ -205,13 +202,13 @@ function Cover({
   onOpen,
   onDelete,
   onFavorite,
-  demo,
+  sample,
 }: {
   session: Session;
   onOpen: () => void;
   onDelete: () => void;
   onFavorite: () => void;
-  demo: boolean;
+  sample: boolean;
 }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
@@ -260,7 +257,7 @@ function Cover({
           {session.title || timeLabel(session.createdAt)}
         </span>
       </button>
-      {!demo && (
+      {!sample && (
         <>
           <IconButton
             aria-label={session.favorite ? "Unfavorite" : "Favorite"}

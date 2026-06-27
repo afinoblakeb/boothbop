@@ -1,8 +1,6 @@
-// Screenshot/demo helper — loads staged sample photos in as the four captured
-// frames so we can render REAL strips/GIFs/video for App Store screenshots
-// without a camera or posing. Gated behind a build flag in App.tsx (DEV or
-// VITE_DEMO); the sample images live in src/demo/ and are only bundled with the
-// dev/demo loader.
+// Sample photo helper — loads staged photos in as the four captured frames so
+// we can render real strips/GIFs/video without a camera or posing. The same
+// photos power App Store screenshots, Gallery samples, and simulator testing.
 import { CAPTURE_SIZE } from "./camera";
 import type { Session } from "./gallery";
 import { DEFAULT_LAYOUT, type SessionStyle } from "./style";
@@ -29,9 +27,9 @@ const SAMPLE_SETS: Record<number, string[]> = {
 };
 
 const SAMPLE_TITLES: Record<number, string> = {
-  1: "Demo: Birthday",
-  2: "Demo: Night Out",
-  3: "Demo: Friends",
+  1: "Sample: Birthday",
+  2: "Sample: Night Out",
+  3: "Sample: Friends",
 };
 
 const SAMPLE_STYLES: Record<number, SessionStyle> = {
@@ -98,7 +96,7 @@ export async function loadSampleSessions(): Promise<Session[]> {
         id: `demo-${setNum}`,
         createdAt: now - index * 60_000,
         title: SAMPLE_TITLES[setNum],
-        favorite: true,
+        favorite: false,
         style: SAMPLE_STYLES[setNum],
         photos: await Promise.all(urls.map(loadBlob)),
       };
