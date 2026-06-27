@@ -1,7 +1,7 @@
 import { BrandIcon, GearIcon } from "../icons";
 import { Button, IconButton } from "../ui";
 
-/** Sticky top bar: brand wordmark (home) + My Photos and Settings. */
+/** Sticky top bar: brand wordmark (home) + gallery and Settings. */
 export function TopBar({
   onHome,
   onAlbum,
@@ -26,7 +26,7 @@ export function TopBar({
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={onAlbum}>
             <BrandIcon name="gallery" className="h-5 w-5" />
-            My Photos
+            Gallery
           </Button>
           <IconButton
             compact

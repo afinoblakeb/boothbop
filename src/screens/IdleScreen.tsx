@@ -6,7 +6,7 @@ import { InstallCard } from "../components/InstallCard";
 import { LegalFooter } from "../components/LegalFooter";
 import type { InstallPromptEvent } from "../types";
 
-/** The home screen: brand, pitch, the two primary actions, install nudge, legal. */
+/** The home screen: brand, pitch, consumer-first actions, install nudge, legal. */
 export function IdleScreen({
   onStart,
   onBrowseTemplates,
@@ -42,8 +42,8 @@ export function IdleScreen({
         />
 
         <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
-          Your phone is the photo booth. Tap the button, strike four poses, and
-          grab your photo strip!
+          Make a four-photo strip, GIF, or boomerang in one quick shoot. Photos
+          stay on this device.
         </p>
 
         {partyMode && (
@@ -60,62 +60,58 @@ export function IdleScreen({
           className="mt-4 max-w-xs"
         >
           <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-          {partyMode ? "Start Booth" : "Take Photos"}
+          {partyMode ? "Start Booth" : "Take Photo Strip"}
         </Button>
 
         {!partyMode && (
           <>
-            <button
-              onClick={onBrowseTemplates}
-              className="mt-3 flex min-h-16 w-full max-w-xs items-center justify-between border-2 border-ink bg-teal px-4 text-left text-cream transition active:translate-y-px"
-            >
-              <span>
-                <span className="block font-display text-2xl uppercase tracking-wide">
-                  Browse Templates
+            <div className="mt-3 grid w-full max-w-xs grid-cols-2 gap-3">
+              <button
+                onClick={onBrowseTemplates}
+                className="flex min-h-16 items-center justify-between border-2 border-ink bg-teal px-3 text-left text-cream transition active:translate-y-px"
+              >
+                <span>
+                  <span className="block font-display text-xl uppercase tracking-wide">
+                    Templates
+                  </span>
+                  <span className="block font-sans text-[11px] font-bold uppercase tracking-wide opacity-85">
+                    Free + Pro looks
+                  </span>
                 </span>
-                <span className="block font-sans text-xs uppercase tracking-wide opacity-85">
-                  30 looks to start with
+                <span className="flex gap-1" aria-hidden="true">
+                  <span className="h-8 w-2.5 border-2 border-ink bg-cream" />
+                  <span className="h-8 w-2.5 border-2 border-ink bg-mustard" />
+                  <span className="h-8 w-2.5 border-2 border-ink bg-orange" />
                 </span>
-              </span>
-              <span className="flex gap-1" aria-hidden="true">
-                <span className="h-9 w-3 border-2 border-ink bg-cream" />
-                <span className="h-9 w-3 border-2 border-ink bg-mustard" />
-                <span className="h-9 w-3 border-2 border-ink bg-orange" />
-              </span>
-            </button>
+              </button>
 
-            <Button
-              variant="secondary"
-              size="lg"
-              fullWidth
-              onClick={onOpenPartySetup}
-              className="mt-3 max-w-xs"
-            >
-              <GearIcon className="h-7 w-7" />
-              Party Setup
-            </Button>
+              <button
+                onClick={onOpenGallery}
+                className="flex min-h-16 items-center justify-center gap-2 border-2 border-ink bg-paper px-3 text-ink transition active:translate-y-px"
+              >
+                <BrandIcon name="gallery" className="h-7 w-7" />
+                <span className="font-display text-xl uppercase tracking-wide">
+                  Gallery
+                </span>
+              </button>
+            </div>
 
-            <Button
-              variant="secondary"
-              size="lg"
-              fullWidth
-              onClick={onOpenGallery}
-              className="mt-3 max-w-xs"
-            >
-              <BrandIcon name="gallery" className="h-8 w-8" />
-              My Photos
-            </Button>
-
-            <Button
-              variant="secondary"
-              size="md"
-              fullWidth
-              onClick={() => importRef.current?.click()}
-              className="mt-3 max-w-xs"
-            >
-              <BrandIcon name="gallery" className="h-6 w-6" />
-              Import 4 Photos
-            </Button>
+            <div className="mt-3 flex max-w-xs flex-wrap justify-center gap-x-5 gap-y-2">
+              <button
+                onClick={() => importRef.current?.click()}
+                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+              >
+                <BrandIcon name="gallery" className="h-5 w-5" />
+                Import
+              </button>
+              <button
+                onClick={onOpenPartySetup}
+                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+              >
+                <GearIcon className="h-5 w-5" />
+                Guest Setup
+              </button>
+            </div>
             <input
               ref={importRef}
               type="file"

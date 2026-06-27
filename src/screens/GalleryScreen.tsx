@@ -50,15 +50,16 @@ export function GalleryScreen({
   }
 
   async function clearAll() {
-    if (!window.confirm("Delete all saved photos from this device?")) return;
+    if (!window.confirm("Delete all saved sets from BoothBop Gallery?")) return;
     await clearSessions();
     reload();
   }
 
   return (
-    <OverlayScreen title="My Photos" onClose={onClose}>
+    <OverlayScreen title="BoothBop Gallery" onClose={onClose}>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-        Tap a set to get its strip, GIF, or video. Saved on this device only.
+        Tap a set to reopen its strip, GIF, or video. These are saved in
+        BoothBop on this device.
       </p>
 
       {sessions === null ? (
@@ -72,7 +73,7 @@ export function GalleryScreen({
             No photos yet
           </Heading>
           <p className="font-sans text-sm text-warmgray">
-            Your booth sessions are saved here automatically.
+            Finished booth sessions appear here automatically.
           </p>
         </div>
       ) : visibleSessions?.length === 0 ? (
