@@ -1,5 +1,6 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BrandIcon, GearIcon } from "../icons";
+import { composeStrip, THEMES } from "../lib/strip";
 import { Button, Callout } from "../ui";
 import { LOGO } from "../constants";
 import { InstallCard } from "../components/InstallCard";
@@ -34,6 +35,24 @@ export function IdleScreen({
 }) {
   const importRef = useRef<HTMLInputElement>(null);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [sampleUrl, setSampleUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    import("../lib/demo")
+      .then(async ({ loadSampleFrames }) => {
+        const frames = await loadSampleFrames(3, 180);
+        const url = composeStrip(frames, "4x1", THEMES.classic, {
+          cell: 72,
+          watermark: false,
+        }).toDataURL("image/png");
+        if (active) setSampleUrl(url);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -48,6 +67,15 @@ export function IdleScreen({
           Make a four-photo strip, GIF, or boomerang in one quick shoot. Photos
           stay on this device.
         </p>
+
+        {sampleUrl && (
+          <img
+            src={sampleUrl}
+            alt="Sample BoothBop photo strip"
+            className="mt-3 max-h-44 w-auto border-2 border-ink"
+            draggable={false}
+          />
+        )}
 
         {partyMode && (
           <p className="mt-2 max-w-xs border-2 border-ink bg-paper px-3 py-2 font-sans text-xs uppercase tracking-wide text-brown">
