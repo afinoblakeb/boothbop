@@ -32,6 +32,7 @@ export function CameraScreen({
   onToggleMirror,
   onToggleSound,
   onStart,
+  onCancel,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
@@ -50,6 +51,7 @@ export function CameraScreen({
   onToggleMirror: () => void;
   onToggleSound: () => void;
   onStart: () => void;
+  onCancel: () => void;
 }) {
   const isDemo = demoPreviewUrl !== null;
   return (
@@ -82,6 +84,13 @@ export function CameraScreen({
             {thumbs.length}/{SHOTS}
           </Heading>
         )}
+
+        <button
+          onClick={onCancel}
+          className="absolute right-2 top-2 min-h-10 border-2 border-ink bg-cream px-3 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+        >
+          {phase === "capturing" ? "Stop" : "Cancel"}
+        </button>
 
         {countdown !== null && (
           <div className="absolute inset-0 flex items-center justify-center">

@@ -1887,6 +1887,7 @@ export default function App() {
           onToggleMirror={() => setMirror(!mirrorPreview)}
           onToggleSound={toggleCaptureSound}
           onStart={runSequence}
+          onCancel={cancelToHome}
         />
       )}
 
