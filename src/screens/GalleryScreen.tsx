@@ -48,7 +48,12 @@ export function GalleryScreen({
   }
 
   async function clearAll() {
-    if (!window.confirm("Delete all saved sets from BoothBop Gallery?")) return;
+    if (
+      !window.confirm(
+        "Clear BoothBop Gallery? This removes saved sets from this app only. Photos you already saved or shared stay where they are.",
+      )
+    )
+      return;
     await clearSessions();
     reload();
   }
@@ -57,7 +62,7 @@ export function GalleryScreen({
     <OverlayScreen title="BoothBop Gallery" onClose={onClose}>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
         Tap a set to reopen its strip, GIF, or video. These are saved in
-        BoothBop on this device; sample sets are included for trying looks.
+        BoothBop on this device only; sample sets are included for trying looks.
       </p>
 
       {sessions === null ? (

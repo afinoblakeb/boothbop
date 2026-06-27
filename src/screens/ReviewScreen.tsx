@@ -356,7 +356,8 @@ export function ReviewScreen({
             </p>
           )}
           <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
-            Photos stay on this device. BoothBop never uploads or stores them.
+            BoothBop never uploads your photos. Saved sets stay only in this app
+            on this device until you delete them.
           </p>
         </>
       )}
@@ -628,7 +629,8 @@ export function ReviewScreen({
           </Button>
 
           <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
-            Photos stay on this device. BoothBop never uploads or stores them.
+            BoothBop never uploads your photos. Saved sets stay only in this app
+            on this device until you delete them.
           </p>
         </section>
       )}

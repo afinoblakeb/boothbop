@@ -239,19 +239,50 @@ export function canvasToBlob(
   });
 }
 
+export function blobCanvasGeometry(
+  naturalWidth: number,
+  naturalHeight: number,
+  requestedSize?: number,
+): { sx: number; sy: number; side: number; size: number } {
+  const side = Math.min(naturalWidth, naturalHeight);
+  return {
+    sx: (naturalWidth - side) / 2,
+    sy: (naturalHeight - side) / 2,
+    side,
+    size: requestedSize ?? side,
+  };
+}
+
 /** Load a stored photo blob back into a square canvas (for re-compositing). */
 export function blobToCanvas(
   blob: Blob,
-  size = 720,
+  size?: number,
 ): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
+      const geometry = blobCanvasGeometry(
+        img.naturalWidth,
+        img.naturalHeight,
+        size,
+      );
       const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, size, size);
+      canvas.width = geometry.size;
+      canvas.height = geometry.size;
+      canvas
+        .getContext("2d")!
+        .drawImage(
+          img,
+          geometry.sx,
+          geometry.sy,
+          geometry.side,
+          geometry.side,
+          0,
+          0,
+          geometry.size,
+          geometry.size,
+        );
       URL.revokeObjectURL(url);
       resolve(canvas);
     };

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // Reset the in-memory IndexedDB between tests for isolation.
 import { IDBFactory } from "fake-indexeddb";
 import {
+  blobCanvasGeometry,
   clearSessions,
   cleanSessionTitle,
   deleteSession,
@@ -139,6 +140,21 @@ describe("gallery sessions", () => {
     });
     const stored = (await listSessions()).find((s) => s.id === session.id);
     expect(stored?.style?.layout).toBe("story");
+  });
+
+  it("preserves stored photo resolution unless a thumbnail size is requested", () => {
+    expect(blobCanvasGeometry(1600, 1200)).toEqual({
+      sx: 200,
+      sy: 0,
+      side: 1200,
+      size: 1200,
+    });
+    expect(blobCanvasGeometry(1200, 1600, 320)).toEqual({
+      sx: 0,
+      sy: 200,
+      side: 1200,
+      size: 320,
+    });
   });
 
   it("normalizes legacy invalid style metadata", async () => {
