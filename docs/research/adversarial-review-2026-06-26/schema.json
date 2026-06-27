@@ -1,0 +1,31 @@
+{
+  "review_id": "adversarial-review-2026-06-26",
+  "persona_record": {
+    "persona_id": "string",
+    "persona": "string",
+    "segment": "string",
+    "market_scope": "consumer_launch | consumer_adjacent_event | future_market_out_of_scope",
+    "willingness_to_pay_1_99_monthly": "number | string",
+    "one_sentence_verdict": "string",
+    "top_confusions": ["string"],
+    "top_missing_features": ["string"],
+    "dealbreakers": ["string"]
+  },
+  "finding_record": {
+    "finding_id": "string",
+    "persona_id": "string",
+    "persona": "string",
+    "segment": "string",
+    "market_scope": "consumer_launch | consumer_adjacent_event | future_market_out_of_scope",
+    "severity": "P0 | P1 | P2 | P3",
+    "category": "string",
+    "surface": "string",
+    "issue": "string",
+    "evidence": "string",
+    "recommendation": "string",
+    "tags": ["string"],
+    "cluster_hint": "string",
+    "priority_scope": "launch | later | out_of_scope",
+    "status": "new | triaged | accepted | rejected | shipped"
+  }
+}

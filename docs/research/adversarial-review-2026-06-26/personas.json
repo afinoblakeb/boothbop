@@ -1,0 +1,500 @@
+[
+  {
+    "persona_id": "agent_01",
+    "persona": "Busy parent running a birthday party booth",
+    "segment": "family_party",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 3,
+    "one_sentence_verdict": "Fun parent-operated selfie strip, but it still asks the parent to manage setup, saving, guest reset, and delivery.",
+    "top_confusions": [
+      "Party Mode is prominent but Pro/native-gated.",
+      "Save / Share does not explain where photos go.",
+      "The app does not tell the parent whether auto-save is safe before handing it to guests."
+    ],
+    "top_missing_features": [
+      "Free basic guest mode.",
+      "Clear save-to-Photos setup.",
+      "Guest pickup or AirDrop/QR handoff.",
+      "Physical setup guidance for a propped phone."
+    ],
+    "dealbreakers": [
+      "Party Mode can stall after sharing.",
+      "No guest delivery flow.",
+      "Autosave can be off while the host thinks the booth is ready."
+    ]
+  },
+  {
+    "persona_id": "agent_02",
+    "persona": "Bride or wedding coordinator setting up a casual reception booth",
+    "segment": "consumer_event_heavy",
+    "market_scope": "consumer_adjacent_event",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "Charming casual selfie app, but not trustworthy for a reception because printing, guest flow, and event setup are underpowered.",
+    "top_confusions": [
+      "Print sounds real but exports a PNG.",
+      "Party Mode sounds like kiosk mode but still needs host oversight.",
+      "Wedding setup is scattered across templates, settings, and Party Setup."
+    ],
+    "top_missing_features": [
+      "Wedding setup wizard.",
+      "Real print handoff.",
+      "Event archive.",
+      "Guest delivery.",
+      "Better wedding personalization."
+    ],
+    "dealbreakers": [
+      "No wedding-grade print workflow.",
+      "No unattended guest loop.",
+      "Monthly pricing feels wrong for a one-night event."
+    ]
+  },
+  {
+    "persona_id": "agent_03",
+    "persona": "Venue or bar owner evaluating photo-booth promo value",
+    "segment": "venue_business",
+    "market_scope": "future_market_out_of_scope",
+    "willingness_to_pay_1_99_monthly": 3,
+    "one_sentence_verdict": "Fun personal party camera, not a venue marketing or campaign tool.",
+    "top_confusions": [
+      "Branding appears limited to captions.",
+      "There is no event/campaign container.",
+      "Party Mode does not handle high-throughput guest lines."
+    ],
+    "top_missing_features": [
+      "Brand kits.",
+      "Event galleries.",
+      "Venue CTA/hashtag support.",
+      "QR delivery.",
+      "Print workflow."
+    ],
+    "dealbreakers": [
+      "No brand control.",
+      "No campaign archive.",
+      "No guest delivery or analytics."
+    ]
+  },
+  {
+    "persona_id": "agent_04",
+    "persona": "Non-technical house party host",
+    "segment": "house_party",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "The core idea is fun and private, but the app feels like a production tool instead of a simple party trick.",
+    "top_confusions": [
+      "Home has too many choices.",
+      "Party Setup sounds required but is Pro/admin-heavy.",
+      "Edit hides the real output choices."
+    ],
+    "top_missing_features": [
+      "One-button start.",
+      "Simple guest loop.",
+      "Clear save language.",
+      "Less crowded editor."
+    ],
+    "dealbreakers": [
+      "Too much setup before fun.",
+      "Save is ambiguous.",
+      "No guest delivery loop."
+    ]
+  },
+  {
+    "persona_id": "agent_05",
+    "persona": "Teen or social creator",
+    "segment": "social_creator",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Cute private retro utility, but not fast or modern enough for a social creator app.",
+    "top_confusions": [
+      "Story output is not a first-class path.",
+      "Boomerang is an export, not a capture mode.",
+      "The app feels event-oriented instead of creator-oriented."
+    ],
+    "top_missing_features": [
+      "Free 9:16 output.",
+      "Real motion capture.",
+      "Text overlays.",
+      "Trend templates.",
+      "Platform-specific export."
+    ],
+    "dealbreakers": [
+      "No story-first flow.",
+      "Boomerang feels like still-frame slideshow.",
+      "Paid value is not creator-grade."
+    ]
+  },
+  {
+    "persona_id": "agent_06",
+    "persona": "Corporate event marketer needing branded content",
+    "segment": "corporate_event",
+    "market_scope": "future_market_out_of_scope",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "Polished private party booth, but not a trade-show tool because it cannot control brand assets, leads, delivery, or ROI.",
+    "top_confusions": [
+      "Brand-ready sounds stronger than what exists.",
+      "Print is a PNG export.",
+      "Guest delivery is ad hoc."
+    ],
+    "top_missing_features": [
+      "Lead capture.",
+      "Brand kits.",
+      "QR/SMS/email delivery.",
+      "Analytics.",
+      "Event archive."
+    ],
+    "dealbreakers": [
+      "No lead capture.",
+      "No logo upload.",
+      "No corporate delivery or reporting."
+    ]
+  },
+  {
+    "persona_id": "agent_07",
+    "persona": "Professional photo booth operator",
+    "segment": "professional_operator",
+    "market_scope": "future_market_out_of_scope",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "A charming phone backup or guest toy, not replacement software for paid booth work.",
+    "top_confusions": [
+      "Print tab is not direct printing.",
+      "Party Mode is not full kiosk mode.",
+      "Branding is captions, not client design control."
+    ],
+    "top_missing_features": [
+      "Printer setup.",
+      "Event projects.",
+      "External hardware.",
+      "Print DPI/bleed controls.",
+      "Redundant storage."
+    ],
+    "dealbreakers": [
+      "No real print pipeline.",
+      "No professional hardware support.",
+      "Best-effort storage."
+    ]
+  },
+  {
+    "persona_id": "agent_08",
+    "persona": "Casual App Store user comparing photo booth apps",
+    "segment": "casual_app_store",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "Charming for a quick private strip, but not deep, polished, or obvious enough to justify monthly Pro.",
+    "top_confusions": [
+      "Promised GIF/Boom/Video outputs are hidden behind Edit.",
+      "Free versus Pro is unclear.",
+      "Save / Share is ambiguous."
+    ],
+    "top_missing_features": [
+      "Visible output chooser.",
+      "Stronger free library.",
+      "Template designer basics.",
+      "Guest-friendly sharing."
+    ],
+    "dealbreakers": [
+      "No direct print workflow.",
+      "Monthly Pro lacks recurring value.",
+      "App Store promise undersells paywall limits."
+    ]
+  },
+  {
+    "persona_id": "agent_09",
+    "persona": "Privacy-conscious parent",
+    "segment": "privacy_parent",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 3,
+    "one_sentence_verdict": "No-backend architecture is promising, but local persistence, sharing, deletion, and guest controls are not clear enough for kids.",
+    "top_confusions": [
+      "Never stores them conflicts with local gallery storage.",
+      "Clear all scope is unclear.",
+      "Save / Share may expose photos externally."
+    ],
+    "top_missing_features": [
+      "First-run privacy sheet.",
+      "Temporary/no-gallery mode.",
+      "Separate Save and Share.",
+      "Host approval for sharing.",
+      "Auto-delete."
+    ],
+    "dealbreakers": [
+      "Misleading privacy copy.",
+      "Weak guest lock.",
+      "Deletion does not cover Photos/download/shared copies."
+    ]
+  },
+  {
+    "persona_id": "agent_10",
+    "persona": "Print-focused scrapbooker and memory keeper",
+    "segment": "scrapbook_print",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "Fun digital booth, but not trustworthy as a print-quality, long-term keepsake workflow.",
+    "top_confusions": [
+      "Print-ready means PNG only.",
+      "DPI and physical size are unclear.",
+      "Reopened gallery quality may be lower."
+    ],
+    "top_missing_features": [
+      "Per-shot crop.",
+      "True 2x6/4x6 print export.",
+      "Archive/restore.",
+      "Original photo retention.",
+      "Editable dates/captions."
+    ],
+    "dealbreakers": [
+      "Gallery reopens at 720px.",
+      "No crop/reposition.",
+      "No print metadata or PDF/lab handoff."
+    ]
+  },
+  {
+    "persona_id": "agent_11",
+    "persona": "Accessibility-sensitive low-vision user with mild motor impairment",
+    "segment": "accessibility",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Fun idea, but the UI is too visually dense, too motor-demanding, and too weakly monetized.",
+    "top_confusions": [
+      "The BoothBop wordmark is not obviously Home/cancel.",
+      "Outputs are hidden behind Edit.",
+      "Pro locks appear on web where purchase is disabled."
+    ],
+    "top_missing_features": [
+      "Large text mode.",
+      "Visible Cancel/Stop.",
+      "Spoken countdown.",
+      "Reduced motion/flash.",
+      "Bigger touch targets."
+    ],
+    "dealbreakers": [
+      "Small condensed uppercase text.",
+      "Fast four-shot pace.",
+      "Dead-end web Pro controls."
+    ]
+  },
+  {
+    "persona_id": "agent_12",
+    "persona": "Android Chrome/PWA consumer",
+    "segment": "android_pwa",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "The core booth is usable, but Android/web users hit iOS-only subscription dead ends and unclear save behavior.",
+    "top_confusions": [
+      "Install says full app but Pro says iOS only.",
+      "Locked Pro controls cannot be purchased.",
+      "Download/Gallery/Photos concepts blur together."
+    ],
+    "top_missing_features": [
+      "Web/Android Pro path or no locks.",
+      "Visible output chooser.",
+      "Clear Android save language.",
+      "Consumer-first templates."
+    ],
+    "dealbreakers": [
+      "Dead paywall on web/PWA.",
+      "Save All creates many downloads.",
+      "Product feels split across PWA/native/Pro."
+    ]
+  },
+  {
+    "persona_id": "agent_13",
+    "persona": "Impatient first-time iPhone user",
+    "segment": "first_minute",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "The free toy works, but the first minute buries fun under setup/export jargon and an event-host paywall.",
+    "top_confusions": [
+      "Take Photos opens preview instead of starting.",
+      "Where are GIF, Video, and Boomerang?",
+      "Does Save put it in Photos?"
+    ],
+    "top_missing_features": [
+      "Finished-result preview on home.",
+      "One-tap fast capture.",
+      "Consumer template packs.",
+      "Contextual Pro preview.",
+      "Clear Save to Photos."
+    ],
+    "dealbreakers": [
+      "Monthly subscription for static polish.",
+      "Slow first shoot.",
+      "Advertised outputs hidden behind Edit."
+    ]
+  },
+  {
+    "persona_id": "agent_14",
+    "persona": "Budget-conscious college student and subscription skeptic",
+    "segment": "college_budget",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "The free booth loop is understandable, but Pro feels like a thin event-host/template upsell.",
+    "top_confusions": [
+      "Party Setup on home.",
+      "30 templates may be mostly paid.",
+      "Pro can be bought only in iOS native."
+    ],
+    "top_missing_features": [
+      "One-time unlock.",
+      "Modern social outputs.",
+      "Before/after Pro preview.",
+      "Friend-group packs.",
+      "Better import/crop."
+    ],
+    "dealbreakers": [
+      "Subscription feels unjustified.",
+      "Business/event language leaks into consumer app.",
+      "Locked controls appear before free value is proven."
+    ]
+  },
+  {
+    "persona_id": "agent_15",
+    "persona": "Instagram/TikTok-first social creator",
+    "segment": "social_creator",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Cute photo-strip booth, but not a social creation tool because fast path, templates, motion, captions, and exports are wrong.",
+    "top_confusions": [
+      "Why not start with Story/GIF/Boomerang?",
+      "Story is buried and Pro-gated.",
+      "Boomerang is not real motion."
+    ],
+    "top_missing_features": [
+      "Free Story canvas.",
+      "Real burst/video boomerang.",
+      "Text overlay editor.",
+      "Trend packs.",
+      "Direct social export."
+    ],
+    "dealbreakers": [
+      "Not built for social creators.",
+      "Story output paywalled.",
+      "Captions are footer-only."
+    ]
+  },
+  {
+    "persona_id": "agent_16",
+    "persona": "Graduation party parent/student",
+    "segment": "graduation_party",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 2,
+    "one_sentence_verdict": "Cute free strip toy, but paid value is host/admin-heavy and weak on graduation personalization and sharing.",
+    "top_confusions": [
+      "Home mixes setup, templates, photos, import, and install.",
+      "Party Mode sounds needed but is Pro.",
+      "Monthly versus one-event value is unclear."
+    ],
+    "top_missing_features": [
+      "Graduation setup flow.",
+      "Guest sharing.",
+      "Free basic Guest Mode.",
+      "More free graduation value.",
+      "Stop/cancel during capture."
+    ],
+    "dealbreakers": [
+      "Host becomes sharing bottleneck.",
+      "Party-safe flow is Pro-only.",
+      "Graduation personalization is too limited."
+    ]
+  },
+  {
+    "persona_id": "agent_17",
+    "persona": "Couple/date-night memory user",
+    "segment": "couples",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Usable four-shot loop, but feels like a free novelty with event-host upsells, not a monthly memories app.",
+    "top_confusions": [
+      "Is this for couples or party hosts?",
+      "Are My Photos safely in Photos?",
+      "Why is personal caption Pro?"
+    ],
+    "top_missing_features": [
+      "Date-night templates.",
+      "Pose prompts.",
+      "Clear save-to-Photos.",
+      "Partner sharing.",
+      "Free basic names/date."
+    ],
+    "dealbreakers": [
+      "Subscription mismatch.",
+      "Event language leaks in.",
+      "Local gallery can be mistaken for durable storage."
+    ]
+  },
+  {
+    "persona_id": "agent_18",
+    "persona": "Tech-phobic older family member",
+    "segment": "older_family",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Charming idea, but a simple family photo-strip task is wrapped in save ambiguity, jargon, and subscription gates.",
+    "top_confusions": [
+      "Save / Share outcome is unclear.",
+      "Party/host/brand language feels irrelevant.",
+      "My Photos sounds like phone Photos but is app storage."
+    ],
+    "top_missing_features": [
+      "One-tap Save to Photos.",
+      "Simple handoff mode.",
+      "Free family caption.",
+      "Larger labels.",
+      "Plain print guidance."
+    ],
+    "dealbreakers": [
+      "No obvious camera-roll save.",
+      "Caption paywalled.",
+      "Monthly pricing for novelty use."
+    ]
+  },
+  {
+    "persona_id": "agent_19",
+    "persona": "House-party host who wants unattended guest use",
+    "segment": "house_party_host",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Cute capture loop, but paid party-host use is brittle, manual, and too thin for monthly pricing.",
+    "top_confusions": [
+      "Which flow starts a party booth?",
+      "Party Mode still needs Guided Access.",
+      "Save / Share pauses next guest flow.",
+      "Party Mode hides GIF/video."
+    ],
+    "top_missing_features": [
+      "True unattended mode.",
+      "Host setup wizard.",
+      "Guest delivery.",
+      "Safe party defaults.",
+      "One-time/event pricing."
+    ],
+    "dealbreakers": [
+      "Auto-reset pauses after save/share.",
+      "No dependable guest retrieval.",
+      "Party Mode Pro is native-only."
+    ]
+  },
+  {
+    "persona_id": "agent_20",
+    "persona": "Harsh iOS App Store reviewer and refund-risk buyer",
+    "segment": "app_store_risk",
+    "market_scope": "consumer_launch",
+    "willingness_to_pay_1_99_monthly": 1,
+    "one_sentence_verdict": "Usable free photo-strip loop, but Pro feels like event-operator clutter with unclear save, paywall, and watermark promises.",
+    "top_confusions": [
+      "Does Save / Share save to Photos?",
+      "Why is Party Setup on home?",
+      "Why promise 30 looks when many are locked?",
+      "What branding does Pro remove?"
+    ],
+    "top_missing_features": [
+      "One-tap Save to Photos.",
+      "Visible format tabs.",
+      "Basic crop/text/sticker controls.",
+      "Clear free-vs-Pro comparison.",
+      "Subscription-grade recurring value."
+    ],
+    "dealbreakers": [
+      "App Store copy conflicts with paywall.",
+      "Primary save unclear.",
+      "Monthly pricing not justified."
+    ]
+  }
+]
