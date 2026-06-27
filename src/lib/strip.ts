@@ -236,6 +236,23 @@ export function composeStrip(
   return canvas;
 }
 
+export function composePrintSheet(
+  frames: HTMLCanvasElement[],
+  theme: StripTheme,
+  options: StripOptions = {},
+): HTMLCanvasElement {
+  const strip = composeStrip(frames, "2x6", theme, options);
+  const canvas = document.createElement("canvas");
+  canvas.width = strip.width * 2;
+  canvas.height = strip.height;
+  const ctx = canvas.getContext("2d")!;
+  ctx.fillStyle = theme.background;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(strip, 0, 0);
+  ctx.drawImage(strip, strip.width, 0);
+  return canvas;
+}
+
 function drawCaption(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -301,6 +318,21 @@ export async function stripBlob(
   return new Promise((resolve, reject) => {
     composeStrip(frames, layout, theme, { ...options, logo }).toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
+      "image/png",
+    );
+  });
+}
+
+export async function printSheetBlob(
+  frames: HTMLCanvasElement[],
+  theme: StripTheme,
+  options: StripOptions = {},
+): Promise<Blob> {
+  const watermark = options.watermark ?? true;
+  const logo = watermark ? await loadWatermark() : null;
+  return new Promise((resolve, reject) => {
+    composePrintSheet(frames, theme, { ...options, logo }).toBlob(
+      (blob) => (blob ? resolve(blob) : reject(new Error("print failed"))),
       "image/png",
     );
   });

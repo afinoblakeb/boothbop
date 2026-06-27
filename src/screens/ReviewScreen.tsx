@@ -133,6 +133,7 @@ export function ReviewScreen({
 }) {
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
+    { id: "print", label: "Print" },
     { id: "gif", label: "GIF" },
     { id: "boomerang", label: "Boom" },
     ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
@@ -140,9 +141,11 @@ export function ReviewScreen({
   const saveLabel =
     format === "video"
       ? "Save Video"
-      : format === "gif" || format === "boomerang"
-        ? "Save GIF"
-        : "Save Photo";
+      : format === "print"
+        ? "Save Sheet"
+        : format === "gif" || format === "boomerang"
+          ? "Save GIF"
+          : "Save Photo";
   const isBusy = generating !== null;
   const [editOpen, setEditOpen] = useState(false);
   const [partyActionTaken, setPartyActionTaken] = useState(false);
@@ -330,7 +333,7 @@ export function ReviewScreen({
             value={format}
             onChange={onSelectFormat}
             options={tabs.map((t) => ({ value: t.id, label: t.label }))}
-            itemClassName="py-3 text-xl"
+            itemClassName="py-3 text-base"
           />
 
           {format === "strip" ? (
@@ -384,9 +387,11 @@ export function ReviewScreen({
             </>
           ) : (
             <p className="mt-3 text-center font-sans text-xs uppercase tracking-wide text-warmgray">
-              {format === "boomerang"
-                ? "Boomerang rebounds your four photos forward and back."
-                : `${format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.`}
+              {format === "print"
+                ? "Print sheet exports two 2x6 strips on one 4x6 PNG."
+                : format === "boomerang"
+                  ? "Boomerang rebounds your four photos forward and back."
+                  : `${format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.`}
             </p>
           )}
 

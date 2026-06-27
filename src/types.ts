@@ -4,7 +4,7 @@
 export type Phase = "idle" | "preview" | "capturing" | "review";
 
 /** The export formats shown on the review screen. */
-export type Format = "strip" | "gif" | "boomerang" | "video";
+export type Format = "strip" | "print" | "gif" | "boomerang" | "video";
 
 // The Chromium "install app" event (Android / desktop). Not in lib.dom.
 export interface InstallPromptEvent extends Event {

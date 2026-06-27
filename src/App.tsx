@@ -9,7 +9,9 @@ import {
   videoReady,
 } from "./lib/camera";
 import {
+  composePrintSheet,
   composeStrip,
+  printSheetBlob,
   stripBlob,
   THEMES,
   type Layout,
@@ -1319,6 +1321,26 @@ export default function App() {
     sticker,
     stripCaption,
   ]);
+  const printUrl = useMemo(() => {
+    if (frames.length < SHOTS || !isPro) return null;
+    return composePrintSheet(frames, THEMES[themeKey], {
+      logo: brandLogo,
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: false,
+      filter,
+      sticker,
+      caption: stripCaption || undefined,
+    }).toDataURL("image/png");
+  }, [
+    frames,
+    themeKey,
+    brandLogo,
+    quality.photo,
+    isPro,
+    filter,
+    sticker,
+    stripCaption,
+  ]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
@@ -1332,6 +1354,10 @@ export default function App() {
 
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
+    if (f === "print" && !isPro) {
+      openPro("layout");
+      return;
+    }
     setFormat(f);
     setError(null);
     setNote(null);
@@ -1472,6 +1498,16 @@ export default function App() {
     if (format === "gif") return gifResult;
     if (format === "boomerang") return boomerangResult;
     if (format === "video") return videoResult;
+    if (format === "print") {
+      const blob = await printSheetBlob(frames, THEMES[themeKey], {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: false,
+        filter,
+        sticker,
+        caption: stripCaption || undefined,
+      });
+      return { url: "", blob, filename: `boothbop-print-${stamp()}.png` };
+    }
     const blob = await stripBlob(frames, layout, THEMES[themeKey], {
       cell: PHOTO_CAPTURE[quality.photo],
       watermark: !isPro,
@@ -1623,6 +1659,19 @@ export default function App() {
           kind: "image",
         },
       ];
+      if (isPro) {
+        results.push({
+          blob: await printSheetBlob(frames, THEMES[themeKey], {
+            cell: PHOTO_CAPTURE[quality.photo],
+            watermark: false,
+            filter,
+            sticker,
+            caption: stripCaption || undefined,
+          }),
+          filename: `boothbop-print-${stampNow}.png`,
+          kind: "image",
+        });
+      }
       if (isVideoSupported()) {
         const { blob, extension } = await getVideoResult(frames);
         results.push({
@@ -1672,11 +1721,13 @@ export default function App() {
   const previewUrl =
     format === "strip"
       ? stripUrl
-      : format === "gif"
-        ? (gifResult?.url ?? null)
-        : format === "boomerang"
-          ? (boomerangResult?.url ?? null)
-          : (videoResult?.url ?? null);
+      : format === "print"
+        ? printUrl
+        : format === "gif"
+          ? (gifResult?.url ?? null)
+          : format === "boomerang"
+            ? (boomerangResult?.url ?? null)
+            : (videoResult?.url ?? null);
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">

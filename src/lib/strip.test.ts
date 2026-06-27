@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  composePrintSheet,
   composeStrip,
   STRIP,
   stripGeometry,
@@ -95,6 +96,24 @@ const drewCaption = (ctx: ReturnType<typeof fakeCtx>) =>
 
 describe("composeStrip branding", () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it("composes a print sheet as two 2x6 strips on a 4x6 canvas", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+
+    const sheet = composePrintSheet(fourFrames(), THEMES.classic);
+    const strip = stripGeometry("2x6");
+
+    expect(sheet.width).toBe(strip.width * 2);
+    expect(sheet.height).toBe(strip.height);
+    expect(sheet.height / sheet.width).toBeCloseTo(1.5, 1);
+    const drewSheetCopies = ctx.drawImage.mock.calls.filter(
+      (call) => call[0] === sheet || call[0] instanceof HTMLCanvasElement,
+    );
+    expect(drewSheetCopies.length).toBeGreaterThanOrEqual(2);
+  });
 
   it("draws the brand logo image in the footer when a logo is provided", () => {
     const ctx = fakeCtx();
