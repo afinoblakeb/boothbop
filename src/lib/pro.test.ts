@@ -26,7 +26,7 @@ describe("pro", () => {
     expect(new Set(titles).size).toBe(contexts.length);
     expect(titles).toContain("Unlock Pro Templates");
     expect(titles).toContain("Unlock Custom Captions");
-    expect(titles).toContain("Unlock Print Sheets");
+    expect(titles).toContain("Unlock 4x6 Sheets");
     expect(titles).toContain("Unlock Guest Extras");
   });
 
@@ -36,7 +36,7 @@ describe("pro", () => {
     expect(copy.cta).toBe("Start Pro - $1.99/month");
     expect(copy.body).toMatch(/optional/i);
     expect(copy.body).toMatch(/premium template drops/i);
-    expect(copy.body).toMatch(/print sheets/i);
+    expect(copy.body).toMatch(/4x6 sheets/i);
     expect(copy.body).toMatch(/watermark-free/i);
     expect(copy.bullets.join(" ")).toMatch(/premium template packs/i);
     expect(copy.bullets.join(" ")).toMatch(/BoothBop branding/i);
