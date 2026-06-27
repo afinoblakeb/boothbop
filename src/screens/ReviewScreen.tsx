@@ -287,10 +287,23 @@ export function ReviewScreen({
             fullWidth
             onClick={() => runGuestAction(onShare)}
             disabled={isBusy || !previewUrl}
-            className="col-span-2 h-12 px-3"
+            className={partyMode ? "col-span-2 h-12 px-3" : "h-12 px-3"}
           >
             <ShareIcon className="h-5 w-5" />
             Share
+          </Button>
+        )}
+        {!partyMode && (
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            onClick={onSaveAll}
+            disabled={isBusy || savingAll || thumbs.length < 4}
+            className={`${canShare ? "h-12" : "col-span-2 h-12"} px-3`}
+          >
+            <DownloadIcon className="h-5 w-5" />
+            {savingAll ? "Saving All…" : "Save All"}
           </Button>
         )}
       </div>
@@ -601,17 +614,6 @@ export function ReviewScreen({
             </Callout>
           )}
 
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            onClick={onSaveAll}
-            disabled={isBusy || savingAll || !previewUrl}
-            className="mt-3"
-          >
-            <DownloadIcon className="h-6 w-6" />
-            {savingAll ? "Saving All…" : "Save All"}
-          </Button>
           <Button
             variant="secondary"
             size="md"
