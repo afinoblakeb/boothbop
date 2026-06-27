@@ -48,6 +48,24 @@ export const PREVIEW_DEMO_SET: Record<string, 1 | 2 | 3> = {
   midnight: 2,
   "golden-hour": 3,
   keynote: 3,
+  goldenrod: 3,
+  "sunday-best": 3,
+  "confetti-pop": 1,
+  "make-a-wish": 1,
+  forever: 1,
+  reception: 1,
+  eternal: 1,
+  "after-hours": 2,
+  disco: 2,
+  vip: 2,
+  "class-of-26": 3,
+  tassel: 3,
+  "cum-laude": 3,
+  "we-did-it": 3,
+  "cocoa-cozy": 3,
+  frostbite: 3,
+  boardroom: 3,
+  mixer: 3,
 };
 
 export const STYLE_PRESETS = [
@@ -381,14 +399,15 @@ export const TEMPLATE_BACKLOG = [
   },
 ] as const satisfies readonly StylePreset[];
 
-export type StylePresetId = (typeof STYLE_PRESETS)[number]["id"];
+export const TEMPLATE_CATALOG = [
+  ...STYLE_PRESETS,
+  ...TEMPLATE_BACKLOG,
+] as const satisfies readonly StylePreset[];
+
+export type StylePresetId = (typeof TEMPLATE_CATALOG)[number]["id"];
 
 export function findStylePreset(id: string): StylePreset | null {
-  return (
-    STYLE_PRESETS.find((preset) => preset.id === id) ??
-    TEMPLATE_BACKLOG.find((preset) => preset.id === id) ??
-    null
-  );
+  return TEMPLATE_CATALOG.find((preset) => preset.id === id) ?? null;
 }
 
 export function isStylePresetAvailable(
@@ -402,6 +421,6 @@ export function presetsByCategory(
   category: TemplateCategory | "all",
 ): readonly StylePreset[] {
   return category === "all"
-    ? STYLE_PRESETS
-    : STYLE_PRESETS.filter((preset) => preset.category === category);
+    ? TEMPLATE_CATALOG
+    : TEMPLATE_CATALOG.filter((preset) => preset.category === category);
 }

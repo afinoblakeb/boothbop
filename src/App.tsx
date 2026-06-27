@@ -87,7 +87,7 @@ import {
   type FilterKey,
   type StickerKey,
 } from "./lib/render";
-import { STYLE_PRESETS, type StylePreset } from "./lib/templates";
+import { TEMPLATE_CATALOG, type StylePreset } from "./lib/templates";
 import { loadImportedFrames } from "./lib/importPhotos";
 import { moveItem, type MoveDirection } from "./lib/sequence";
 import {
@@ -1721,7 +1721,7 @@ export default function App() {
           sticker={sticker}
           stickers={STICKERS}
           setSticker={changeSticker}
-          stylePresets={STYLE_PRESETS}
+          stylePresets={TEMPLATE_CATALOG}
           isPro={isPro}
           onApplyPreset={applyStylePreset}
           error={error}
