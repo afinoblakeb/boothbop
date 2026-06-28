@@ -24,6 +24,7 @@ export type StickerKey =
   | "sparkles"
   | "shades"
   | "stache"
+  | "monster"
   | "hearts"
   | "party"
   | "wedding"
@@ -244,6 +245,7 @@ export const STICKERS: Record<StickerKey, StickerDef> = {
   sparkles: { label: "Sparkle Frame" },
   shades: { label: "Star Shades" },
   stache: { label: "Stache" },
+  monster: { label: "Monster Ball" },
   hearts: { label: "Heart Glow" },
   party: { label: "Party Pop" },
   wedding: { label: "Just Married" },
@@ -588,6 +590,13 @@ function drawSticker(
   } else if (sticker === "stache") {
     drawMustache(ctx, rect, 0.5, 0.62, 118 * scale);
     drawBowTie(ctx, rect, 0.5, 0.78, 70 * scale, "#e85a1a");
+  } else if (sticker === "monster") {
+    drawMonsterBallFrame(ctx, rect, scale);
+    drawMonsterBall(ctx, rect, 0.5, 0.22, 102 * scale);
+    drawLightning(ctx, rect, 0.17, 0.26, 42 * scale, "#f7d154");
+    drawLightning(ctx, rect, 0.84, 0.72, 36 * scale, "#e85a1a");
+    drawSparkle(ctx, rect, 0.82, 0.2, 24 * scale, "#f7d154");
+    drawRibbonText(ctx, rect, "CATCH!", 0.9, "#f6e7cf", "#111111");
   } else if (sticker === "hearts") {
     drawHeartGlasses(ctx, rect, 0.5, 0.4, 74 * scale);
     drawHeart(ctx, rect, 0.17, 0.22, 40 * scale, "#f7d154");
@@ -1061,6 +1070,103 @@ function drawLightning(
   ctx.closePath();
   ctx.fill();
   ctx.stroke();
+}
+
+function drawMonsterBallFrame(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  scale: number,
+) {
+  const inset = 18 * scale;
+  const len = rect.width * 0.2;
+  ctx.lineWidth = Math.max(5, 8 * scale);
+  ctx.strokeStyle = "#111111";
+  for (const [sx, sy] of [
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+  ] as const) {
+    const x = sx > 0 ? rect.x + inset : rect.x + rect.width - inset;
+    const y = sy > 0 ? rect.y + inset : rect.y + rect.height - inset;
+    ctx.beginPath();
+    ctx.moveTo(x, y + sy * len);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + sx * len, y);
+    ctx.stroke();
+  }
+
+  ctx.lineWidth = Math.max(3, 4 * scale);
+  ctx.strokeStyle = "#e85a1a";
+  ctx.beginPath();
+  ctx.moveTo(rect.x + inset * 1.5, rect.y + inset * 1.5);
+  ctx.lineTo(rect.x + rect.width - inset * 1.5, rect.y + inset * 1.5);
+  ctx.moveTo(rect.x + inset * 1.5, rect.y + rect.height - inset * 1.5);
+  ctx.lineTo(
+    rect.x + rect.width - inset * 1.5,
+    rect.y + rect.height - inset * 1.5,
+  );
+  ctx.stroke();
+
+  ctx.strokeStyle = "#f7d154";
+  ctx.beginPath();
+  ctx.moveTo(rect.x + inset * 1.5, rect.y + inset * 2.6);
+  ctx.lineTo(rect.x + rect.width - inset * 1.5, rect.y + inset * 2.6);
+  ctx.moveTo(rect.x + inset * 1.5, rect.y + rect.height - inset * 2.6);
+  ctx.lineTo(
+    rect.x + rect.width - inset * 1.5,
+    rect.y + rect.height - inset * 2.6,
+  );
+  ctx.stroke();
+}
+
+function drawMonsterBall(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  const radius = size / 2;
+  const bandHeight = Math.max(8, size * 0.13);
+  const buttonRadius = size * 0.18;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = "#e85a1a";
+  ctx.fillRect(x - radius, y - radius, size, radius);
+  ctx.fillStyle = "#f6e7cf";
+  ctx.fillRect(x - radius, y, size, radius);
+  ctx.fillStyle = "#111111";
+  ctx.fillRect(x - radius, y - bandHeight / 2, size, bandHeight);
+  ctx.restore();
+
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(4, size * 0.07);
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.fillStyle = "#f6e7cf";
+  ctx.beginPath();
+  ctx.arc(x, y, buttonRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#f7d154";
+  ctx.beginPath();
+  ctx.arc(
+    x - buttonRadius * 0.24,
+    y - buttonRadius * 0.28,
+    buttonRadius * 0.28,
+    0,
+    Math.PI * 2,
+  );
+  ctx.fill();
 }
 
 function drawSparkle(

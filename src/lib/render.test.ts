@@ -104,6 +104,7 @@ describe("sticker settings", () => {
       "sparkles",
       "shades",
       "stache",
+      "monster",
       "hearts",
       "party",
       "wedding",

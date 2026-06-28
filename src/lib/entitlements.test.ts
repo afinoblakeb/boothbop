@@ -52,5 +52,6 @@ describe("entitlements", () => {
     expect(isPremiumSticker("sparkles")).toBe(false);
     expect(isPremiumSticker("shades")).toBe(false);
     expect(isPremiumSticker("stache")).toBe(false);
+    expect(isPremiumSticker("monster")).toBe(false);
   });
 });
