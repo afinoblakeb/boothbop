@@ -30,75 +30,203 @@ export type StickerKey =
   | "friends";
 export type MotionMode = "loop" | "boomerang";
 
+interface LevelSettings {
+  black?: number;
+  white?: number;
+  gamma?: number;
+}
+
+interface FilterRecipe {
+  levels?: LevelSettings;
+  exposure?: number;
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  grayscale?: number;
+  sepia?: number;
+  temperature?: number;
+  tint?: number;
+  fade?: number;
+  hueRotate?: number;
+}
+
 export interface FilterDef {
   label: string;
   css: string;
+  recipe: FilterRecipe;
   overlay?: "warm" | "vignette" | { color: string; opacity: number };
 }
 
 export const FILTERS: Record<FilterKey, FilterDef> = {
-  none: { label: "Original", css: "none" },
-  mono: { label: "Mono", css: "grayscale(1) contrast(1.14)" },
+  none: { label: "Original", css: "none", recipe: {} },
+  mono: {
+    label: "Classic B&W",
+    css: "grayscale(1) contrast(1.18)",
+    recipe: {
+      levels: { black: 12, white: 242, gamma: 1.02 },
+      grayscale: 1,
+      contrast: 1.18,
+      fade: 2,
+    },
+  },
   warm: {
-    label: "Warm",
-    css: "sepia(0.28) saturate(1.22) contrast(1.06) brightness(1.03)",
+    label: "Golden Hour",
+    css: "sepia(0.24) saturate(1.2) contrast(1.08) brightness(1.05)",
+    recipe: {
+      levels: { black: 6, white: 246, gamma: 1.08 },
+      exposure: 0.08,
+      contrast: 1.08,
+      saturation: 1.2,
+      sepia: 0.16,
+      temperature: 18,
+    },
     overlay: "warm",
   },
   glam: {
-    label: "Glam",
-    css: "grayscale(1) contrast(1.28) brightness(1.08)",
+    label: "Studio Glam",
+    css: "contrast(1.18) brightness(1.1) saturate(0.92)",
+    recipe: {
+      levels: { black: 8, white: 248, gamma: 1.14 },
+      exposure: 0.1,
+      contrast: 1.18,
+      saturation: 0.92,
+      tint: 5,
+      fade: 4,
+    },
   },
   vintage: {
-    label: "Vintage",
-    css: "sepia(0.42) saturate(0.86) contrast(1.12)",
+    label: "Faded Film",
+    css: "sepia(0.34) saturate(0.78) contrast(1.04)",
+    recipe: {
+      levels: { black: 18, white: 232, gamma: 0.94 },
+      contrast: 1.04,
+      saturation: 0.78,
+      sepia: 0.3,
+      temperature: 8,
+      fade: 22,
+    },
     overlay: "vignette",
   },
   "soft-flash": {
     label: "Soft Flash",
     css: "brightness(1.12) contrast(0.96) saturate(0.95)",
+    recipe: {
+      levels: { black: 4, white: 252, gamma: 1.16 },
+      exposure: 0.14,
+      contrast: 0.92,
+      saturation: 0.94,
+      fade: 7,
+    },
     overlay: { color: "#ffffff", opacity: 0.08 },
   },
   "warm-film": {
-    label: "Warm Film",
-    css: "sepia(0.32) saturate(1.25) contrast(1.05) brightness(1.02)",
+    label: "Color Print",
+    css: "sepia(0.22) saturate(1.28) contrast(1.1) brightness(1.02)",
+    recipe: {
+      levels: { black: 10, white: 240, gamma: 1 },
+      exposure: 0.03,
+      contrast: 1.1,
+      saturation: 1.28,
+      sepia: 0.14,
+      temperature: 14,
+      fade: 6,
+    },
     overlay: { color: "#e8a04a", opacity: 0.1 },
   },
   "clean-bw": {
     label: "Clean B&W",
     css: "grayscale(1) contrast(1.08) brightness(1.03)",
+    recipe: {
+      levels: { black: 5, white: 250, gamma: 1.08 },
+      grayscale: 1,
+      exposure: 0.04,
+      contrast: 1.08,
+    },
   },
   "cool-studio": {
     label: "Cool Studio",
     css: "saturate(1.05) contrast(1.1) brightness(1.02) hue-rotate(-8deg)",
+    recipe: {
+      levels: { black: 8, white: 246, gamma: 1.04 },
+      exposure: 0.04,
+      contrast: 1.1,
+      saturation: 1.05,
+      temperature: -14,
+      tint: 4,
+      hueRotate: -6,
+    },
     overlay: { color: "#3e7c78", opacity: 0.08 },
   },
   "glam-booth": {
-    label: "Glam Booth",
-    css: "grayscale(1) contrast(1.3) brightness(1.12)",
+    label: "Flash Booth",
+    css: "grayscale(1) contrast(1.34) brightness(1.12)",
+    recipe: {
+      levels: { black: 20, white: 238, gamma: 1.08 },
+      grayscale: 1,
+      exposure: 0.1,
+      contrast: 1.34,
+      fade: 3,
+    },
     overlay: { color: "#ffffff", opacity: 0.06 },
   },
   "vintage-sepia": {
-    label: "Vintage Sepia",
+    label: "Sepia Print",
     css: "sepia(0.5) saturate(0.8) contrast(1.14) brightness(0.98)",
+    recipe: {
+      levels: { black: 14, white: 228, gamma: 0.92 },
+      contrast: 1.12,
+      saturation: 0.72,
+      sepia: 0.52,
+      temperature: 10,
+      fade: 18,
+    },
     overlay: "vignette",
   },
   "high-contrast": {
-    label: "High Contrast",
-    css: "contrast(1.32) saturate(1.18) brightness(1)",
+    label: "Chrome Pop",
+    css: "contrast(1.34) saturate(1.2)",
+    recipe: {
+      levels: { black: 22, white: 238, gamma: 1 },
+      contrast: 1.32,
+      saturation: 1.2,
+    },
   },
   "dreamy-pastel": {
-    label: "Dreamy Pastel",
-    css: "saturate(0.82) contrast(0.9) brightness(1.1)",
+    label: "Dream Pop",
+    css: "saturate(0.82) contrast(0.86) brightness(1.12)",
+    recipe: {
+      levels: { black: 0, white: 255, gamma: 1.16 },
+      exposure: 0.12,
+      contrast: 0.86,
+      saturation: 0.82,
+      tint: 10,
+      fade: 24,
+    },
     overlay: { color: "#f3c9d6", opacity: 0.12 },
   },
   "night-out": {
     label: "Night Out",
     css: "contrast(1.2) saturate(1.1) brightness(0.92)",
+    recipe: {
+      levels: { black: 18, white: 236, gamma: 0.86 },
+      exposure: -0.1,
+      contrast: 1.24,
+      saturation: 1.12,
+      temperature: 6,
+      tint: 8,
+    },
     overlay: { color: "#8f3b1e", opacity: 0.14 },
   },
   magazine: {
-    label: "Magazine",
-    css: "grayscale(0.3) contrast(1.22) saturate(0.9) brightness(1.04)",
+    label: "Editorial",
+    css: "grayscale(0.25) contrast(1.24) saturate(0.9) brightness(1.04)",
+    recipe: {
+      levels: { black: 16, white: 246, gamma: 1.03 },
+      grayscale: 0.25,
+      exposure: 0.04,
+      contrast: 1.24,
+      saturation: 0.9,
+    },
   },
 };
 
@@ -174,6 +302,21 @@ function applyBrightness(rgb: [number, number, number], amount: number) {
   rgb[2] *= amount;
 }
 
+function applyExposure(rgb: [number, number, number], stops: number) {
+  applyBrightness(rgb, Math.pow(2, stops));
+}
+
+function applyLevels(
+  rgb: [number, number, number],
+  { black = 0, white = 255, gamma = 1 }: LevelSettings,
+) {
+  const range = Math.max(1, white - black);
+  for (let i = 0; i < rgb.length; i += 1) {
+    const normalized = Math.max(0, Math.min(1, (rgb[i] - black) / range));
+    rgb[i] = Math.pow(normalized, 1 / gamma) * 255;
+  }
+}
+
 function applyContrast(rgb: [number, number, number], amount: number) {
   rgb[0] = (rgb[0] - 128) * amount + 128;
   rgb[1] = (rgb[1] - 128) * amount + 128;
@@ -223,72 +366,48 @@ function applyHueRotate(rgb: [number, number, number], degrees: number) {
     (0.072 + cos * 0.928 + sin * 0.072) * b;
 }
 
+function applyTemperature(rgb: [number, number, number], amount: number) {
+  rgb[0] += amount;
+  rgb[1] += amount * 0.12;
+  rgb[2] -= amount;
+}
+
+function applyTint(rgb: [number, number, number], amount: number) {
+  rgb[0] += amount * 0.55;
+  rgb[1] -= amount * 0.35;
+  rgb[2] += amount * 0.55;
+}
+
+function applyFade(rgb: [number, number, number], amount: number) {
+  const mix = amount / 255;
+  rgb[0] = rgb[0] * (1 - mix) + amount;
+  rgb[1] = rgb[1] * (1 - mix) + amount;
+  rgb[2] = rgb[2] * (1 - mix) + amount;
+}
+
+function applyFilterRecipe(
+  rgb: [number, number, number],
+  recipe: FilterRecipe,
+) {
+  if (recipe.levels) applyLevels(rgb, recipe.levels);
+  if (recipe.exposure) applyExposure(rgb, recipe.exposure);
+  if (recipe.brightness) applyBrightness(rgb, recipe.brightness);
+  if (recipe.contrast) applyContrast(rgb, recipe.contrast);
+  if (recipe.saturation) applySaturation(rgb, recipe.saturation);
+  if (recipe.grayscale) applyGrayscale(rgb, recipe.grayscale);
+  if (recipe.sepia) applySepia(rgb, recipe.sepia);
+  if (recipe.temperature) applyTemperature(rgb, recipe.temperature);
+  if (recipe.tint) applyTint(rgb, recipe.tint);
+  if (recipe.hueRotate) applyHueRotate(rgb, recipe.hueRotate);
+  if (recipe.fade) applyFade(rgb, recipe.fade);
+}
+
 export function applyFilterToRgba(
   rgba: Rgba,
   filter: FilterKey,
 ): [number, number, number, number] {
   const rgb: [number, number, number] = [rgba[0], rgba[1], rgba[2]];
-
-  if (filter === "mono") {
-    applyGrayscale(rgb, 1);
-    applyContrast(rgb, 1.14);
-  } else if (filter === "warm") {
-    applySepia(rgb, 0.28);
-    applySaturation(rgb, 1.22);
-    applyContrast(rgb, 1.06);
-    applyBrightness(rgb, 1.03);
-  } else if (filter === "glam") {
-    applyGrayscale(rgb, 1);
-    applyContrast(rgb, 1.28);
-    applyBrightness(rgb, 1.08);
-  } else if (filter === "vintage") {
-    applySepia(rgb, 0.42);
-    applySaturation(rgb, 0.86);
-    applyContrast(rgb, 1.12);
-  } else if (filter === "soft-flash") {
-    applyBrightness(rgb, 1.12);
-    applyContrast(rgb, 0.96);
-    applySaturation(rgb, 0.95);
-  } else if (filter === "warm-film") {
-    applySepia(rgb, 0.32);
-    applySaturation(rgb, 1.25);
-    applyContrast(rgb, 1.05);
-    applyBrightness(rgb, 1.02);
-  } else if (filter === "clean-bw") {
-    applyGrayscale(rgb, 1);
-    applyContrast(rgb, 1.08);
-    applyBrightness(rgb, 1.03);
-  } else if (filter === "cool-studio") {
-    applySaturation(rgb, 1.05);
-    applyContrast(rgb, 1.1);
-    applyBrightness(rgb, 1.02);
-    applyHueRotate(rgb, -8);
-  } else if (filter === "glam-booth") {
-    applyGrayscale(rgb, 1);
-    applyContrast(rgb, 1.3);
-    applyBrightness(rgb, 1.12);
-  } else if (filter === "vintage-sepia") {
-    applySepia(rgb, 0.5);
-    applySaturation(rgb, 0.8);
-    applyContrast(rgb, 1.14);
-    applyBrightness(rgb, 0.98);
-  } else if (filter === "high-contrast") {
-    applyContrast(rgb, 1.32);
-    applySaturation(rgb, 1.18);
-  } else if (filter === "dreamy-pastel") {
-    applySaturation(rgb, 0.82);
-    applyContrast(rgb, 0.9);
-    applyBrightness(rgb, 1.1);
-  } else if (filter === "night-out") {
-    applyContrast(rgb, 1.2);
-    applySaturation(rgb, 1.1);
-    applyBrightness(rgb, 0.92);
-  } else if (filter === "magazine") {
-    applyGrayscale(rgb, 0.3);
-    applyContrast(rgb, 1.22);
-    applySaturation(rgb, 0.9);
-    applyBrightness(rgb, 1.04);
-  }
+  applyFilterRecipe(rgb, FILTERS[filter].recipe);
 
   return [
     clampByte(rgb[0]),

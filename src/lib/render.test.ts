@@ -8,6 +8,7 @@ import {
   motionSequence,
   saveFilter,
   saveSticker,
+  type FilterKey,
 } from "./render";
 
 beforeEach(() => localStorage.clear());
@@ -61,6 +62,23 @@ describe("filter settings", () => {
     const warm = applyFilterToRgba(original, "warm");
     expect(warm).not.toEqual(original);
     expect(warm[0]).toBeGreaterThan(warm[2]);
+  });
+
+  it("keeps each non-original look profile visually distinct", () => {
+    const samples = [
+      [58, 38, 24, 255],
+      [120, 80, 40, 255],
+      [210, 176, 138, 255],
+    ] as const;
+    const signatures = Object.keys(FILTERS)
+      .filter((key) => key !== "none")
+      .map((key) =>
+        samples
+          .flatMap((sample) => applyFilterToRgba(sample, key as FilterKey))
+          .join(","),
+      );
+
+    expect(new Set(signatures).size).toBe(signatures.length);
   });
 });
 
