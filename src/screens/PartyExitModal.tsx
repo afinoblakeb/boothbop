@@ -27,6 +27,10 @@ export function PartyExitModal({
           value={code}
           inputMode="numeric"
           autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          enterKeyHint="done"
           maxLength={4}
           onChange={(e) => setCode(cleanPartyPasscodeInput(e.target.value))}
           className="mt-4 h-14 w-full border-2 border-ink bg-cream px-4 text-center font-display text-3xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35"

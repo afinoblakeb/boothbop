@@ -206,6 +206,10 @@ export function PartySetupScreen({
               value={partyPasscode}
               inputMode="numeric"
               autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              enterKeyHint="done"
               maxLength={4}
               onChange={(e) => onPartyPasscode(e.target.value)}
               disabled={partyMode}

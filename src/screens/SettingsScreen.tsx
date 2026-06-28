@@ -131,6 +131,11 @@ export function SettingsScreen({
               maxLength={STYLE_CAPTION_MAX}
               onChange={(e) => onEventName(e.target.value)}
               placeholder="Birthday Night"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="words"
+              spellCheck={false}
+              enterKeyHint="done"
               className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
               aria-label="Guest Mode caption name"
             />
@@ -147,6 +152,10 @@ export function SettingsScreen({
             value={partyPasscode}
             inputMode="numeric"
             autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="done"
             maxLength={4}
             onChange={(e) => onPartyPasscode(e.target.value)}
             disabled={partyMode}

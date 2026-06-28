@@ -760,6 +760,11 @@ function EditorWorkbench({
                   maxLength={STYLE_CAPTION_MAX}
                   onChange={(e) => onCustomCaption(e.target.value)}
                   placeholder="BoothBop"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  autoCapitalize="off"
+                  spellCheck={false}
+                  enterKeyHint="done"
                   className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
                 />
               ) : (
@@ -787,6 +792,11 @@ function EditorWorkbench({
                     maxLength={SESSION_TITLE_MAX}
                     onChange={(e) => onSessionTitle(e.target.value)}
                     placeholder="Name this set"
+                    autoComplete="off"
+                    autoCorrect="off"
+                    autoCapitalize="words"
+                    spellCheck={false}
+                    enterKeyHint="done"
                     className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
                   />
                 </label>
