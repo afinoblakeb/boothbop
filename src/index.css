@@ -49,6 +49,18 @@ body {
   overscroll-behavior: none;
 }
 
+.review-output-copy,
+.review-trust-copy {
+  display: none;
+}
+
+@media (min-height: 900px), (min-width: 640px) {
+  .review-output-copy,
+  .review-trust-copy {
+    display: block;
+  }
+}
+
 /* Camera flash — a clean white pop, no blur. */
 @keyframes flash {
   0% {

@@ -16,17 +16,22 @@ export function TopBar({
   homeLabel?: string;
 }) {
   return (
-    <header className="sticky top-0 z-30 -mx-4 flex items-center justify-between border-b-2 border-ink bg-cream px-4 py-2">
+    <header className="sticky top-0 z-30 -mx-4 flex items-center justify-between border-b-2 border-ink bg-cream px-4 py-1.5 sm:py-2">
       <button
         onClick={onHome}
         aria-label={homeLabel}
-        className="font-display text-2xl uppercase tracking-wide text-ink"
+        className="font-display text-xl uppercase tracking-wide text-ink sm:text-2xl"
       >
         Booth<span className="text-orange">Bop</span>
       </button>
       {showActions && (
         <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm" onClick={onAlbum}>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={onAlbum}
+            className="h-9 px-2 py-1 text-sm sm:h-10 sm:px-3 sm:py-1.5 sm:text-base"
+          >
             <BrandIcon name="gallery" className="h-5 w-5" />
             Gallery
           </Button>
@@ -34,7 +39,7 @@ export function TopBar({
             compact
             aria-label="Settings"
             onClick={onSettings}
-            className="h-10 w-10 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream"
+            className="h-9 w-9 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream sm:h-10 sm:w-10"
           >
             <GearIcon className="h-5 w-5" />
           </IconButton>

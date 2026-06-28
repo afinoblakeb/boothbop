@@ -198,6 +198,7 @@ export function ReviewScreen({
           : "Download PNG";
   const isBusy = generating !== null;
   const canShare = native || shareFilesOk;
+  const saveLabel = native ? "Save Photo" : downloadLabel;
   const [editOpen, setEditOpen] = useState(false);
   const [editorTab, setEditorTab] = useState<EditorTab>("look");
   const [guestActionPending, setGuestActionPending] = useState(false);
@@ -213,8 +214,8 @@ export function ReviewScreen({
     !guestActionPending;
   const showQuickRetake = !partyMode && thumbs.length >= 4;
   const previewFrameClass = showQuickRetake
-    ? "mt-2 flex h-[clamp(150px,30svh,360px)] w-full shrink-0 items-center justify-center overflow-hidden"
-    : "mt-2 flex h-[clamp(170px,34svh,400px)] w-full shrink-0 items-center justify-center overflow-hidden";
+    ? "mt-1 flex h-[clamp(130px,23svh,300px)] w-full shrink-0 items-center justify-center overflow-hidden"
+    : "mt-1 flex h-[clamp(150px,30svh,380px)] w-full shrink-0 items-center justify-center overflow-hidden";
 
   useEffect(() => {
     onRetakeRef.current = onRetake;
@@ -299,7 +300,7 @@ export function ReviewScreen({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overflow-x-hidden py-2 pb-4">
+    <div className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto overflow-x-hidden py-1 pb-3 sm:py-2 sm:pb-4">
       {/* Live preview of the selected output */}
       <div className={previewFrameClass}>
         {isBusy ? (
@@ -330,7 +331,7 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      <section className="mt-2 w-full">
+      <section className="mt-1 w-full">
         <SectionLabel className="mb-1 text-center">Output</SectionLabel>
         <SegmentedControl
           ariaRole="tab"
@@ -338,9 +339,9 @@ export function ReviewScreen({
           value={format}
           onChange={onSelectFormat}
           options={tabs.map((t) => ({ value: t.id, label: t.label }))}
-          itemClassName="py-3 text-base"
+          itemClassName="py-2 text-base leading-none sm:py-3"
         />
-        <p className="mt-2 text-center font-sans text-xs text-warmgray">
+        <p className="review-output-copy mt-1 text-center font-sans text-xs text-warmgray sm:mt-2">
           {format === "print"
             ? "4x6 sheet export for two 2x6 strips."
             : format === "boomerang"
@@ -353,8 +354,68 @@ export function ReviewScreen({
         </p>
       </section>
 
+      <div className="mt-2 grid w-full grid-cols-2 gap-2">
+        {!partyMode && (
+          <Button
+            variant="secondary"
+            size="md"
+            onClick={() => setEditOpen((open) => !open)}
+            aria-expanded="false"
+            className="h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
+          >
+            <SlidersIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+            Edit
+          </Button>
+        )}
+        <Button
+          variant="primary"
+          size="md"
+          fullWidth
+          onClick={() => runGuestAction(onSave)}
+          disabled={isBusy || !previewUrl}
+          className={
+            partyMode
+              ? "col-span-2 h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
+              : "h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
+          }
+        >
+          <DownloadIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+          {saveLabel}
+        </Button>
+        {canShare && (
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            onClick={() => runGuestAction(onShare)}
+            disabled={isBusy || !previewUrl}
+            className={
+              partyMode
+                ? "col-span-2 h-11 whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl"
+                : "h-11 whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl"
+            }
+          >
+            <ShareIcon className="h-5 w-5" />
+            Share
+          </Button>
+        )}
+        {!partyMode && (
+          <Button
+            variant="secondary"
+            size="md"
+            fullWidth
+            onClick={onSaveAll}
+            disabled={isBusy || savingAll || thumbs.length < 4}
+            className={`${canShare ? "h-11" : "col-span-2 h-11"} whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl`}
+          >
+            <DownloadIcon className="h-5 w-5" />
+            {savingAll ? "Saving…" : "Save All"}
+          </Button>
+        )}
+      </div>
+
       {showQuickRetake && (
-        <section className="mt-3 w-full">
+        <section className="mt-2 w-full sm:mt-3">
           <div className="mb-1 flex items-center justify-between">
             <SectionLabel>Retake One</SectionLabel>
             <span className="font-sans text-[11px] font-bold uppercase tracking-wide text-warmgray">
@@ -366,7 +427,7 @@ export function ReviewScreen({
               <button
                 key={i}
                 onClick={() => onRetakeShot(i)}
-                className="group relative aspect-square min-h-0 overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+                className="group relative h-[clamp(64px,9svh,96px)] min-h-0 overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px sm:aspect-square sm:h-auto"
                 aria-label={`Retake shot ${i + 1}`}
               >
                 <img
@@ -383,58 +444,6 @@ export function ReviewScreen({
           </div>
         </section>
       )}
-
-      <div className="mt-2 grid w-full grid-cols-2 gap-2">
-        {!partyMode && (
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setEditOpen((open) => !open)}
-            aria-expanded="false"
-            className="h-14 px-3"
-          >
-            <SlidersIcon className="h-6 w-6" />
-            Edit
-          </Button>
-        )}
-        <Button
-          variant="primary"
-          size="md"
-          fullWidth
-          onClick={() => runGuestAction(onSave)}
-          disabled={isBusy || !previewUrl}
-          className={partyMode ? "col-span-2 h-14 px-3" : "h-14 px-3"}
-        >
-          <DownloadIcon className="h-6 w-6" />
-          {native ? "Save to Photos" : downloadLabel}
-        </Button>
-        {canShare && (
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            onClick={() => runGuestAction(onShare)}
-            disabled={isBusy || !previewUrl}
-            className={partyMode ? "col-span-2 h-12 px-3" : "h-12 px-3"}
-          >
-            <ShareIcon className="h-5 w-5" />
-            Share
-          </Button>
-        )}
-        {!partyMode && (
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            onClick={onSaveAll}
-            disabled={isBusy || savingAll || thumbs.length < 4}
-            className={`${canShare ? "h-12" : "col-span-2 h-12"} px-3`}
-          >
-            <DownloadIcon className="h-5 w-5" />
-            {savingAll ? "Saving Files…" : "Save All Files"}
-          </Button>
-        )}
-      </div>
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
@@ -499,7 +508,7 @@ export function ReviewScreen({
               : "Guest Mode keeps this style ready for the next friend."}
         </p>
       )}
-      <p className="mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
+      <p className="review-trust-copy mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
         BoothBop never uploads your photos. Saved sets stay only in this app on
         this device until you delete them.
       </p>
