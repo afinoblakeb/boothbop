@@ -46,7 +46,11 @@ describe("entitlements", () => {
     expect(isPremiumSticker("graduation")).toBe(true);
     expect(isPremiumSticker("holiday")).toBe(true);
     expect(isPremiumSticker("friends")).toBe(true);
+    expect(isPremiumSticker("crown")).toBe(true);
+    expect(isPremiumSticker("neon")).toBe(true);
     expect(isPremiumSticker("birthday")).toBe(false);
     expect(isPremiumSticker("sparkles")).toBe(false);
+    expect(isPremiumSticker("shades")).toBe(false);
+    expect(isPremiumSticker("stache")).toBe(false);
   });
 });

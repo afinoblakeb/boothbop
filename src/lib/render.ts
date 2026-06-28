@@ -22,12 +22,16 @@ export type StickerKey =
   | "none"
   | "birthday"
   | "sparkles"
+  | "shades"
+  | "stache"
   | "hearts"
   | "party"
   | "wedding"
   | "graduation"
   | "holiday"
-  | "friends";
+  | "friends"
+  | "crown"
+  | "neon";
 export type MotionMode = "loop" | "boomerang";
 
 interface LevelSettings {
@@ -236,14 +240,18 @@ export interface StickerDef {
 
 export const STICKERS: Record<StickerKey, StickerDef> = {
   none: { label: "None" },
-  birthday: { label: "Birthday" },
-  sparkles: { label: "Spark" },
-  hearts: { label: "Hearts" },
-  party: { label: "Party" },
-  wedding: { label: "Wedding" },
-  graduation: { label: "Grad" },
-  holiday: { label: "Holiday" },
-  friends: { label: "Friends" },
+  birthday: { label: "Birthday Kit" },
+  sparkles: { label: "Sparkle Frame" },
+  shades: { label: "Star Shades" },
+  stache: { label: "Stache" },
+  hearts: { label: "Heart Glow" },
+  party: { label: "Party Pop" },
+  wedding: { label: "Just Married" },
+  graduation: { label: "Grad Cap" },
+  holiday: { label: "Holiday Lights" },
+  friends: { label: "Besties" },
+  crown: { label: "Crown" },
+  neon: { label: "Neon" },
 };
 
 const FILTER_KEY = "bb.filter";
@@ -559,39 +567,500 @@ function drawSticker(
   if (sticker === "none") return;
   const scale = Math.min(rect.width, rect.height) / 640;
   ctx.save();
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
   if (sticker === "sparkles") {
-    drawSparkle(ctx, rect, 0.18, 0.18, 28 * scale, "#f7d154");
-    drawSparkle(ctx, rect, 0.78, 0.27, 20 * scale, "#f6e7cf");
-    drawSparkle(ctx, rect, 0.28, 0.78, 18 * scale, "#e85a1a");
+    drawCornerFrame(ctx, rect, scale, "#d9a441", "#e85a1a");
+    drawSparkle(ctx, rect, 0.18, 0.18, 48 * scale, "#f7d154");
+    drawSparkle(ctx, rect, 0.82, 0.22, 34 * scale, "#f6e7cf");
+    drawSparkle(ctx, rect, 0.24, 0.76, 32 * scale, "#e85a1a");
+    drawSparkle(ctx, rect, 0.86, 0.78, 28 * scale, "#3e7c78");
   } else if (sticker === "birthday") {
-    drawBalloon(ctx, rect, 0.17, 0.23, 38 * scale, "#e85a1a");
-    drawSparkle(ctx, rect, 0.78, 0.18, 20 * scale, "#f7d154");
+    drawCornerFrame(ctx, rect, scale, "#e85a1a", "#f7d154");
     drawConfetti(ctx, rect, scale, "top");
+    drawPartyHat(ctx, rect, 0.22, 0.2, 92 * scale);
+    drawBalloon(ctx, rect, 0.78, 0.22, 56 * scale, "#e85a1a");
+    drawBalloon(ctx, rect, 0.88, 0.3, 44 * scale, "#3e7c78");
+    drawRibbonText(ctx, rect, "BDAY", 0.88, "#f7d154", "#111111");
+  } else if (sticker === "shades") {
+    drawStarShades(ctx, rect, 0.5, 0.4, 78 * scale);
+    drawSparkle(ctx, rect, 0.82, 0.18, 28 * scale, "#f7d154");
+  } else if (sticker === "stache") {
+    drawMustache(ctx, rect, 0.5, 0.62, 118 * scale);
+    drawBowTie(ctx, rect, 0.5, 0.78, 70 * scale, "#e85a1a");
   } else if (sticker === "hearts") {
-    drawHeart(ctx, rect, 0.78, 0.18, 38 * scale, "#e85a1a");
-    drawHeart(ctx, rect, 0.2, 0.78, 30 * scale, "#f7d154");
+    drawHeartGlasses(ctx, rect, 0.5, 0.4, 74 * scale);
+    drawHeart(ctx, rect, 0.17, 0.22, 40 * scale, "#f7d154");
+    drawHeart(ctx, rect, 0.84, 0.75, 34 * scale, "#e85a1a");
+    drawCornerFrame(ctx, rect, scale, "#e85a1a", "#f7d154");
   } else if (sticker === "party") {
-    drawConfetti(ctx, rect, scale, "bands");
-    drawBalloon(ctx, rect, 0.86, 0.22, 30 * scale, "#3e7c78");
-    drawHashtag(ctx, rect, 0.18, 0.78, 26 * scale, "#111111");
+    drawConfetti(ctx, rect, scale * 1.4, "bands");
+    drawStreamer(ctx, rect, 0.18, 0.22, 0.88, 0.16, "#e85a1a");
+    drawStreamer(ctx, rect, 0.1, 0.76, 0.74, 0.86, "#3e7c78");
+    drawBalloon(ctx, rect, 0.84, 0.25, 50 * scale, "#3e7c78");
+    drawHashtag(ctx, rect, 0.18, 0.76, 44 * scale, "#111111");
+    drawRibbonText(ctx, rect, "PARTY", 0.9, "#e85a1a", "#f6e7cf");
   } else if (sticker === "wedding") {
-    drawHeart(ctx, rect, 0.17, 0.18, 28 * scale, "#8f3b1e");
-    drawRing(ctx, rect, 0.82, 0.2, 26 * scale, "#d9a441");
-    drawSparkle(ctx, rect, 0.18, 0.8, 16 * scale, "#f7d154");
+    drawCornerFrame(ctx, rect, scale, "#f6e7cf", "#d9a441");
+    drawHeart(ctx, rect, 0.16, 0.18, 36 * scale, "#8f3b1e");
+    drawRing(ctx, rect, 0.82, 0.2, 46 * scale, "#d9a441");
+    drawSparkle(ctx, rect, 0.2, 0.78, 28 * scale, "#f7d154");
+    drawRibbonText(ctx, rect, "JUST MARRIED", 0.9, "#f6e7cf", "#111111");
   } else if (sticker === "graduation") {
-    drawGradCap(ctx, rect, 0.2, 0.82, 34 * scale, "#111111");
-    drawRosette(ctx, rect, 0.82, 0.78, 26 * scale, "#e85a1a");
-    drawSparkle(ctx, rect, 0.8, 0.18, 18 * scale, "#f7d154");
+    drawGradCap(ctx, rect, 0.5, 0.2, 86 * scale, "#111111");
+    drawTassel(ctx, rect, 0.58, 0.18, 74 * scale, "#d9a441");
+    drawRosette(ctx, rect, 0.82, 0.78, 42 * scale, "#e85a1a");
+    drawRibbonText(ctx, rect, "GRAD", 0.9, "#111111", "#f6e7cf");
   } else if (sticker === "holiday") {
-    drawSnowflake(ctx, rect, 0.18, 0.18, 30 * scale, "#3e7c78");
-    drawSnowflake(ctx, rect, 0.82, 0.22, 22 * scale, "#f6e7cf");
-    drawGift(ctx, rect, 0.82, 0.8, 28 * scale, "#8f3b1e");
+    drawLightString(ctx, rect, scale);
+    drawSnowflake(ctx, rect, 0.17, 0.22, 38 * scale, "#3e7c78");
+    drawSnowflake(ctx, rect, 0.84, 0.26, 30 * scale, "#f6e7cf");
+    drawGift(ctx, rect, 0.82, 0.8, 46 * scale, "#8f3b1e");
+    drawCornerFrame(ctx, rect, scale, "#3e7c78", "#f6e7cf");
+  } else if (sticker === "crown") {
+    drawCrown(ctx, rect, 0.5, 0.2, 118 * scale);
+    drawSparkle(ctx, rect, 0.2, 0.24, 28 * scale, "#f7d154");
+    drawSparkle(ctx, rect, 0.82, 0.28, 24 * scale, "#f6e7cf");
+  } else if (sticker === "neon") {
+    drawNeonFrame(ctx, rect, scale);
+    drawLightning(ctx, rect, 0.2, 0.25, 52 * scale, "#f7d154");
+    drawLightning(ctx, rect, 0.82, 0.74, 44 * scale, "#e85a1a");
   } else {
-    drawRosette(ctx, rect, 0.16, 0.8, 26 * scale, "#111111");
-    drawHashtag(ctx, rect, 0.82, 0.78, 26 * scale, "#e85a1a");
-    drawSparkle(ctx, rect, 0.82, 0.18, 18 * scale, "#d9a441");
+    drawCornerFrame(ctx, rect, scale, "#111111", "#e85a1a");
+    drawRosette(ctx, rect, 0.16, 0.78, 42 * scale, "#111111");
+    drawHashtag(ctx, rect, 0.82, 0.78, 42 * scale, "#e85a1a");
+    drawSparkle(ctx, rect, 0.82, 0.18, 28 * scale, "#d9a441");
+    drawRibbonText(ctx, rect, "BESTIES", 0.9, "#3e7c78", "#f6e7cf");
   }
   ctx.restore();
+}
+
+function drawCornerFrame(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  scale: number,
+  primary: string,
+  secondary: string,
+) {
+  const inset = 18 * scale;
+  const len = rect.width * 0.22;
+  ctx.lineWidth = Math.max(5, 8 * scale);
+  ctx.strokeStyle = "#111111";
+  for (const [sx, sy] of [
+    [1, 1],
+    [-1, 1],
+    [1, -1],
+    [-1, -1],
+  ] as const) {
+    const x = sx > 0 ? rect.x + inset : rect.x + rect.width - inset;
+    const y = sy > 0 ? rect.y + inset : rect.y + rect.height - inset;
+    ctx.beginPath();
+    ctx.moveTo(x, y + sy * len);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x + sx * len, y);
+    ctx.stroke();
+  }
+  ctx.lineWidth = Math.max(3, 4 * scale);
+  ctx.strokeStyle = primary;
+  ctx.strokeRect(
+    rect.x + inset,
+    rect.y + inset,
+    rect.width - inset * 2,
+    rect.height - inset * 2,
+  );
+  ctx.strokeStyle = secondary;
+  ctx.strokeRect(
+    rect.x + inset * 1.7,
+    rect.y + inset * 1.7,
+    rect.width - inset * 3.4,
+    rect.height - inset * 3.4,
+  );
+}
+
+function drawRibbonText(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  text: string,
+  ry: number,
+  background: string,
+  foreground: string,
+) {
+  const h = rect.height * 0.1;
+  const w = rect.width * 0.68;
+  const x = rect.x + rect.width * 0.5 - w / 2;
+  const y = rect.y + rect.height * ry - h / 2;
+  ctx.fillStyle = background;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, rect.width * 0.008);
+  ctx.fillRect(x, y, w, h);
+  ctx.strokeRect(x, y, w, h);
+  ctx.font = `${Math.max(18, h * 0.56)}px "Bebas Neue", "Arial Narrow", sans-serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillStyle = foreground;
+  ctx.fillText(text, rect.x + rect.width / 2, y + h * 0.54);
+}
+
+function drawPartyHat(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = "#f7d154";
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x, y - size * 0.58);
+  ctx.lineTo(x - size * 0.42, y + size * 0.42);
+  ctx.lineTo(x + size * 0.42, y + size * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = "#e85a1a";
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.25, y - size * 0.08);
+  ctx.lineTo(x + size * 0.25, y + size * 0.12);
+  ctx.moveTo(x - size * 0.32, y + size * 0.24);
+  ctx.lineTo(x + size * 0.32, y + size * 0.42);
+  ctx.stroke();
+  drawSparkle(ctx, rect, rx, ry - 0.1, size * 0.16, "#e85a1a");
+}
+
+function drawStarShades(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(4, size * 0.07);
+  drawStarPolygon(ctx, x - size * 0.7, y, size * 0.5, "#111111", "#f7d154");
+  drawStarPolygon(ctx, x + size * 0.7, y, size * 0.5, "#111111", "#e85a1a");
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.22, y);
+  ctx.quadraticCurveTo(x, y - size * 0.16, x + size * 0.22, y);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x - size * 1.18, y - size * 0.04);
+  ctx.lineTo(x - size * 1.5, y - size * 0.18);
+  ctx.moveTo(x + size * 1.18, y - size * 0.04);
+  ctx.lineTo(x + size * 1.5, y - size * 0.18);
+  ctx.stroke();
+}
+
+function drawStarPolygon(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  radius: number,
+  fill: string,
+  accent: string,
+) {
+  ctx.fillStyle = fill;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, radius * 0.1);
+  ctx.beginPath();
+  for (let i = 0; i < 10; i += 1) {
+    const angle = -Math.PI / 2 + (Math.PI * 2 * i) / 10;
+    const r = i % 2 === 0 ? radius : radius * 0.45;
+    const px = x + Math.cos(angle) * r;
+    const py = y + Math.sin(angle) * r;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = accent;
+  ctx.beginPath();
+  ctx.arc(x - radius * 0.15, y - radius * 0.16, radius * 0.12, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawMustache(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = "#111111";
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.04);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.bezierCurveTo(
+    x - size * 0.35,
+    y - size * 0.34,
+    x - size * 0.98,
+    y - size * 0.26,
+    x - size * 1.18,
+    y + size * 0.08,
+  );
+  ctx.bezierCurveTo(
+    x - size * 0.76,
+    y + size * 0.3,
+    x - size * 0.28,
+    y + size * 0.22,
+    x,
+    y,
+  );
+  ctx.bezierCurveTo(
+    x + size * 0.28,
+    y + size * 0.22,
+    x + size * 0.76,
+    y + size * 0.3,
+    x + size * 1.18,
+    y + size * 0.08,
+  );
+  ctx.bezierCurveTo(
+    x + size * 0.98,
+    y - size * 0.26,
+    x + size * 0.35,
+    y - size * 0.34,
+    x,
+    y,
+  );
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+}
+
+function drawBowTie(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+  color: string,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x - size, y - size * 0.42);
+  ctx.lineTo(x - size, y + size * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + size, y - size * 0.42);
+  ctx.lineTo(x + size, y + size * 0.42);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#f7d154";
+  ctx.fillRect(x - size * 0.16, y - size * 0.22, size * 0.32, size * 0.44);
+  ctx.strokeRect(x - size * 0.16, y - size * 0.22, size * 0.32, size * 0.44);
+}
+
+function drawHeartGlasses(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  drawHeart(ctx, rect, rx - 0.11, ry, size * 0.48, "#e85a1a");
+  drawHeart(ctx, rect, rx + 0.11, ry, size * 0.48, "#f7d154");
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.08);
+  ctx.beginPath();
+  ctx.moveTo(x - size * 0.16, y);
+  ctx.quadraticCurveTo(x, y - size * 0.12, x + size * 0.16, y);
+  ctx.stroke();
+}
+
+function drawStreamer(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  color: string,
+) {
+  const startX = rect.x + rect.width * x1;
+  const startY = rect.y + rect.height * y1;
+  const endX = rect.x + rect.width * x2;
+  const endY = rect.y + rect.height * y2;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(5, rect.width * 0.012);
+  ctx.beginPath();
+  ctx.moveTo(startX, startY);
+  ctx.bezierCurveTo(
+    startX + rect.width * 0.18,
+    startY + rect.height * 0.12,
+    endX - rect.width * 0.18,
+    endY - rect.height * 0.12,
+    endX,
+    endY,
+  );
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(3, rect.width * 0.007);
+  ctx.stroke();
+}
+
+function drawTassel(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+  color: string,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.05);
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.lineTo(x + size * 0.42, y + size * 0.58);
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(x + size * 0.42, y + size * 0.58);
+  ctx.lineTo(x + size * 0.28, y + size * 0.9);
+  ctx.moveTo(x + size * 0.42, y + size * 0.58);
+  ctx.lineTo(x + size * 0.52, y + size * 0.92);
+  ctx.stroke();
+}
+
+function drawLightString(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  scale: number,
+) {
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, 4 * scale);
+  ctx.beginPath();
+  ctx.moveTo(rect.x + rect.width * 0.08, rect.y + rect.height * 0.1);
+  ctx.quadraticCurveTo(
+    rect.x + rect.width * 0.5,
+    rect.y + rect.height * 0.2,
+    rect.x + rect.width * 0.92,
+    rect.y + rect.height * 0.1,
+  );
+  ctx.stroke();
+  const bulbs: [number, number, string][] = [
+    [0.16, 0.12, "#e85a1a"],
+    [0.31, 0.16, "#f7d154"],
+    [0.5, 0.18, "#3e7c78"],
+    [0.69, 0.16, "#f6e7cf"],
+    [0.84, 0.12, "#e85a1a"],
+  ];
+  for (const [rx, ry, color] of bulbs) {
+    const x = rect.x + rect.width * rx;
+    const y = rect.y + rect.height * ry;
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#111111";
+    ctx.beginPath();
+    ctx.ellipse(x, y + 14 * scale, 9 * scale, 16 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function drawCrown(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = "#f7d154";
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(4, size * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x - size, y + size * 0.32);
+  ctx.lineTo(x - size * 0.78, y - size * 0.48);
+  ctx.lineTo(x - size * 0.28, y + size * 0.06);
+  ctx.lineTo(x, y - size * 0.62);
+  ctx.lineTo(x + size * 0.28, y + size * 0.06);
+  ctx.lineTo(x + size * 0.78, y - size * 0.48);
+  ctx.lineTo(x + size, y + size * 0.32);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#e85a1a";
+  for (const dx of [-0.78, 0, 0.78]) {
+    ctx.beginPath();
+    ctx.arc(x + size * dx, y - size * 0.48, size * 0.1, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+  }
+}
+
+function drawNeonFrame(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  scale: number,
+) {
+  const inset = 18 * scale;
+  ctx.lineWidth = Math.max(7, 10 * scale);
+  ctx.strokeStyle = "#111111";
+  ctx.strokeRect(
+    rect.x + inset,
+    rect.y + inset,
+    rect.width - inset * 2,
+    rect.height - inset * 2,
+  );
+  ctx.lineWidth = Math.max(3, 5 * scale);
+  ctx.strokeStyle = "#e85a1a";
+  ctx.strokeRect(
+    rect.x + inset * 1.45,
+    rect.y + inset * 1.45,
+    rect.width - inset * 2.9,
+    rect.height - inset * 2.9,
+  );
+  ctx.strokeStyle = "#3e7c78";
+  ctx.beginPath();
+  ctx.moveTo(rect.x + rect.width * 0.12, rect.y + rect.height * 0.88);
+  ctx.lineTo(rect.x + rect.width * 0.88, rect.y + rect.height * 0.12);
+  ctx.stroke();
+}
+
+function drawLightning(
+  ctx: CanvasRenderingContext2D,
+  rect: DrawRect,
+  rx: number,
+  ry: number,
+  size: number,
+  color: string,
+) {
+  const x = rect.x + rect.width * rx;
+  const y = rect.y + rect.height * ry;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = "#111111";
+  ctx.lineWidth = Math.max(3, size * 0.06);
+  ctx.beginPath();
+  ctx.moveTo(x + size * 0.1, y - size * 0.6);
+  ctx.lineTo(x - size * 0.32, y + size * 0.08);
+  ctx.lineTo(x + size * 0.03, y + size * 0.08);
+  ctx.lineTo(x - size * 0.12, y + size * 0.6);
+  ctx.lineTo(x + size * 0.38, y - size * 0.12);
+  ctx.lineTo(x + size * 0.04, y - size * 0.12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
 }
 
 function drawSparkle(

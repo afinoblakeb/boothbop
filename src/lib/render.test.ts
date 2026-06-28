@@ -102,12 +102,16 @@ describe("sticker settings", () => {
       "none",
       "birthday",
       "sparkles",
+      "shades",
+      "stache",
       "hearts",
       "party",
       "wedding",
       "graduation",
       "holiday",
       "friends",
+      "crown",
+      "neon",
     ]);
     for (const sticker of Object.values(STICKERS)) {
       expect(sticker.label.length).toBeGreaterThan(0);
