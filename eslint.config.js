@@ -6,7 +6,16 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import prettier from "eslint-config-prettier";
 
 export default tseslint.config(
-  { ignores: ["dist", "dev-dist", "coverage"] },
+  {
+    ignores: [
+      "dist",
+      "dev-dist",
+      "coverage",
+      "ios/DerivedData",
+      "ios/App/build",
+      "ios/App/App/public",
+    ],
+  },
   {
     files: ["**/*.{ts,tsx}"],
     extends: [js.configs.recommended, ...tseslint.configs.recommended],
