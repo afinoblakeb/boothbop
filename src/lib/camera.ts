@@ -2,8 +2,12 @@
 
 export const CAPTURE_SIZE = 720; // square capture resolution (px)
 
-/** Request the front ("selfie") camera. Falls back to any camera. */
-export async function startCamera(): Promise<MediaStream> {
+export type CameraFacing = "user" | "environment";
+
+/** Request the selected camera. Falls back to any camera. */
+export async function startCamera(
+  facingMode: CameraFacing = "user",
+): Promise<MediaStream> {
   if (!navigator.mediaDevices?.getUserMedia) {
     throw new Error("Camera access isn't supported in this browser.");
   }
@@ -14,7 +18,7 @@ export async function startCamera(): Promise<MediaStream> {
   try {
     return await tryGet({
       video: {
-        facingMode: { ideal: "user" },
+        facingMode: { ideal: facingMode },
         width: { ideal: 1280 },
         height: { ideal: 1280 },
       },
@@ -40,6 +44,7 @@ export function stopCamera(stream: MediaStream | null) {
 export function captureSquareFrame(
   video: HTMLVideoElement,
   size = CAPTURE_SIZE,
+  mirror = true,
 ): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -52,9 +57,12 @@ export function captureSquareFrame(
   const sx = (vw - side) / 2;
   const sy = (vh - side) / 2;
 
-  // Mirror horizontally so the saved photo matches the on-screen preview.
-  ctx.translate(size, 0);
-  ctx.scale(-1, 1);
+  // Mirror horizontally when the preview is mirrored so the saved photo matches
+  // exactly what the user saw while posing.
+  if (mirror) {
+    ctx.translate(size, 0);
+    ctx.scale(-1, 1);
+  }
   ctx.drawImage(video, sx, sy, side, side, 0, 0, size, size);
   return canvas;
 }

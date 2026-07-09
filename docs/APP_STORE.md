@@ -172,8 +172,9 @@ YOUR PRIVATE BOOTH
   reshare, or delete any strip whenever you like
 - Works fully offline
 
-Photos never leave your device unless you choose to share them. That's it—
-no catch.
+Photos never leave your device unless you choose to share them. Optional Pro
+features are available for premium looks, captions, HD exports, print sheets,
+and watermark-free saved outputs.
 
 Prop it up. Tap start. Strike a pose. BoothBop.
 ```
@@ -247,8 +248,10 @@ Only standard encryption (HTTPS/OS crypto). Add to Info.plist:
 ```
 Thank you for reviewing BoothBop.
 
-NO LOGIN REQUIRED. There is no account, sign-up, or paywall. The full app is
-available immediately on launch—no demo credentials needed.
+NO LOGIN REQUIRED. There is no account or sign-up. The core booth is available
+immediately on launch—no demo credentials needed. BoothBop Pro is an optional
+in-app purchase for premium templates, captions, print sheets, HD exports, and
+watermark-free saved outputs.
 
 WHAT THE APP DOES
 BoothBop is a self-contained native photo-booth app. It uses the live device
@@ -261,8 +264,8 @@ HOW TO TEST (about 30 seconds)
 2. (Optional) Choose a theme/border color and adjust the shutter delay.
 3. Tap Start. The app counts down and captures four photos automatically.
 4. View the strip, then switch between strip / GIF / video outputs.
-5. Open the on-device gallery to see the session saved locally; tap Share to
-   use the standard iOS share sheet, or delete it.
+5. Open BoothBop Gallery to see the session saved locally; tap Save to Photos
+   or Share, or delete it.
 
 RE: GUIDELINE 4.2 (MINIMUM FUNCTIONALITY)
 BoothBop is built with a web technology layer inside a native shell, but it is

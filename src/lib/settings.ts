@@ -3,6 +3,12 @@
 // All logic here is pure/React-free so it can be unit-tested.
 
 import type { Layout } from "./strip";
+import {
+  DEFAULT_LAYOUT,
+  normalizeLayout,
+  normalizeThemeKey,
+  type ThemeKey,
+} from "./style";
 
 export type AutosaveDest = "album" | "cameraRoll";
 export type AutosaveFormat = "strip" | "grid" | "gif" | "video";
@@ -75,7 +81,8 @@ export function planAutosaveTasks(
   opts: { videoSupported: boolean },
 ): AutosaveTask[] {
   const tasks: AutosaveTask[] = [];
-  if (s.strip) tasks.push({ format: "strip", layout: "4x1", kind: "image" });
+  if (s.strip)
+    tasks.push({ format: "strip", layout: DEFAULT_LAYOUT, kind: "image" });
   if (s.grid) tasks.push({ format: "grid", layout: "2x2", kind: "image" });
   if (s.gif) tasks.push({ format: "gif", kind: "image" });
   if (s.video && opts.videoSupported)
@@ -144,3 +151,89 @@ export const VIDEO_PROFILE: Record<Quality, { size: number; bitrate: number }> =
     standard: { size: 720, bitrate: 6_000_000 },
     high: { size: 1080, bitrate: 10_000_000 },
   };
+
+// ───────────────────────── Capture controls ─────────────────────────
+
+export const CAPTURE_DELAYS = [1, 2, 3, 5, 10] as const;
+export type CaptureDelay = (typeof CAPTURE_DELAYS)[number];
+
+const DELAY_KEY = "bb.delay";
+const SOUND_KEY = "bb.captureSound";
+
+export function normalizeCaptureDelay(value: number): CaptureDelay {
+  return CAPTURE_DELAYS.includes(value as CaptureDelay)
+    ? (value as CaptureDelay)
+    : 2;
+}
+
+export function loadCaptureDelay(): CaptureDelay {
+  return normalizeCaptureDelay(Number(localStorage.getItem(DELAY_KEY)));
+}
+
+export function saveCaptureDelay(delay: CaptureDelay): void {
+  localStorage.setItem(DELAY_KEY, String(delay));
+}
+
+export function loadCaptureSound(): boolean {
+  return localStorage.getItem(SOUND_KEY) !== "0";
+}
+
+export function saveCaptureSound(on: boolean): void {
+  localStorage.setItem(SOUND_KEY, on ? "1" : "0");
+}
+
+// ───────────────────────── Motion export speed ─────────────────────────
+
+export const EXPORT_SPEEDS = ["slow", "normal", "fast"] as const;
+export type ExportSpeed = (typeof EXPORT_SPEEDS)[number];
+
+export const EXPORT_SPEED_PROFILE: Record<
+  ExportSpeed,
+  { gifDelay: number; boomerangDelay: number; videoFrameMs: number }
+> = {
+  slow: { gifDelay: 700, boomerangDelay: 240, videoFrameMs: 850 },
+  normal: { gifDelay: 450, boomerangDelay: 170, videoFrameMs: 600 },
+  fast: { gifDelay: 260, boomerangDelay: 105, videoFrameMs: 360 },
+};
+
+const EXPORT_SPEED_KEY = "bb.exportSpeed";
+
+export function normalizeExportSpeed(value: string | null): ExportSpeed {
+  return EXPORT_SPEEDS.includes(value as ExportSpeed)
+    ? (value as ExportSpeed)
+    : "normal";
+}
+
+export function loadExportSpeed(): ExportSpeed {
+  return normalizeExportSpeed(localStorage.getItem(EXPORT_SPEED_KEY));
+}
+
+export function saveExportSpeed(speed: ExportSpeed): void {
+  localStorage.setItem(EXPORT_SPEED_KEY, speed);
+}
+
+// ───────────────────────── Strip style persistence ─────────────────────────
+
+const STRIP_LAYOUT_KEY = "bb.strip.layout";
+const STRIP_THEME_KEY = "bb.strip.theme";
+
+export function loadStripLayout(): Layout {
+  return normalizeLayout(localStorage.getItem(STRIP_LAYOUT_KEY));
+}
+
+export function saveStripLayout(layout: Layout): void {
+  localStorage.setItem(STRIP_LAYOUT_KEY, layout);
+}
+
+export function resetStripLayout(): Layout {
+  saveStripLayout(DEFAULT_LAYOUT);
+  return DEFAULT_LAYOUT;
+}
+
+export function loadThemeKey(): ThemeKey {
+  return normalizeThemeKey(localStorage.getItem(STRIP_THEME_KEY));
+}
+
+export function saveThemeKey(themeKey: ThemeKey): void {
+  localStorage.setItem(STRIP_THEME_KEY, themeKey);
+}

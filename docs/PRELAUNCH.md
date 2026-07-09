@@ -158,7 +158,7 @@ The exhaustive "are we actually ready?" list. Status: ✅ done · 🔲 to do ·
 
 ## 19 · Consciously deferred (NOT v1 blockers)
 
-- Remove-Watermark **IAP** → v1.1 (StoreKit, no backend).
+- BoothBop Pro **IAP** -> v1.1 (StoreKit, no backend).
 - AR filters, depth/portrait, HD capture → later phases.
 - Android / Play Store.
 - Accounts / cloud storage (would force a backend — avoided on purpose).

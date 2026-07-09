@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMERA_MSG,
+  type CameraFacing,
   cameraError,
   captureSquareFrame,
   startCamera,
@@ -8,7 +9,9 @@ import {
   videoReady,
 } from "./lib/camera";
 import {
+  composePrintSheet,
   composeStrip,
+  printSheetBlob,
   stripBlob,
   THEMES,
   type Layout,
@@ -21,31 +24,98 @@ import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
   canvasToBlob,
+  cleanSessionTitle,
+  listSessions,
   requestPersistence,
   saveSession,
+  SESSION_TITLE_MAX,
+  updateSessionMeta,
+  updateSessionPhotos,
+  updateSessionStyle,
   type Session,
 } from "./lib/gallery";
 import {
+  EXPORT_SPEED_PROFILE,
   GIF_SIZE,
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
+  loadCaptureDelay,
+  loadCaptureSound,
+  loadExportSpeed,
+  loadStripLayout,
+  loadThemeKey,
   loadQuality,
   planAutosaveTasks,
+  resetStripLayout,
+  saveCaptureDelay,
+  saveCaptureSound,
+  saveExportSpeed,
+  saveStripLayout,
+  saveThemeKey,
   saveQuality,
   type AutosaveSettings,
   type AutosaveTask,
+  type CaptureDelay,
+  type ExportSpeed,
   type Quality,
   type QualityMedia,
   type QualitySettings,
 } from "./lib/settings";
 import {
+  loadPartyModeConfig,
+  isGuestModeActive,
+  cleanPartyPasscodeInput,
+  normalizePartyPasscode,
+  savePartyModeConfig,
+  verifyPartyPasscode,
+  type GuestOutputFormat,
+  type PartyModeConfig,
+  type PartyResetSeconds,
+} from "./lib/partyMode";
+import {
   ensurePhotosPermission,
+  canSaveWithPhotosPermission,
   openIosSettings,
   saveToPhotos,
   type PermissionResult,
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
 import { nativeShareFile } from "./lib/nativeShare";
+import {
+  FILTERS,
+  STICKERS,
+  loadFilter,
+  loadSticker,
+  renderFrame,
+  saveFilter,
+  saveSticker,
+  type FilterKey,
+  type StickerKey,
+} from "./lib/render";
+import { TEMPLATE_CATALOG, type StylePreset } from "./lib/templates";
+import { loadImportedFrames } from "./lib/importPhotos";
+import { moveItem, type MoveDirection } from "./lib/sequence";
+import {
+  cleanStyleCaption,
+  resolveStripCaption,
+  type SessionStyle,
+  type ThemeKey,
+} from "./lib/style";
+import type { ProContext } from "./lib/pro";
+import {
+  isPremiumFilter,
+  isPremiumLayout,
+  isPremiumQuality,
+  isPremiumSticker,
+} from "./lib/entitlements";
+import {
+  getProProduct,
+  isProCached,
+  refreshPro,
+  restorePurchases,
+  subscribeToPro,
+  type ProProduct,
+} from "./lib/purchases";
 import { SHOTS } from "./constants";
 import type { Format, InstallPromptEvent, Phase } from "./types";
 import { TopBar } from "./components/TopBar";
@@ -55,6 +125,10 @@ import { CameraScreen } from "./screens/CameraScreen";
 import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
+import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
+import { ProScreen } from "./screens/ProScreen";
+import { PartyExitModal } from "./screens/PartyExitModal";
+import { PartySetupScreen } from "./screens/PartySetupScreen";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -65,38 +139,271 @@ interface MediaResult {
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Screenshot mode: a flag-gated sample loader (see lib/demo.ts) for producing
-// App Store screenshots without a camera. Off in the submission build.
+// Screenshot mode: flag-gated demo shoot buttons for producing App Store
+// screenshots without a camera. Gallery sample sets are available in all builds.
 const DEMO = import.meta.env.DEV || import.meta.env.VITE_DEMO === "1";
+const DEMO_SETS = [
+  { id: 1, label: "Birthday" },
+  { id: 2, label: "Night Out" },
+  { id: 3, label: "Friends" },
+] as const;
+
+const LAYOUT_LABELS: Record<Layout, string> = {
+  "4x1": "Classic strip",
+  "2x2": "Square grid",
+  "2x6": "2x6 strip",
+  "4x6": "4x6 print",
+  story: "Story",
+};
+
+const THEME_LABELS: Record<ThemeKey, string> = {
+  classic: "Cream",
+  rust: "Rust",
+  teal: "Teal",
+  mustard: "Mustard",
+  olive: "Olive",
+  carbon: "Carbon",
+};
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flash, setFlash] = useState(false);
-  const [layout, setLayout] = useState<Layout>("4x1");
-  const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
+  const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
+  const [demoSetNum, setDemoSetNum] = useState<number | null>(null);
+  const [demoCameraFrames, setDemoCameraFrames] = useState<
+    HTMLCanvasElement[] | null
+  >(null);
+  const [demoPreviewIndex, setDemoPreviewIndex] = useState(0);
+  const [layout, setLayout] = useState<Layout>(loadStripLayout);
+  const [themeKey, setThemeKeyState] = useState<ThemeKey>(loadThemeKey);
   const [error, setError] = useState<string | null>(null);
 
   const [format, setFormat] = useState<Format>("strip");
-  const [generating, setGenerating] = useState<null | "gif" | "video">(null);
+  const [generating, setGenerating] = useState<
+    null | "gif" | "boomerang" | "video"
+  >(null);
   const [gifResult, setGifResult] = useState<MediaResult | null>(null);
+  const [boomerangResult, setBoomerangResult] = useState<MediaResult | null>(
+    null,
+  );
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showPro, setShowPro] = useState(false);
+  const [showPartySetup, setShowPartySetup] = useState(false);
+  const [savedSessionCount, setSavedSessionCount] = useState<number | null>(
+    null,
+  );
+  const [proContext, setProContext] = useState<ProContext>("settings");
+  const [proBusy, setProBusy] = useState(false);
+  const [proError, setProError] = useState<string | null>(null);
+  const [showPartyExit, setShowPartyExit] = useState(false);
+  const [partyExitError, setPartyExitError] = useState<string | null>(null);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+  const [savingAll, setSavingAll] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionTitle, setSessionTitleState] = useState("");
+  const [sessionFavorite, setSessionFavorite] = useState(false);
+  const [localSaveNoticeSeen, setLocalSaveNoticeSeen] = useState(
+    () => localStorage.getItem("bb.localSaveNoticeSeen") === "1",
+  );
+
+  function dismissLocalSaveNotice() {
+    localStorage.setItem("bb.localSaveNoticeSeen", "1");
+    setLocalSaveNoticeSeen(true);
+  }
 
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
   function changeQuality(media: QualityMedia, q: Quality) {
+    if (isPremiumQuality(q) && !isPro) {
+      openPro("quality");
+      return;
+    }
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
+    clearResults();
+    queueActiveFormatRegeneration();
   }
+
+  const [exportSpeed, setExportSpeedState] =
+    useState<ExportSpeed>(loadExportSpeed);
+  const speedProfile = EXPORT_SPEED_PROFILE[exportSpeed];
+  function changeExportSpeed(speed: ExportSpeed) {
+    saveExportSpeed(speed);
+    setExportSpeedState(speed);
+    clearResults();
+    queueActiveFormatRegeneration();
+  }
+
+  const [filter, setFilterState] = useState<FilterKey>(loadFilter);
+  function changeFilter(f: FilterKey) {
+    if (isPremiumFilter(f) && !isPro) {
+      openPro("look");
+      return;
+    }
+    saveFilter(f);
+    setFilterState(f);
+    persistActiveStyle(buildSessionStyle({ filter: f }));
+    clearResults();
+    queueActiveFormatRegeneration();
+  }
+
+  const [sticker, setStickerState] = useState<StickerKey>(loadSticker);
+  function changeSticker(next: StickerKey) {
+    if (isPremiumSticker(next) && !isPro) {
+      openPro("props");
+      return;
+    }
+    saveSticker(next);
+    setStickerState(next);
+    persistActiveStyle(buildSessionStyle({ sticker: next }));
+    clearResults();
+    queueActiveFormatRegeneration();
+  }
+
+  function changeLayout(next: Layout) {
+    if (isPremiumLayout(next) && !isPro) {
+      openPro("layout");
+      return;
+    }
+    saveStripLayout(next);
+    setLayout(next);
+    persistActiveStyle(buildSessionStyle({ layout: next }));
+  }
+
+  function changeThemeKey(next: ThemeKey) {
+    saveThemeKey(next);
+    setThemeKeyState(next);
+    persistActiveStyle(buildSessionStyle({ themeKey: next }));
+  }
+
+  function resetFreshReviewLayout(): Layout {
+    const next = resetStripLayout();
+    setLayout(next);
+    setTemplateCaption("");
+    return next;
+  }
+
+  function applyStylePreset(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      openPro("template");
+      return;
+    }
+    saveStripLayout(preset.layout);
+    saveThemeKey(preset.theme);
+    setLayout(preset.layout);
+    setThemeKeyState(preset.theme);
+    saveFilter(preset.filter);
+    setFilterState(preset.filter);
+    saveSticker(preset.sticker);
+    setStickerState(preset.sticker);
+    const nextCaption = cleanStyleCaption(preset.caption ?? "");
+    setTemplateCaption(nextCaption);
+    persistActiveStyle(
+      buildSessionStyle({
+        layout: preset.layout,
+        themeKey: preset.theme,
+        filter: preset.filter,
+        sticker: preset.sticker,
+        caption: resolveStripCaption({
+          isPro,
+          customCaption,
+          templateCaption: nextCaption,
+          eventName: activeEventName,
+        }),
+      }),
+    );
+    clearResults();
+    setFormat("strip");
+  }
+
+  // BoothBop Pro (native iOS). isPro gates premium creative tools and drops the
+  // removable BoothBop mark from strip, GIF, boomerang, and video exports.
+  // StoreKit is the source of truth;
+  // cached locally for instant UI.
+  const [isPro, setIsPro] = useState(isProCached());
+  const [proProduct, setProProduct] = useState<ProProduct | null>(null);
+  const [partyConfig, setPartyConfig] =
+    useState<PartyModeConfig>(loadPartyModeConfig);
+  const partyMode = isGuestModeActive(partyConfig);
+  const [customCaption, setCustomCaptionState] = useState(
+    () => localStorage.getItem("bb.pro.caption") ?? "",
+  );
+  const [eventName, setEventNameState] = useState(
+    () => localStorage.getItem("bb.pro.eventName") ?? "",
+  );
+  const activeEventName = isPro ? eventName : "";
+  const [templateCaption, setTemplateCaption] = useState("");
+  function setCustomCaption(value: string) {
+    const next = cleanStyleCaption(value);
+    localStorage.setItem("bb.pro.caption", next);
+    setCustomCaptionState(next);
+    persistActiveStyle(
+      buildSessionStyle({
+        caption: resolveStripCaption({
+          isPro,
+          customCaption: next,
+          templateCaption,
+          eventName: activeEventName,
+        }),
+      }),
+    );
+  }
+  function setEventName(value: string) {
+    const next = cleanStyleCaption(value);
+    localStorage.setItem("bb.pro.eventName", next);
+    setEventNameState(next);
+    persistActiveStyle(
+      buildSessionStyle({
+        caption: resolveStripCaption({
+          isPro,
+          customCaption,
+          templateCaption,
+          eventName: next,
+        }),
+      }),
+    );
+  }
+  const stripCaption = resolveStripCaption({
+    isPro,
+    customCaption,
+    templateCaption,
+    eventName: activeEventName,
+  });
+  const partyStyleSummary = [
+    LAYOUT_LABELS[layout],
+    THEME_LABELS[themeKey],
+    FILTERS[filter].label,
+    sticker === "none" ? null : STICKERS[sticker].label,
+    stripCaption || null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
   const [brandLogo, setBrandLogo] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    if (!showPartySetup) return;
+    let active = true;
+    setSavedSessionCount(null);
+    listSessions()
+      .then((sessions) => {
+        if (active) setSavedSessionCount(sessions.length);
+      })
+      .catch(() => {
+        if (active) setSavedSessionCount(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, [showPartySetup]);
 
   // Auto-save-to-Photos settings + permission handling (native iOS).
   const {
@@ -111,6 +418,117 @@ export default function App() {
     openSettings,
   } = useAutosave();
 
+  useEffect(() => {
+    if (isPro) return;
+    let changed = false;
+    const nextQuality = { ...quality };
+    for (const media of Object.keys(nextQuality) as QualityMedia[]) {
+      if (isPremiumQuality(nextQuality[media])) {
+        nextQuality[media] = "standard";
+        saveQuality(media, "standard");
+        changed = true;
+      }
+    }
+    if (changed) {
+      setQuality(nextQuality);
+      clearResults();
+    }
+    if (isPremiumFilter(filter)) {
+      saveFilter("none");
+      setFilterState("none");
+      clearResults();
+    }
+    if (isPremiumSticker(sticker)) {
+      saveSticker("none");
+      setStickerState("none");
+      clearResults();
+    }
+    if (isPremiumLayout(layout)) {
+      saveStripLayout("4x1");
+      setLayout("4x1");
+    }
+  }, [filter, isPro, layout, quality, sticker]);
+
+  function clearActiveSession() {
+    setActiveSessionId(null);
+    setSessionTitleState("");
+    setSessionFavorite(false);
+  }
+
+  function activateSession(session: Session | null) {
+    if (!session) {
+      clearActiveSession();
+      return;
+    }
+    setActiveSessionId(session.id);
+    setSessionTitleState(session.title ?? "");
+    setSessionFavorite(session.favorite === true);
+  }
+
+  function changeSessionTitle(value: string) {
+    const next = value.slice(0, SESSION_TITLE_MAX);
+    setSessionTitleState(next);
+    if (!activeSessionId) return;
+    void updateSessionMeta(activeSessionId, { title: cleanSessionTitle(next) });
+  }
+
+  function toggleSessionFavorite() {
+    if (!activeSessionId) return;
+    const next = !sessionFavorite;
+    setSessionFavorite(next);
+    void updateSessionMeta(activeSessionId, { favorite: next });
+  }
+
+  function buildSessionStyle(overrides: Partial<SessionStyle> = {}) {
+    const caption = overrides.caption ?? stripCaption;
+    const nextSticker = overrides.sticker ?? sticker;
+    return {
+      layout: overrides.layout ?? layout,
+      themeKey: overrides.themeKey ?? themeKey,
+      filter: overrides.filter ?? filter,
+      ...(nextSticker !== "none" ? { sticker: nextSticker } : {}),
+      ...(caption ? { caption: cleanStyleCaption(caption) } : {}),
+    };
+  }
+
+  function persistActiveStyle(style: SessionStyle) {
+    if (!activeSessionId) return;
+    void updateSessionStyle(activeSessionId, style);
+  }
+
+  function restoreSessionStyle(style: SessionStyle | undefined): boolean {
+    if (!style) return false;
+    const nextLayout =
+      isPremiumLayout(style.layout) && !isPro ? "4x1" : style.layout;
+    const nextFilter =
+      isPremiumFilter(style.filter) && !isPro ? "none" : style.filter;
+    const styleSticker = style.sticker ?? "none";
+    const nextSticker =
+      isPremiumSticker(styleSticker) && !isPro ? "none" : styleSticker;
+    const locked =
+      nextLayout !== style.layout ||
+      nextFilter !== style.filter ||
+      nextSticker !== styleSticker;
+
+    saveStripLayout(nextLayout);
+    saveThemeKey(style.themeKey);
+    saveFilter(nextFilter);
+    saveSticker(nextSticker);
+    setLayout(nextLayout);
+    setThemeKeyState(style.themeKey);
+    setFilterState(nextFilter);
+    setStickerState(nextSticker);
+    const caption = cleanStyleCaption(style.caption ?? "");
+    if (isPro) {
+      localStorage.setItem("bb.pro.caption", caption);
+      setCustomCaptionState(caption);
+      setTemplateCaption("");
+    } else {
+      setTemplateCaption(caption);
+    }
+    return locked;
+  }
+
   // Auto-dismiss the transient success/info note after a few seconds. The
   // cleanup cancels the prior timer whenever `note` changes or on unmount.
   useEffect(() => {
@@ -123,22 +541,69 @@ export default function App() {
   // the review tabs and the auto-save path. Reset by clearResults().
   const mediaCache = useRef<{
     gif?: Promise<Blob>;
+    boomerang?: Promise<Blob>;
     video?: Promise<VideoResult>;
   }>({});
+  const pendingFormatRegeneration = useRef<Exclude<
+    Format,
+    "print" | "strip"
+  > | null>(null);
+
+  function queueActiveFormatRegeneration() {
+    if (
+      phase === "review" &&
+      (format === "gif" || format === "boomerang" || format === "video")
+    ) {
+      pendingFormatRegeneration.current = format;
+    }
+  }
+
   function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
     return (mediaCache.current.gif ??= loadWatermark()
       .then((watermarkImg) =>
-        encodeGif(src, { watermarkImg, size: GIF_SIZE[quality.gif] }),
+        encodeGif(src, {
+          watermarkImg,
+          size: GIF_SIZE[quality.gif],
+          delay: speedProfile.gifDelay,
+          filter,
+          sticker,
+          watermark: !isPro,
+        }),
       )
       .catch((e) => {
         mediaCache.current.gif = undefined; // let a re-tap retry
         throw e;
       }));
   }
+  function getBoomerangBlob(src: HTMLCanvasElement[]): Promise<Blob> {
+    return (mediaCache.current.boomerang ??= loadWatermark()
+      .then((watermarkImg) =>
+        encodeGif(src, {
+          watermarkImg,
+          size: GIF_SIZE[quality.gif],
+          delay: speedProfile.boomerangDelay,
+          filter,
+          sticker,
+          motion: "boomerang",
+          watermark: !isPro,
+        }),
+      )
+      .catch((e) => {
+        mediaCache.current.boomerang = undefined;
+        throw e;
+      }));
+  }
   function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
     return (mediaCache.current.video ??= loadWatermark()
       .then((watermarkImg) => {
-        const opts = { watermarkImg, ...VIDEO_PROFILE[quality.video] };
+        const opts = {
+          watermarkImg,
+          watermark: !isPro,
+          filter,
+          sticker,
+          frameMs: speedProfile.videoFrameMs,
+          ...VIDEO_PROFILE[quality.video],
+        };
         // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
         return isNativeShell()
           ? encodeVideoNative(src, opts)
@@ -151,13 +616,84 @@ export default function App() {
   }
 
   // Shutter delay (seconds counted down before each shot), persisted.
-  const [delay, setDelay] = useState<number>(() => {
-    const v = Number(localStorage.getItem("bb.delay"));
-    return v === 1 || v === 2 || v === 3 ? v : 2;
-  });
-  useEffect(() => {
-    localStorage.setItem("bb.delay", String(delay));
-  }, [delay]);
+  const [delay, setDelayState] = useState<CaptureDelay>(loadCaptureDelay);
+  function changeDelay(next: CaptureDelay) {
+    saveCaptureDelay(next);
+    setDelayState(next);
+  }
+
+  const [captureSound, setCaptureSoundState] = useState(loadCaptureSound);
+
+  function toggleCaptureSound() {
+    const next = !captureSound;
+    saveCaptureSound(next);
+    setCaptureSoundState(next);
+  }
+
+  function updatePartyConfig(next: PartyModeConfig) {
+    savePartyModeConfig(next);
+    setPartyConfig(next);
+  }
+
+  function changePartyMode(on: boolean) {
+    updatePartyConfig({
+      ...partyConfig,
+      enabled: on,
+      passcode: on
+        ? normalizePartyPasscode(partyConfig.passcode)
+        : partyConfig.passcode,
+    });
+  }
+
+  function changePartyPasscode(passcode: string) {
+    updatePartyConfig({
+      ...partyConfig,
+      passcode: cleanPartyPasscodeInput(passcode),
+    });
+  }
+
+  function changePartyResetSeconds(resetSeconds: PartyResetSeconds) {
+    updatePartyConfig({ ...partyConfig, resetSeconds });
+  }
+
+  function changePartyOutputFormat(outputFormat: GuestOutputFormat) {
+    updatePartyConfig({ ...partyConfig, outputFormat });
+  }
+
+  function guestReviewFormat(): GuestOutputFormat {
+    if (!partyMode) return "strip";
+    if (partyConfig.outputFormat === "video" && !isVideoSupported()) {
+      return "strip";
+    }
+    return partyConfig.outputFormat;
+  }
+
+  function enterReview(src: HTMLCanvasElement[]) {
+    const nextFormat = guestReviewFormat();
+    setFormat(nextFormat);
+    setPhase("review");
+    if (nextFormat !== "strip") void ensureFormatFrom(nextFormat, src);
+  }
+
+  function verifyPartyExit(passcode: string) {
+    if (!verifyPartyPasscode(partyConfig, passcode)) {
+      setPartyExitError("That code did not match.");
+      return;
+    }
+    updatePartyConfig({ ...partyConfig, enabled: false });
+    setShowPartyExit(false);
+    setPartyExitError(null);
+    cancelToHome();
+  }
+
+  const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
+    localStorage.getItem("bb.cameraFacing") === "environment"
+      ? "environment"
+      : "user",
+  );
+  const [mirrorPreview, setMirrorPreview] = useState(
+    () => localStorage.getItem("bb.mirrorPreview") !== "0",
+  );
 
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
@@ -165,6 +701,18 @@ export default function App() {
   // Preload the strip-footer logo.
   useEffect(() => {
     loadWatermark().then(setBrandLogo);
+  }, []);
+
+  // Native: confirm the Pro entitlement from StoreKit on launch and load the
+  // localized price for the paywall. Best-effort; no-ops on web.
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    refreshPro()
+      .then(setIsPro)
+      .catch(() => {});
+    getProProduct()
+      .then(setProProduct)
+      .catch(() => {});
   }, []);
 
   // Native app: hide the launch splash as soon as React has mounted, rather
@@ -275,31 +823,210 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    setRetakeIndex(null);
     setPhase("idle");
     setError(msg);
   }
 
+  function bindCameraEnded(stream: MediaStream) {
+    stream.getVideoTracks().forEach((t) => {
+      t.addEventListener("ended", () => failToHome(CAMERA_MSG));
+    });
+  }
+
+  function saveCameraFacing(next: CameraFacing) {
+    localStorage.setItem("bb.cameraFacing", next);
+    setCameraFacingState(next);
+  }
+
+  async function restartCamera(nextFacing: CameraFacing) {
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const stream = await startCamera(nextFacing);
+      streamRef.current = stream;
+      bindCameraEnded(stream);
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.play().catch(() => {});
+      }
+    } catch (e) {
+      failToHome(cameraError(e));
+    }
+  }
+
+  function toggleCameraFacing() {
+    const next = cameraFacing === "user" ? "environment" : "user";
+    saveCameraFacing(next);
+    if (next === "environment") setMirror(false);
+    if (phase === "preview") void restartCamera(next);
+  }
+
+  function setMirror(on: boolean) {
+    localStorage.setItem("bb.mirrorPreview", on ? "1" : "0");
+    setMirrorPreview(on);
+  }
+
   function clearResults() {
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
+    setBoomerangResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
     mediaCache.current = {};
   }
 
-  async function openCamera() {
+  function openPro(context: ProContext = "settings") {
+    setProContext(context);
+    setProError(null);
+    setShowPro(true);
+  }
+
+  function completeProActivation(message: string) {
+    setIsPro(true);
+    clearResults();
+    setFormat("strip");
+    setShowPro(false);
+    setNote(message);
+  }
+
+  // Buy Pro. On success, drop cached branded media and return to the strip,
+  // which re-renders immediately without the removable BoothBop mark.
+  async function purchasePro() {
+    setError(null);
+    setProError(null);
+    setProBusy(true);
+    try {
+      if (await subscribeToPro()) {
+        completeProActivation("BoothBop Pro active.");
+      } else {
+        setProError("The purchase was cancelled or is still pending.");
+      }
+    } catch {
+      setProError("The purchase didn't go through. Please try again.");
+    } finally {
+      setProBusy(false);
+    }
+  }
+
+  async function restorePro() {
+    setError(null);
+    setProError(null);
+    setProBusy(true);
+    try {
+      if (await restorePurchases()) {
+        completeProActivation("Purchase restored.");
+      } else {
+        setProError("No previous Pro purchase was found.");
+        setProContext("settings");
+        setShowPro(true);
+        setNote("No previous purchase found.");
+      }
+    } catch {
+      setProError("Couldn't restore right now. Please try again.");
+      setProContext("settings");
+      setShowPro(true);
+    } finally {
+      setProBusy(false);
+    }
+  }
+
+  async function openCamera({
+    preserveFrames = false,
+    preserveStyle = false,
+    retake = null,
+  }: {
+    preserveFrames?: boolean;
+    preserveStyle?: boolean;
+    retake?: number | null;
+  } = {}) {
     setError(null);
     abortRef.current = false;
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
+    setRetakeIndex(retake);
+    if (!preserveFrames) {
+      clearActiveSession();
+      if (!preserveStyle) resetFreshReviewLayout();
+    }
     try {
-      const stream = await startCamera();
+      const stream = await startCamera(cameraFacing);
       streamRef.current = stream;
       // If the camera track ends mid-use (revoked, taken by another app),
       // drop the user back home with the permission message.
-      stream.getVideoTracks().forEach((t) => {
-        t.addEventListener("ended", () => failToHome(CAMERA_MSG));
-      });
-      setFrames([]);
+      bindCameraEnded(stream);
+      if (!preserveFrames) setFrames([]);
       setPhase("preview");
     } catch (e) {
+      setRetakeIndex(null);
       setError(cameraError(e));
+      setPhase("idle");
+    }
+  }
+
+  async function openDemoCamera(setNum: number) {
+    if (!DEMO) return;
+    setError(null);
+    setNote(null);
+    abortRef.current = false;
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const { loadSampleFrames } = await import("./lib/demo");
+      const canvases = await loadSampleFrames(
+        setNum,
+        PHOTO_CAPTURE[quality.photo],
+      );
+      clearResults();
+      clearActiveSession();
+      resetFreshReviewLayout();
+      setDemoSetNum(setNum);
+      setDemoCameraFrames(canvases);
+      setDemoPreviewIndex(0);
+      setRetakeIndex(null);
+      setFrames([]);
+      setFormat("strip");
+      setPhase("preview");
+    } catch {
+      setDemoSetNum(null);
+      setDemoCameraFrames(null);
+      setError(`Couldn't load demo set ${setNum}.`);
+      setPhase("idle");
+    }
+  }
+
+  async function importPhotos(files: FileList | File[]) {
+    setError(null);
+    setNote(null);
+    abortRef.current = true;
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    try {
+      const canvases = await loadImportedFrames(
+        files,
+        PHOTO_CAPTURE[quality.photo],
+      );
+      clearResults();
+      const freshLayout = resetFreshReviewLayout();
+      setDemoSetNum(null);
+      setDemoCameraFrames(null);
+      setDemoPreviewIndex(0);
+      setRetakeIndex(null);
+      setFrames(canvases);
+      setFormat("strip");
+      setPhase("review");
+      try {
+        const photos = await Promise.all(canvases.map((c) => canvasToBlob(c)));
+        activateSession(
+          await saveSession(photos, buildSessionStyle({ layout: freshLayout })),
+        );
+      } catch {
+        clearActiveSession();
+      }
+      pregenerate(canvases);
+      setNote("Imported 4 photos.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't import photos.");
       setPhase("idle");
     }
   }
@@ -312,11 +1039,21 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    clearActiveSession();
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
+    setRetakeIndex(null);
     setError(null);
     setPhase("idle");
   }
 
   async function runSequence() {
+    if (demoCameraFrames) {
+      await runDemoSequence(demoCameraFrames);
+      return;
+    }
+
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
     if (!video || !(await videoReady(video))) {
@@ -327,6 +1064,50 @@ export default function App() {
     abortRef.current = false;
     setPhase("capturing");
     clearResults();
+    const shotToReplace = retakeIndex;
+    if (shotToReplace !== null) {
+      await wait(400);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      playCaptureTone(900, 120);
+      setFlash(true);
+      const frame = captureSquareFrame(
+        video,
+        PHOTO_CAPTURE[quality.photo],
+        mirrorPreview,
+      );
+      const next = frames.map((existing, i) =>
+        i === shotToReplace ? frame : existing,
+      );
+      setFrames(next);
+      await wait(240);
+      setFlash(false);
+      stopCamera(streamRef.current);
+      streamRef.current = null;
+      setRetakeIndex(null);
+      if (activeSessionId) {
+        try {
+          const photos = await Promise.all(next.map((c) => canvasToBlob(c)));
+          const updated = await updateSessionPhotos(activeSessionId, photos);
+          activateSession(updated);
+        } catch {
+          /* gallery update is best-effort */
+        }
+      }
+      if (!partyMode) pregenerate(next);
+      enterReview(next);
+      return;
+    }
+
+    const freshLayout = layout;
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -334,6 +1115,7 @@ export default function App() {
     for (let shot = 0; shot < SHOTS; shot++) {
       for (let n = delay; n >= 1; n--) {
         if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
         setCountdown(n);
         await wait(1000);
       }
@@ -341,8 +1123,13 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
+      playCaptureTone(900, 120);
       setFlash(true);
-      const frame = captureSquareFrame(video, PHOTO_CAPTURE[quality.photo]);
+      const frame = captureSquareFrame(
+        video,
+        PHOTO_CAPTURE[quality.photo],
+        mirrorPreview,
+      );
       captured.push(frame);
       setFrames([...captured]);
       await wait(240);
@@ -356,8 +1143,11 @@ export default function App() {
     // Auto-save this session to the private on-device gallery.
     try {
       const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      await saveSession(photos);
+      activateSession(
+        await saveSession(photos, buildSessionStyle({ layout: freshLayout })),
+      );
     } catch {
+      clearActiveSession();
       /* storage is best-effort — never block the flow on it */
     }
 
@@ -365,11 +1155,76 @@ export default function App() {
     // instant and the short video finishes before the user can navigate away (a
     // backgrounded MediaRecorder stretches the clip). Then auto-save, also in
     // the background. Neither blocks the review screen.
-    pregenerate(captured);
+    if (!partyMode) pregenerate(captured);
     void autoSaveToAlbum(captured, autosave);
 
-    setFormat("strip");
-    setPhase("review");
+    enterReview(captured);
+  }
+
+  async function runDemoSequence(src: HTMLCanvasElement[]) {
+    abortRef.current = false;
+    setPhase("capturing");
+    clearResults();
+    const shotToReplace = retakeIndex;
+    if (shotToReplace !== null) {
+      setDemoPreviewIndex(shotToReplace);
+      await wait(400);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      playCaptureTone(900, 120);
+      setFlash(true);
+      const frame = src[shotToReplace];
+      const next = frames.map((existing, i) =>
+        i === shotToReplace ? frame : existing,
+      );
+      setFrames(next);
+      await wait(240);
+      setFlash(false);
+      setRetakeIndex(null);
+      if (!partyMode) pregenerate(next);
+      enterReview(next);
+      return;
+    }
+
+    resetFreshReviewLayout();
+    const captured: HTMLCanvasElement[] = [];
+    setFrames([]);
+    await wait(400);
+
+    for (let shot = 0; shot < SHOTS; shot++) {
+      setDemoPreviewIndex(shot);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        playCaptureTone(n === 1 ? 700 : 520, 70);
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      void tapHaptic("Medium");
+      playCaptureTone(900, 120);
+      setFlash(true);
+      const frame = src[shot];
+      captured.push(frame);
+      setFrames([...captured]);
+      await wait(240);
+      setFlash(false);
+      setDemoPreviewIndex(Math.min(shot + 1, SHOTS - 1));
+      if (shot < SHOTS - 1) await wait(750);
+    }
+
+    if (!partyMode) pregenerate(captured);
+    setNote("Demo shoot complete.");
+    enterReview(captured);
   }
 
   // Warm the GIF/video cache and populate the review results so switching tabs
@@ -384,6 +1239,19 @@ export default function App() {
                 url: URL.createObjectURL(blob),
                 blob,
                 filename: `boothbop-${stamp()}.gif`,
+              },
+        ),
+      )
+      .catch(() => {});
+    getBoomerangBlob(src)
+      .then((blob) =>
+        setBoomerangResult((r) =>
+          r
+            ? r
+            : {
+                url: URL.createObjectURL(blob),
+                blob,
+                filename: `boothbop-boomerang-${stamp()}.gif`,
               },
         ),
       )
@@ -406,28 +1274,87 @@ export default function App() {
   }
 
   function retake() {
+    if (demoSetNum !== null) {
+      void openDemoCamera(demoSetNum);
+      return;
+    }
     clearResults();
     setFrames([]);
     setFormat("strip");
     openCamera();
   }
 
-  // Screenshot mode: inject a staged set of photos as the four frames and jump
-  // straight to review, rendering a real strip/GIF/video. Gated by DEMO.
-  async function loadSampleSession(setNum: number) {
-    setError(null);
-    try {
-      const { loadSampleFrames } = await import("./lib/demo");
-      const canvases = await loadSampleFrames(
-        setNum,
-        PHOTO_CAPTURE[quality.photo],
-      );
+  function nextGuest() {
+    if (!partyMode) {
+      retake();
+      return;
+    }
+    if (demoSetNum !== null) {
+      void openDemoCamera(demoSetNum);
+      return;
+    }
+    clearResults();
+    clearActiveSession();
+    setFrames([]);
+    setFormat("strip");
+    void openCamera({ preserveStyle: true });
+  }
+
+  function startTemplate(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      openPro("template");
+      return;
+    }
+    applyStylePreset(preset);
+    setShowTemplates(false);
+    void openCamera({ preserveStyle: true });
+  }
+
+  function applyTemplateToCurrent(preset: StylePreset) {
+    if (preset.pro && !isPro) {
+      openPro("template");
+      return;
+    }
+    applyStylePreset(preset);
+    setShowTemplates(false);
+  }
+
+  function unlockTemplate() {
+    openPro("template");
+  }
+
+  function retakeShot(index: number) {
+    if (demoCameraFrames) {
       clearResults();
-      setFrames(canvases);
+      setDemoPreviewIndex(index);
+      setRetakeIndex(index);
       setFormat("strip");
-      setPhase("review");
+      setPhase("preview");
+      return;
+    }
+    clearResults();
+    setFormat("strip");
+    openCamera({ preserveFrames: true, retake: index });
+  }
+
+  function moveShot(index: number, direction: MoveDirection) {
+    clearResults();
+    setFormat("strip");
+    setFrames((current) => {
+      const next = moveItem(current, index, direction);
+      if (activeSessionId) void persistActivePhotos(next);
+      return next;
+    });
+  }
+
+  async function persistActivePhotos(next: HTMLCanvasElement[]) {
+    if (!activeSessionId) return;
+    try {
+      const photos = await Promise.all(next.map((c) => canvasToBlob(c)));
+      const updated = await updateSessionPhotos(activeSessionId, photos);
+      activateSession(updated);
     } catch {
-      setError(`Add public/demo/set${setNum}-1.jpg … set${setNum}-4.jpg`);
+      /* gallery update is best-effort */
     }
   }
 
@@ -437,6 +1364,12 @@ export default function App() {
     clearResults();
     setError(null);
     setNote(null);
+    setDemoSetNum(null);
+    setDemoCameraFrames(null);
+    setDemoPreviewIndex(0);
+    if (session.id.startsWith("demo-")) clearActiveSession();
+    else activateSession(session);
+    const lockedStyle = restoreSessionStyle(session.style);
     const canvases = await Promise.all(
       session.photos.map((b) => blobToCanvas(b)),
     );
@@ -444,39 +1377,91 @@ export default function App() {
     setFormat("strip");
     setShowGallery(false);
     setPhase("review");
+    if (lockedStyle) setNote("Some saved Pro styling is locked.");
   }
 
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(
-      frames,
-      layout,
-      THEMES[themeKey],
-      brandLogo,
-      PHOTO_CAPTURE[quality.photo],
-    ).toDataURL("image/png");
-  }, [frames, layout, themeKey, brandLogo, quality.photo]);
+    return composeStrip(frames, layout, THEMES[themeKey], {
+      logo: brandLogo,
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: !isPro,
+      filter,
+      sticker,
+      caption: stripCaption || undefined,
+    }).toDataURL("image/png");
+  }, [
+    frames,
+    layout,
+    themeKey,
+    brandLogo,
+    quality.photo,
+    isPro,
+    filter,
+    sticker,
+    stripCaption,
+  ]);
+  const printUrl = useMemo(() => {
+    if (frames.length < SHOTS || !isPro) return null;
+    return composePrintSheet(frames, THEMES[themeKey], {
+      logo: brandLogo,
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: false,
+      filter,
+      sticker,
+      caption: stripCaption || undefined,
+    }).toDataURL("image/png");
+  }, [
+    frames,
+    themeKey,
+    brandLogo,
+    quality.photo,
+    isPro,
+    filter,
+    sticker,
+    stripCaption,
+  ]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
     [frames],
   );
+  const demoPreviewUrl = useMemo(() => {
+    if (!demoCameraFrames || phase === "review") return null;
+    const frame = demoCameraFrames[demoPreviewIndex];
+    return frame ? frame.toDataURL("image/jpeg", 0.82) : null;
+  }, [demoCameraFrames, demoPreviewIndex, phase]);
 
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
+    if (f === "print" && !isPro) {
+      openPro("print");
+      return;
+    }
     setFormat(f);
     setError(null);
     setNote(null);
-    if (f === "gif" && !gifResult) await ensureGif();
-    if (f === "video" && !videoResult) await ensureVideo();
+    if (f === "gif" && !gifResult) await ensureGifFrom(frames);
+    if (f === "boomerang" && !boomerangResult)
+      await ensureBoomerangFrom(frames);
+    if (f === "video" && !videoResult) await ensureVideoFrom(frames);
   }
 
-  async function ensureGif() {
+  async function ensureFormatFrom(
+    nextFormat: Exclude<Format, "print" | "strip">,
+    src: HTMLCanvasElement[],
+  ) {
+    if (nextFormat === "gif") await ensureGifFrom(src);
+    if (nextFormat === "boomerang") await ensureBoomerangFrom(src);
+    if (nextFormat === "video") await ensureVideoFrom(src);
+  }
+
+  async function ensureGifFrom(src: HTMLCanvasElement[]) {
     setGenerating("gif");
     try {
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = await getGifBlob(frames);
+      const blob = await getGifBlob(src);
       setGifResult((r) =>
         r
           ? r
@@ -493,14 +1478,35 @@ export default function App() {
     }
   }
 
-  async function ensureVideo() {
+  async function ensureBoomerangFrom(src: HTMLCanvasElement[]) {
+    setGenerating("boomerang");
+    try {
+      await wait(30);
+      const blob = await getBoomerangBlob(src);
+      setBoomerangResult((r) =>
+        r
+          ? r
+          : {
+              url: URL.createObjectURL(blob),
+              blob,
+              filename: `boothbop-boomerang-${stamp()}.gif`,
+            },
+      );
+    } catch {
+      setError("Couldn't create the boomerang.");
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  async function ensureVideoFrom(src: HTMLCanvasElement[]) {
     if (!isVideoSupported()) {
       setError("Video recording isn't supported in this browser.");
       return;
     }
     setGenerating("video");
     try {
-      const { blob, extension } = await getVideoResult(frames);
+      const { blob, extension } = await getVideoResult(src);
       setVideoResult((r) =>
         r
           ? r
@@ -517,6 +1523,15 @@ export default function App() {
     }
   }
 
+  useEffect(() => {
+    const pending = pendingFormatRegeneration.current;
+    if (!pending || phase !== "review" || frames.length < SHOTS || generating) {
+      return;
+    }
+    pendingFormatRegeneration.current = null;
+    void ensureFormatFrom(pending, frames);
+  });
+
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
   // are never encoded twice (the review tabs draw from the same cache).
   async function renderForAutosave(
@@ -525,7 +1540,13 @@ export default function App() {
     theme: StripTheme,
   ): Promise<Blob> {
     if (task.layout)
-      return stripBlob(src, task.layout, theme, PHOTO_CAPTURE[quality.photo]);
+      return stripBlob(src, task.layout, theme, {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: !isPro,
+        filter,
+        sticker,
+        caption: stripCaption || undefined,
+      });
     if (task.format === "gif") return getGifBlob(src);
     return (await getVideoResult(src)).blob;
   }
@@ -549,7 +1570,7 @@ export default function App() {
     } catch {
       status = "denied";
     }
-    if (status !== "granted") return;
+    if (!canSaveWithPhotosPermission(settings.dest, status)) return;
 
     // Snapshot the theme so a set saved over a few seconds stays consistent even
     // if the user changes the color on the review screen mid-save.
@@ -575,14 +1596,33 @@ export default function App() {
   // Resolve the blob + filename for whatever format is currently shown.
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
+    if (format === "boomerang") return boomerangResult;
     if (format === "video") return videoResult;
-    const blob = await stripBlob(
-      frames,
-      layout,
-      THEMES[themeKey],
-      PHOTO_CAPTURE[quality.photo],
-    );
+    if (format === "print") {
+      const blob = await printSheetBlob(frames, THEMES[themeKey], {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: false,
+        filter,
+        sticker,
+        caption: stripCaption || undefined,
+      });
+      return { url: "", blob, filename: `boothbop-print-${stamp()}.png` };
+    }
+    const blob = await stripBlob(frames, layout, THEMES[themeKey], {
+      cell: PHOTO_CAPTURE[quality.photo],
+      watermark: !isPro,
+      filter,
+      sticker,
+      caption: stripCaption || undefined,
+    });
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
+  }
+
+  function renderedShot(frame: HTMLCanvasElement): HTMLCanvasElement {
+    return renderFrame(frame, PHOTO_CAPTURE[quality.photo], {
+      filter,
+      sticker,
+    });
   }
 
   // Best-effort native haptic. No-ops on web; never blocks or throws into the flow.
@@ -593,6 +1633,33 @@ export default function App() {
       await Haptics.impact({ style: ImpactStyle[style] });
     } catch {
       /* haptics are best-effort — never block the flow */
+    }
+  }
+
+  function playCaptureTone(frequency: number, durationMs: number) {
+    if (!captureSound) return;
+    try {
+      const AudioCtor =
+        window.AudioContext ??
+        (window as Window & { webkitAudioContext?: typeof AudioContext })
+          .webkitAudioContext;
+      if (!AudioCtor) return;
+      const ctx = new AudioCtor();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const now = ctx.currentTime;
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(frequency, now);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.05, now + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + durationMs / 1000 + 0.02);
+      osc.onended = () => void ctx.close().catch(() => {});
+    } catch {
+      /* audio is best-effort */
     }
   }
 
@@ -652,23 +1719,169 @@ export default function App() {
 
   async function downloadCurrent() {
     const media = await currentMedia();
-    if (media) triggerDownload(media.blob, media.filename);
+    if (!media) return;
+    if (isNativeShell()) {
+      setError(null);
+      setNote(null);
+      try {
+        const status = await ensurePhotosPermission("cameraRoll", true);
+        if (status !== "granted" && status !== "limited") {
+          setError("Photos access is needed to save.");
+          return;
+        }
+        await saveToPhotos(
+          media.blob,
+          format === "video" ? "video" : "image",
+          "cameraRoll",
+        );
+        setNote(
+          format === "video" ? "Saved video to Photos." : "Saved to Photos.",
+        );
+        void tapHaptic("Light");
+      } catch {
+        setError("Couldn't save to Photos.");
+      }
+      return;
+    }
+    triggerDownload(media.blob, media.filename);
+    setNote(
+      format === "video"
+        ? "Downloaded video."
+        : format === "gif" || format === "boomerang"
+          ? "Downloaded GIF."
+          : format === "print"
+            ? "Downloaded print sheet."
+            : "Downloaded PNG.",
+    );
+  }
+
+  async function saveAllCurrent() {
+    if (frames.length < SHOTS || savingAll) return;
+    setSavingAll(true);
+    setError(null);
+    setNote(null);
+    try {
+      const stampNow = stamp();
+      const strip = await stripBlob(frames, layout, THEMES[themeKey], {
+        cell: PHOTO_CAPTURE[quality.photo],
+        watermark: !isPro,
+        filter,
+        sticker,
+        caption: stripCaption || undefined,
+      });
+      const gif = await getGifBlob(frames);
+      const boomerang = await getBoomerangBlob(frames);
+      const results: {
+        blob: Blob;
+        filename: string;
+        kind: "image" | "video";
+      }[] = [
+        {
+          blob: strip,
+          filename: `boothbop-strip-${stampNow}.png`,
+          kind: "image",
+        },
+        {
+          blob: gif,
+          filename: `boothbop-loop-${stampNow}.gif`,
+          kind: "image",
+        },
+        {
+          blob: boomerang,
+          filename: `boothbop-boomerang-${stampNow}.gif`,
+          kind: "image",
+        },
+      ];
+      if (isPro) {
+        results.push({
+          blob: await printSheetBlob(frames, THEMES[themeKey], {
+            cell: PHOTO_CAPTURE[quality.photo],
+            watermark: false,
+            filter,
+            sticker,
+            caption: stripCaption || undefined,
+          }),
+          filename: `boothbop-print-${stampNow}.png`,
+          kind: "image",
+        });
+      }
+      if (isVideoSupported()) {
+        const { blob, extension } = await getVideoResult(frames);
+        results.push({
+          blob,
+          filename: `boothbop-video-${stampNow}.${extension}`,
+          kind: "video",
+        });
+      }
+      const shots = await Promise.all(
+        frames.map((frame) =>
+          canvasToBlob(renderedShot(frame), "image/jpeg", 0.92),
+        ),
+      );
+      results.push(
+        ...shots.map((blob, index) => ({
+          blob,
+          filename: `boothbop-shot-${index + 1}-${stampNow}.jpg`,
+          kind: "image" as const,
+        })),
+      );
+
+      if (isNativeShell()) {
+        const status = await ensurePhotosPermission("cameraRoll", true);
+        if (status !== "granted" && status !== "limited") {
+          setError("Photos access is needed to save everything.");
+          return;
+        }
+        for (const media of results) {
+          await saveToPhotos(media.blob, media.kind, "cameraRoll");
+        }
+        setNote(`Saved ${results.length} files to Photos.`);
+        return;
+      }
+
+      for (const media of results) {
+        triggerDownload(media.blob, media.filename);
+        await wait(120);
+      }
+      setNote(`Downloaded ${results.length} files.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't save everything.");
+    } finally {
+      setSavingAll(false);
+    }
   }
 
   const previewUrl =
     format === "strip"
       ? stripUrl
-      : format === "gif"
-        ? (gifResult?.url ?? null)
-        : (videoResult?.url ?? null);
+      : format === "print"
+        ? printUrl
+        : format === "gif"
+          ? (gifResult?.url ?? null)
+          : format === "boomerang"
+            ? (boomerangResult?.url ?? null)
+            : (videoResult?.url ?? null);
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">
       <TopBar
-        onHome={cancelToHome}
+        onHome={
+          partyMode
+            ? () => {
+                setPartyExitError(null);
+                setShowPartyExit(true);
+              }
+            : cancelToHome
+        }
+        homeLabel={partyMode ? "Exit Guest Mode" : "Home"}
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
-        showActions={phase !== "capturing" && !showMigration}
+        showActions={
+          phase !== "idle" &&
+          phase !== "capturing" &&
+          !showMigration &&
+          !partyMode
+        }
       />
 
       {phase === "idle" &&
@@ -676,9 +1889,16 @@ export default function App() {
           <MigrationScreen onContinue={dismissMigration} />
         ) : (
           <IdleScreen
-            onStart={openCamera}
+            onStart={() => void openCamera({ preserveStyle: partyMode })}
+            onBrowseTemplates={() => setShowTemplates(true)}
+            onOpenPartySetup={() => setShowPartySetup(true)}
             onOpenGallery={() => setShowGallery(true)}
+            onOpenSettings={openSettings}
+            onImportPhotos={(files) => void importPhotos(files)}
+            demoSets={DEMO ? DEMO_SETS : []}
+            onStartDemo={(setNum) => void openDemoCamera(setNum)}
             installPrompt={installPrompt}
+            partyMode={partyMode}
             error={error}
           />
         ))}
@@ -687,12 +1907,22 @@ export default function App() {
         <CameraScreen
           videoRef={videoRef}
           phase={phase}
+          retakeIndex={retakeIndex}
+          demoPreviewUrl={demoPreviewUrl}
           countdown={countdown}
           flash={flash}
           thumbs={thumbs}
           delay={delay}
-          setDelay={setDelay}
+          setDelay={changeDelay}
+          captureSound={captureSound}
+          cameraFacing={cameraFacing}
+          mirrorPreview={mirrorPreview}
+          partyMode={partyMode}
+          onToggleFacing={toggleCameraFacing}
+          onToggleMirror={() => setMirror(!mirrorPreview)}
+          onToggleSound={toggleCaptureSound}
           onStart={runSequence}
+          onCancel={cancelToHome}
         />
       )}
 
@@ -703,18 +1933,46 @@ export default function App() {
           previewUrl={previewUrl}
           generating={generating}
           layout={layout}
-          setLayout={setLayout}
+          setLayout={changeLayout}
           themeKey={themeKey}
-          setThemeKey={setThemeKey}
+          setThemeKey={changeThemeKey}
+          filter={filter}
+          filters={FILTERS}
+          setFilter={changeFilter}
+          sticker={sticker}
+          stickers={STICKERS}
+          setSticker={changeSticker}
+          stylePresets={TEMPLATE_CATALOG}
+          isPro={isPro}
+          onApplyPreset={applyStylePreset}
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
+          native={isNativeShell()}
+          savingAll={savingAll}
+          partyMode={partyMode}
+          partyResetSeconds={partyConfig.resetSeconds}
+          thumbs={thumbs}
+          sessionTitle={sessionTitle}
+          sessionFavorite={sessionFavorite}
+          customCaption={customCaption}
+          canManageSession={activeSessionId !== null}
           autosaveTip={isNativeShell() && !autosaveTipSeen}
+          localSaveNotice={activeSessionId !== null && !localSaveNoticeSeen}
           onOpenSettings={openSettings}
+          onOpenPro={() => openPro("caption")}
           onDismissTip={dismissAutosaveTip}
+          onDismissLocalSaveNotice={dismissLocalSaveNotice}
+          onBrowseTemplates={() => setShowTemplates(true)}
           onShare={shareCurrent}
-          onDownload={downloadCurrent}
-          onRetake={retake}
+          onSave={downloadCurrent}
+          onSaveAll={saveAllCurrent}
+          onSessionTitle={changeSessionTitle}
+          onToggleFavorite={toggleSessionFavorite}
+          onCustomCaption={setCustomCaption}
+          onRetake={nextGuest}
+          onRetakeShot={retakeShot}
+          onMoveShot={moveShot}
         />
       )}
 
@@ -725,33 +1983,101 @@ export default function App() {
         />
       )}
 
+      {showTemplates && (
+        <TemplateGalleryScreen
+          isPro={isPro}
+          eventName={activeEventName}
+          hasCurrentCapture={frames.length >= SHOTS}
+          onClose={() => setShowTemplates(false)}
+          onStart={startTemplate}
+          onApplyToCurrent={applyTemplateToCurrent}
+          onUnlockPro={unlockTemplate}
+        />
+      )}
+
       {showSettings && (
         <SettingsScreen
           settings={autosave}
           quality={quality}
+          exportSpeed={exportSpeed}
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
           error={autosaveError}
+          isPro={isPro}
+          proPrice={proProduct?.price ?? null}
+          partyMode={partyConfig.enabled}
+          partyPasscode={partyConfig.passcode}
+          partyResetSeconds={partyConfig.resetSeconds}
+          eventName={eventName}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
+          onExportSpeed={changeExportSpeed}
+          onOpenPro={() => openPro("settings")}
+          onPartyMode={changePartyMode}
+          onPartyPasscode={changePartyPasscode}
+          onPartyResetSeconds={changePartyResetSeconds}
+          onEventName={setEventName}
+          onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
         />
       )}
 
-      {DEMO && phase === "idle" && !showMigration && (
-        <div className="fixed bottom-2 left-2 z-50 flex gap-1">
-          {[1, 2, 3].map((n) => (
-            <button
-              key={n}
-              onClick={() => loadSampleSession(n)}
-              className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
-            >
-              Demo {n}
-            </button>
-          ))}
-        </div>
+      {showPartySetup && (
+        <PartySetupScreen
+          native={isNativeShell()}
+          partyMode={partyConfig.enabled}
+          partyPasscode={partyConfig.passcode}
+          partyResetSeconds={partyConfig.resetSeconds}
+          partyOutputFormat={partyConfig.outputFormat}
+          videoSupported={isVideoSupported()}
+          autosave={autosave}
+          savedSessionCount={savedSessionCount}
+          styleSummary={partyStyleSummary}
+          onPartyMode={changePartyMode}
+          onPartyPasscode={changePartyPasscode}
+          onPartyResetSeconds={changePartyResetSeconds}
+          onPartyOutputFormat={changePartyOutputFormat}
+          onBrowseTemplates={() => {
+            setShowPartySetup(false);
+            setShowTemplates(true);
+          }}
+          onOpenSettings={() => {
+            setShowPartySetup(false);
+            openSettings();
+          }}
+          onStart={() => {
+            setShowPartySetup(false);
+            void openCamera({ preserveStyle: true });
+          }}
+          onClose={() => setShowPartySetup(false)}
+        />
+      )}
+
+      {showPro && (
+        <ProScreen
+          context={proContext}
+          price={proProduct?.price ?? null}
+          native={isNativeShell()}
+          isPro={isPro}
+          busy={proBusy}
+          error={proError}
+          onStartPro={purchasePro}
+          onRestore={restorePro}
+          onClose={() => setShowPro(false)}
+        />
+      )}
+
+      {showPartyExit && (
+        <PartyExitModal
+          error={partyExitError}
+          onVerify={verifyPartyExit}
+          onClose={() => {
+            setPartyExitError(null);
+            setShowPartyExit(false);
+          }}
+        />
       )}
     </div>
   );

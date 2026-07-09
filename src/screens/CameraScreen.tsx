@@ -1,4 +1,6 @@
 import type { RefObject } from "react";
+import type { CameraFacing } from "../lib/camera";
+import { CAPTURE_DELAYS, type CaptureDelay } from "../lib/settings";
 import { BrandIcon } from "../icons";
 import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
@@ -15,32 +17,71 @@ const COUNTDOWN_COLOR: Record<number, string> = {
 export function CameraScreen({
   videoRef,
   phase,
+  retakeIndex,
+  demoPreviewUrl,
   countdown,
   flash,
   thumbs,
   delay,
   setDelay,
+  captureSound,
+  cameraFacing,
+  mirrorPreview,
+  partyMode,
+  onToggleFacing,
+  onToggleMirror,
+  onToggleSound,
   onStart,
+  onCancel,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
+  retakeIndex: number | null;
+  demoPreviewUrl: string | null;
   countdown: number | null;
   flash: boolean;
   thumbs: string[];
-  delay: number;
-  setDelay: (n: number) => void;
+  delay: CaptureDelay;
+  setDelay: (n: CaptureDelay) => void;
+  captureSound: boolean;
+  cameraFacing: CameraFacing;
+  mirrorPreview: boolean;
+  partyMode: boolean;
+  onToggleFacing: () => void;
+  onToggleMirror: () => void;
+  onToggleSound: () => void;
   onStart: () => void;
+  onCancel: () => void;
 }) {
+  const isDemo = demoPreviewUrl !== null;
+  const liveStatus =
+    countdown !== null
+      ? `Photo in ${countdown}`
+      : phase === "capturing"
+        ? `Captured ${thumbs.length} of ${SHOTS} photos`
+        : "Camera ready";
   return (
     <div className="flex flex-1 flex-col py-4">
+      <p className="sr-only" aria-live="assertive" aria-atomic="true">
+        {liveStatus}
+      </p>
       <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className="h-full w-full -scale-x-100 object-cover"
-        />
+        {demoPreviewUrl ? (
+          <img
+            src={demoPreviewUrl}
+            alt=""
+            className="h-full w-full object-cover"
+            draggable={false}
+          />
+        ) : (
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className={`h-full w-full object-cover ${mirrorPreview ? "-scale-x-100" : ""}`}
+          />
+        )}
 
         {phase === "capturing" && (
           <Heading
@@ -52,6 +93,14 @@ export function CameraScreen({
             {thumbs.length}/{SHOTS}
           </Heading>
         )}
+
+        <button
+          onClick={onCancel}
+          aria-label={phase === "capturing" ? "Stop capture" : "Cancel camera"}
+          className="absolute right-2 top-2 min-h-10 border-2 border-ink bg-cream px-3 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+        >
+          {phase === "capturing" ? "Stop" : "Cancel"}
+        </button>
 
         {countdown !== null && (
           <div className="absolute inset-0 flex items-center justify-center">
@@ -93,25 +142,88 @@ export function CameraScreen({
       <div className="mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
-            <div className="mb-3 flex items-center justify-center gap-2">
-              <Heading as="span" size="sm" className="text-brown">
-                Countdown
-              </Heading>
-              <SegmentedControl
-                label="Countdown seconds"
-                value={delay}
-                onChange={setDelay}
-                options={[
-                  { value: 1, label: "1s" },
-                  { value: 2, label: "2s" },
-                  { value: 3, label: "3s" },
-                ]}
-                itemClassName="flex min-h-[44px] items-center justify-center px-4 py-2.5 text-lg"
-              />
-            </div>
+            {partyMode ? (
+              <div className="mb-3 border-2 border-ink bg-paper px-3 py-2 text-left">
+                <Heading as="p" size="sm" className="text-ink">
+                  Guest Mode
+                </Heading>
+                <p className="font-sans text-xs uppercase tracking-wide text-brown">
+                  Host controls are locked for guests.
+                </p>
+              </div>
+            ) : isDemo ? (
+              <div className="mb-3 grid grid-cols-2 gap-2">
+                <Heading
+                  as="p"
+                  size="sm"
+                  className="border-2 border-ink bg-paper px-3 py-2 text-ink"
+                >
+                  Demo Camera
+                </Heading>
+                <button
+                  onClick={onToggleSound}
+                  aria-pressed={captureSound}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    captureSound ? "bg-mustard text-ink" : "bg-paper text-ink"
+                  }`}
+                >
+                  Sound
+                </button>
+              </div>
+            ) : (
+              <div className="mb-3 grid grid-cols-3 gap-2">
+                <button
+                  onClick={onToggleFacing}
+                  className="border-2 border-ink bg-paper px-3 py-2 font-display text-base uppercase tracking-wide text-ink transition active:translate-y-px"
+                >
+                  {cameraFacing === "user" ? "Front" : "Back"}
+                </button>
+                <button
+                  onClick={onToggleMirror}
+                  aria-pressed={mirrorPreview}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    mirrorPreview ? "bg-teal text-cream" : "bg-paper text-ink"
+                  }`}
+                >
+                  Mirror
+                </button>
+                <button
+                  onClick={onToggleSound}
+                  aria-pressed={captureSound}
+                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
+                    captureSound ? "bg-mustard text-ink" : "bg-paper text-ink"
+                  }`}
+                >
+                  Sound
+                </button>
+              </div>
+            )}
+            {!partyMode && (
+              <div className="mb-3 flex items-center justify-center gap-2">
+                <Heading as="span" size="sm" className="text-brown">
+                  Countdown
+                </Heading>
+                <SegmentedControl
+                  label="Countdown seconds"
+                  value={delay}
+                  onChange={setDelay}
+                  options={CAPTURE_DELAYS.map((value) => ({
+                    value,
+                    label: `${value}s`,
+                  }))}
+                  itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2.5 text-lg"
+                />
+              </div>
+            )}
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-              Take Photos
+              {partyMode
+                ? "Start Booth"
+                : retakeIndex === null
+                  ? isDemo
+                    ? "Run Demo Shoot"
+                    : "Start Countdown"
+                  : `Retake Shot ${retakeIndex + 1}`}
             </Button>
           </>
         ) : (

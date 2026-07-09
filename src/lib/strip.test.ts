@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  composePrintSheet,
   composeStrip,
   STRIP,
   stripGeometry,
@@ -31,7 +32,7 @@ describe("stripGeometry", () => {
   });
 
   it("always positions exactly four non-overlapping cells", () => {
-    for (const layout of ["4x1", "2x2"] as Layout[]) {
+    for (const layout of ["4x1", "2x2", "2x6", "4x6", "story"] as Layout[]) {
       const { cells } = stripGeometry(layout);
       expect(cells).toHaveLength(4);
       const seen = new Set(cells.map((c) => `${c.x},${c.y}`));
@@ -40,13 +41,25 @@ describe("stripGeometry", () => {
   });
 
   it("keeps every cell inside the canvas bounds", () => {
-    for (const layout of ["4x1", "2x2"] as Layout[]) {
+    for (const layout of ["4x1", "2x2", "2x6", "4x6", "story"] as Layout[]) {
       const g = stripGeometry(layout);
-      for (const { x, y } of g.cells) {
-        expect(x + STRIP.cell).toBeLessThanOrEqual(g.width);
-        expect(y + STRIP.cell).toBeLessThanOrEqual(g.height - STRIP.footer);
+      for (const { x, y, size } of g.cells) {
+        expect(x + size).toBeLessThanOrEqual(g.width);
+        expect(y + size).toBeLessThanOrEqual(g.height - STRIP.footer);
       }
     }
+  });
+
+  it("supports print and social aspect ratios", () => {
+    expect(
+      stripGeometry("2x6").height / stripGeometry("2x6").width,
+    ).toBeCloseTo(3, 1);
+    expect(
+      stripGeometry("4x6").height / stripGeometry("4x6").width,
+    ).toBeCloseTo(1.5, 1);
+    expect(
+      stripGeometry("story").height / stripGeometry("story").width,
+    ).toBeCloseTo(16 / 9, 1);
   });
 });
 
@@ -84,6 +97,24 @@ const drewCaption = (ctx: ReturnType<typeof fakeCtx>) =>
 describe("composeStrip branding", () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it("composes a print sheet as two 2x6 strips on a 4x6 canvas", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+
+    const sheet = composePrintSheet(fourFrames(), THEMES.classic);
+    const strip = stripGeometry("2x6");
+
+    expect(sheet.width).toBe(strip.width * 2);
+    expect(sheet.height).toBe(strip.height);
+    expect(sheet.height / sheet.width).toBeCloseTo(1.5, 1);
+    const drewSheetCopies = ctx.drawImage.mock.calls.filter(
+      (call) => call[0] === sheet || call[0] instanceof HTMLCanvasElement,
+    );
+    expect(drewSheetCopies.length).toBeGreaterThanOrEqual(2);
+  });
+
   it("draws the brand logo image in the footer when a logo is provided", () => {
     const ctx = fakeCtx();
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
@@ -91,12 +122,31 @@ describe("composeStrip branding", () => {
     );
     const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, logo);
+    composeStrip(fourFrames(), "4x1", THEMES.classic, { logo });
 
     const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
     expect(drewLogo).toBe(true);
     // With the logo present it must NOT fall back to the text wordmark.
     expect(drewCaption(ctx)).toBe(false);
+  });
+
+  it("can draw a custom caption with the brand logo", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
+
+    composeStrip(fourFrames(), "4x1", THEMES.classic, {
+      logo,
+      caption: "Birthday Bash",
+    });
+
+    const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
+    expect(drewLogo).toBe(true);
+    expect(
+      ctx.fillText.mock.calls.some((c) => String(c[0]) === "BIRTHDAY BASH"),
+    ).toBe(true);
   });
 
   it("falls back to the text caption when no logo is available", () => {
@@ -105,9 +155,27 @@ describe("composeStrip branding", () => {
       ctx as unknown as CanvasRenderingContext2D,
     );
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, null);
+    composeStrip(fourFrames(), "4x1", THEMES.classic);
 
     expect(drewCaption(ctx)).toBe(true);
+  });
+
+  it("omits the brand mark when watermarking is disabled", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
+
+    composeStrip(fourFrames(), "4x1", THEMES.classic, {
+      logo,
+      cell: STRIP.cell,
+      watermark: false,
+    });
+
+    const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
+    expect(drewLogo).toBe(false);
+    expect(drewCaption(ctx)).toBe(false);
   });
 });
 

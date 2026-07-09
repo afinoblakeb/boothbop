@@ -1,11 +1,16 @@
 import {
+  EXPORT_SPEEDS,
   type AutosaveDest,
   type AutosaveFormat,
   type AutosaveSettings,
+  type ExportSpeed,
   type Quality,
   type QualityMedia,
   type QualitySettings,
 } from "../lib/settings";
+import { PARTY_RESET_SECONDS, type PartyResetSeconds } from "../lib/partyMode";
+import { proPriceLabel } from "../lib/pro";
+import { STYLE_CAPTION_MAX } from "../lib/style";
 import {
   Button,
   Callout,
@@ -22,27 +27,61 @@ const QUALITY_OPTIONS: { value: Quality; label: string }[] = [
   { value: "high", label: "High" },
 ];
 
+const SPEED_LABELS: Record<ExportSpeed, string> = {
+  slow: "Slow",
+  normal: "Normal",
+  fast: "Fast",
+};
+
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
 export function SettingsScreen({
   settings,
   quality,
+  exportSpeed,
   native,
   videoSupported,
   error,
+  isPro,
+  proPrice,
+  partyMode,
+  partyPasscode,
+  partyResetSeconds,
+  eventName,
   onDest,
   onToggle,
   onQuality,
+  onExportSpeed,
+  onOpenPro,
+  onPartyMode,
+  onPartyPasscode,
+  onPartyResetSeconds,
+  onEventName,
+  onRestorePurchase,
   onOpenIosSettings,
   onClose,
 }: {
   settings: AutosaveSettings;
   quality: QualitySettings;
+  exportSpeed: ExportSpeed;
   native: boolean;
   videoSupported: boolean;
   error: string | null;
+  isPro: boolean;
+  proPrice: string | null;
+  partyMode: boolean;
+  partyPasscode: string;
+  partyResetSeconds: PartyResetSeconds;
+  eventName: string;
   onDest: (dest: AutosaveDest) => void;
   onToggle: (format: AutosaveFormat, on: boolean) => void;
   onQuality: (media: QualityMedia, q: Quality) => void;
+  onExportSpeed: (speed: ExportSpeed) => void;
+  onOpenPro: () => void;
+  onPartyMode: (on: boolean) => void;
+  onPartyPasscode: (passcode: string) => void;
+  onPartyResetSeconds: (seconds: PartyResetSeconds) => void;
+  onEventName: (name: string) => void;
+  onRestorePurchase: () => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
 }) {
@@ -62,9 +101,136 @@ export function SettingsScreen({
       : []),
   ];
 
+  const guestModeSection = (
+    <>
+      <Heading as="h3" size="lg" className="mt-8">
+        Advanced Guest Mode
+      </Heading>
+      <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+        Keep the selected look ready when friends pass the phone around.
+      </p>
+      <div className="mt-4 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
+        <div className="min-w-0 pr-4">
+          <Heading as="p" size="md" className="text-ink">
+            Next Guest Flow
+          </Heading>
+          <p className="mt-1 font-sans text-xs leading-snug text-brown">
+            Review switches to Next Guest and hides editing between people.
+          </p>
+        </div>
+        <Toggle on={partyMode} onChange={onPartyMode} />
+      </div>
+      <div className="mt-3 grid gap-4">
+        {isPro && (
+          <label className="block">
+            <Heading as="span" size="sm" className="text-brown">
+              Caption name
+            </Heading>
+            <input
+              value={eventName}
+              maxLength={STYLE_CAPTION_MAX}
+              onChange={(e) => onEventName(e.target.value)}
+              placeholder="Birthday Night"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="words"
+              spellCheck={false}
+              enterKeyHint="done"
+              className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+              aria-label="Guest Mode caption name"
+            />
+            <p className="mt-1 font-sans text-xs text-warmgray">
+              Some templates use this as their saved caption.
+            </p>
+          </label>
+        )}
+        <label className="block">
+          <Heading as="span" size="sm" className="text-brown">
+            Host exit code
+          </Heading>
+          <input
+            value={partyPasscode}
+            inputMode="numeric"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck={false}
+            enterKeyHint="done"
+            maxLength={4}
+            onChange={(e) => onPartyPasscode(e.target.value)}
+            disabled={partyMode}
+            className="mt-1 h-11 w-full border-2 border-ink bg-paper px-3 text-center font-display text-2xl tracking-wide text-ink outline-none focus:ring-4 focus:ring-orange/35 disabled:opacity-50"
+            aria-label="Guest Mode host exit code"
+          />
+          <p className="mt-1 font-sans text-xs text-warmgray">
+            {partyMode
+              ? "Turn Guest Mode off to change the code."
+              : "BoothBop gates the app UI. Use iOS Guided Access for a device-level lock."}
+          </p>
+        </label>
+        <div>
+          <Heading as="p" size="sm" className="text-brown">
+            Auto-reset review
+          </Heading>
+          <SegmentedControl
+            fullWidth
+            className="mt-1.5"
+            label="Guest Mode auto-reset"
+            value={partyResetSeconds}
+            onChange={onPartyResetSeconds}
+            options={PARTY_RESET_SECONDS.map((seconds) => ({
+              value: seconds,
+              label: seconds === 0 ? "Off" : `${seconds}s`,
+            }))}
+            itemClassName="py-2 text-sm"
+          />
+        </div>
+        {!isPro && native && (
+          <Button variant="secondary" size="sm" onClick={onOpenPro}>
+            Pro Extras
+          </Button>
+        )}
+      </div>
+    </>
+  );
+
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
-      <Heading as="h3" size="lg" className="mt-6">
+      {native && (
+        <>
+          <Heading as="h3" size="lg" className="mt-6">
+            BoothBop Pro
+          </Heading>
+          <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+            Premium template drops, custom captions, print sheets, HD exports,
+            guest extras, and watermark-free saved outputs.
+          </p>
+          {isPro ? (
+            <Callout
+              as="p"
+              tone="info"
+              className="mt-4 px-4 py-3 font-sans text-sm text-ink"
+            >
+              Pro active. Premium template drops, guest extras, print sheets, HD
+              exports, and watermark-free saved outputs are enabled.
+            </Callout>
+          ) : (
+            <div className="mt-4">
+              <Button variant="primary" size="md" fullWidth onClick={onOpenPro}>
+                Start Pro - {proPriceLabel(proPrice)}
+              </Button>
+              <button
+                onClick={onRestorePurchase}
+                className="mt-3 font-sans text-xs text-warmgray underline"
+              >
+                Restore purchase
+              </button>
+            </div>
+          )}
+        </>
+      )}
+
+      <Heading as="h3" size="lg" className="mt-8">
         Auto-save to Photos
       </Heading>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
@@ -176,12 +342,35 @@ export function SettingsScreen({
               label={`${row.label} quality`}
               value={quality[row.key]}
               onChange={(q) => onQuality(row.key, q)}
-              options={QUALITY_OPTIONS}
+              options={QUALITY_OPTIONS.map((option) => ({
+                ...option,
+                label:
+                  option.value === "high" && !isPro ? "High Pro" : option.label,
+              }))}
               itemClassName="py-2 text-sm"
             />
           </div>
         ))}
+        <div>
+          <Heading as="p" size="sm" className="text-brown">
+            GIF / video speed
+          </Heading>
+          <SegmentedControl
+            fullWidth
+            className="mt-1.5"
+            label="Motion export speed"
+            value={exportSpeed}
+            onChange={onExportSpeed}
+            options={EXPORT_SPEEDS.map((speed) => ({
+              value: speed,
+              label: SPEED_LABELS[speed],
+            }))}
+            itemClassName="py-2 text-sm"
+          />
+        </div>
       </div>
+
+      {guestModeSection}
 
       <LegalFooter className="mt-10 text-center" />
     </OverlayScreen>

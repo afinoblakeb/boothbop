@@ -1,5 +1,12 @@
 // Record the 4 frames into a short looping video via canvas + MediaRecorder.
 // (On native iOS the AVAssetWriter plugin is preferred — see videoNative.ts.)
+import {
+  drawFrame,
+  motionSequence,
+  type FilterKey,
+  type MotionMode,
+  type StickerKey,
+} from "./render";
 import { drawWatermark } from "./watermark";
 import { isNativeShell } from "./platform";
 
@@ -8,6 +15,9 @@ export interface VideoOptions {
   bitrate?: number; // target video bitrate (bits/sec)
   frameMs?: number; // how long each photo stays on screen
   loops?: number; // how many times to cycle through the 4 photos
+  filter?: FilterKey;
+  sticker?: StickerKey;
+  motion?: MotionMode;
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
   watermarkImg?: HTMLImageElement | null; // preloaded logo
 }
@@ -53,6 +63,9 @@ export async function encodeVideo(
     bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
+    filter = "none",
+    sticker = "none",
+    motion = "loop",
     watermark = true,
     watermarkImg = null,
   }: VideoOptions = {},
@@ -67,7 +80,12 @@ export async function encodeVideo(
 
   const draw = (frame: HTMLCanvasElement) => {
     ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+    drawFrame(
+      ctx,
+      frame,
+      { x: 0, y: 0, width: size, height: size },
+      { filter, sticker },
+    );
     if (watermark) drawWatermark(ctx, size, size, watermarkImg);
   };
   draw(frames[0]);
@@ -107,7 +125,8 @@ export async function encodeVideo(
   const deadline = setTimeout(stop, loops * frames.length * frameMs + 1500);
 
   const sequence: HTMLCanvasElement[] = [];
-  for (let l = 0; l < loops; l++) sequence.push(...frames);
+  const pass = motionSequence(frames, motion);
+  for (let l = 0; l < loops; l++) sequence.push(...pass);
   for (const frame of sequence) {
     if (stopped) break;
     draw(frame);

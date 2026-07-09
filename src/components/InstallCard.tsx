@@ -40,11 +40,11 @@ export function InstallCard({
     <Callout tone="highlight" className="mt-8 w-full max-w-xs p-4 text-left">
       <Heading as="p" size="lg" className="flex items-center gap-2 text-ink">
         <BrandIcon name="install" className="h-7 w-7" />
-        Get the full app
+        Install BoothBop
       </Heading>
       <p className="mt-1 font-sans text-sm text-brown">
         Add BoothBop to your home screen — it opens full-screen, loads
-        instantly, and works with no signal. No app store, free.
+        instantly, and works with no signal.
       </p>
 
       {installPrompt ? (
