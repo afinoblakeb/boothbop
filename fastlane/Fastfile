@@ -2,6 +2,7 @@
 # creation cannot accidentally upload or submit the app.
 
 opt_out_usage
+skip_docs
 default_platform(:ios)
 
 def asc_key
@@ -30,12 +31,13 @@ platform :ios do
     verify
     prepare
     gym(
-      project: "../ios/App/App.xcodeproj",
+      project: "ios/App/App.xcodeproj",
       scheme: "App",
       configuration: "Release",
       export_method: "app-store",
-      output_directory: "../build",
+      output_directory: "build",
       output_name: "BoothBop-0.1.0-3.ipa",
+      xcodebuild_formatter: "",
       clean: true,
     )
   end
