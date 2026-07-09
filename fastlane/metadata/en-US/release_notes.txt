@@ -1,7 +1,14 @@
-Welcome to BoothBop!
+BoothBop 0.1.0 makes the whole booth more creative and easier to use.
 
-Prop up your phone, tap start, and strike four poses—then turn them into a
-photo strip, an animated GIF, or a looping video. Everything happens on your
-device; nothing is ever uploaded.
+- A redesigned editor keeps your photo visible while you make changes
+- 30 styles for birthdays, weddings, friends, holidays, and more
+- Five layouts, distinct photo looks, themed props, colors, and captions
+- Retake and reorder individual shots
+- Import existing photos and create a strip from them
+- Save All exports the complete set in one step
+- Better scaling from compact iPhones through Pro Max
+- More reliable fresh-install launch behavior
+
+Everything still happens on your device; nothing is uploaded.
 
 Thanks for booth-bopping with us. Feedback: support@boothbop.com

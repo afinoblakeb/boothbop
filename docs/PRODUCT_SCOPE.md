@@ -1,84 +1,44 @@
 # BoothBop Product Scope
 
-BoothBop should be a complete, private, local-first photo booth in the free
-tier, then charge for polish, personalization, premium looks, and high-end
-exports. The share loop is the growth loop, so core capture and sharing stay
-free.
+BoothBop is a private, local-first consumer photo booth. The 0.1.0 objective is
+to make capture, editing, and sharing feel complete before monetization returns.
 
-## Free Tier
+## 0.1.0 Release Scope
 
-- Four-shot booth flow: countdown, flash, retake, front/back camera, mirror.
-- Local private gallery: reopen, delete, re-export.
-- Export formats: strip, GIF, boomerang GIF, looping video.
-- Standard quality exports.
-- Core layouts: classic strip and square grid.
-- Core looks: original, mono, warm.
-- Basic strip colors.
-- Native/web share or download.
-- Demo shoot mode for simulator/App Store screenshot testing.
-- BoothBop branding/watermark on animated/video outputs.
+- Four-shot booth with countdown, flash, front/back camera, mirror, cancel, and
+  framing guidance.
+- Retake and reorder individual shots without restarting the session.
+- Persistent-preview editor: the output remains visible while controls change.
+- Five layouts: classic 4x1, 2x2, 2x6, 4x6, and story.
+- Distinct photo looks, themed props, captions, border colors, and 30 templates.
+- Strip, GIF, ping-pong loop, and looping video output.
+- Import existing photos, Save / Share, Save All, and Photos album integration.
+- Private on-device gallery with reopen, favorite, rename, and delete.
+- Standard and high-quality export choices.
+- Offline operation with no account, server, upload, ads, tracking, or analytics.
+- BoothBop branding on generated outputs.
 
-## Pro Scope
+All listed features are free in 0.1.0. There is no Party mode, operator mode,
+print action, paywall, StoreKit product, or subscription in this release.
 
-Target price: $1.99/month once Pro has recurring creative value. If the scope is
-only watermark removal, keep it one-time instead.
+## Release Quality Contract
 
-- Watermark-free GIF, boomerang, and video.
-- Custom strip footer/caption.
-- Premium layouts: 2x6, 4x6, story, event cards, magazine covers.
-- Premium looks: glam, vintage, high-contrast black-and-white, seasonal packs.
-- Custom color palettes and saved style presets.
-- High-quality export defaults.
-- Save-all/batch export workflow.
-- Pro event packs: reusable theme, caption, layout, filter, palette.
-- Future: AI cutout/backgrounds only if privacy and app-size tradeoffs are
-  solved.
-
-## Next Implementation Ladder
-
-1. Local workflow polish - shipped baseline
-   - Session titles and favorites.
-   - Save All.
-   - Gallery favorite management.
-   - Retaken shots persist back to the saved session.
-
-2. Export controls - shipped baseline
-   - GIF/boomerang/video speed presets.
-   - Refactor export orchestration out of `App.tsx`.
-   - Add a save-all task planner and better cache invalidation.
-
-3. Template packs - shipped baseline
-   - Introduce `src/lib/templates.ts`.
-   - Move layout/color/filter combinations into explicit template definitions.
-   - Mark templates as free or Pro without hard-coding product logic into
-     screens.
-
-4. Entitlements - shipped baseline
-   - Add a feature-based entitlement layer over StoreKit.
-   - Keep purchase implementation in `src/lib/purchases.ts`.
-   - Gate Pro templates, premium looks, high quality, and watermark removal via
-     capabilities instead of raw `isPro` checks.
-
-5. Import and library workflows - shipped baseline
-   - Add user-selected photo import.
-   - Normalize imported images to square canvases immediately.
-   - Keep privacy copy precise: selected images are read locally only.
-
-6. Next Pro value
-   - Party/event mode setup.
-   - More template packs by event type.
-   - Custom palettes and saved brand kits.
-   - Better print-ready exports.
+- `npm run check` has zero type, lint, format, or unit-test failures and warnings.
+- Playwright covers compact, standard, and Pro Max phone widths plus the main
+  demo capture, editor, export, and gallery journey.
+- The native smoke matrix installs a Release build from scratch, launches it,
+  rejects blank/black screenshots, checks BoothBop launch failures, and cleans
+  up each simulator.
+- A signed archive and exported IPA must validate before any upload.
+- The candidate is manually installed on a physical iPhone before TestFlight or
+  App Store Connect distribution.
 
 ## Deferred
 
-- Accounts, cloud galleries, QR event rooms, dashboards, guest analytics.
-- Email/SMS delivery.
-- Cross-device sync.
-- Print fulfillment.
-- Android IAP.
-- AI background/face features that require upload or large local models.
-- Kiosk/fleet/remote device management.
-
-These are good future products, but they do not belong in the first
-subscription-quality consumer app unless the backend/native scope changes.
+- Monetization and all entitlement logic.
+- Party, kiosk, event-operator, and passcode modes.
+- AirPrint and print fulfillment.
+- Accounts, cloud galleries, QR event rooms, email/SMS delivery, and cross-device
+  sync.
+- Android distribution.
+- AI features that upload photos or substantially increase the binary size.

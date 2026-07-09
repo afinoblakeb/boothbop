@@ -154,15 +154,18 @@ a quiet afternoon making faces with friends. Set it on a shelf, gather
 everyone in frame, and let the countdown do the rest.
 
 TURN FOUR POSES INTO SOMETHING SHAREABLE
-- Classic 4x1 vertical strip or a 2x2 grid
+- Classic 4x1 strip, 2x2 grid, story, and print-inspired layouts
 - Animated GIF that loops your four shots
-- Short looping video, ready to send
+- Ping-pong loops and short looping video
 
 MAKE IT YOURS
-- Retro atomic-age themes: cream, rust, teal, mustard, olive, and carbon
-- Swappable border colors and styles for every strip
+- 30 ready-made styles for birthdays, weddings, friends, holidays, and more
+- Distinct photo looks, themed props, captions, and swappable border colors
+- Retake or reorder individual shots without starting over
+- Import photos already on your phone and turn them into a new strip
 - Adjustable shutter delay—more time to get into position
 - Front-facing camera tuned for selfies and group shots
+- Save one output or save the complete set at once
 
 YOUR PRIVATE BOOTH
 - 100% on-device: photos are captured and processed right on your phone
@@ -172,9 +175,8 @@ YOUR PRIVATE BOOTH
   reshare, or delete any strip whenever you like
 - Works fully offline
 
-Photos never leave your device unless you choose to share them. Optional Pro
-features are available for premium looks, captions, HD exports, print sheets,
-and watermark-free saved outputs.
+Photos never leave your device unless you choose to share them. That's the
+point: fun keepsakes without accounts, uploads, ads, tracking, or analytics.
 
 Prop it up. Tap start. Strike a pose. BoothBop.
 ```
@@ -190,21 +192,21 @@ Notes (expert-reviewed): removed **`boomerang`** (Meta/Instagram brand → 2.3.7
 spam-rejection risk) and **`strip`** (already indexed via the subtitle "strips");
 added **`photostrip`** and **`booth`**. Excludes words already in the title/subtitle.
 
-### What's New (v1.0)
+### What's New (v0.1.0)
 
 ```
-Welcome to BoothBop!
+BoothBop 0.1.0 makes the whole booth more creative and easier to use.
 
-This is our first release. Prop up your phone, tap start, and strike four
-poses—then turn them into a photo strip, an animated GIF, or a looping video.
+- A redesigned editor keeps your photo visible while you make changes
+- 30 styles for birthdays, weddings, friends, holidays, and more
+- Five layouts, distinct photo looks, themed props, colors, and captions
+- Retake and reorder individual shots
+- Import existing photos and create a strip from them
+- Save All exports the complete set in one step
+- Better scaling from compact iPhones through Pro Max
+- More reliable fresh-install launch behavior
 
-- Four-shot countdown capture, like a real photo booth
-- 4x1 strip and 2x2 grid layouts
-- Animated GIF and looping video export
-- Retro atomic-age themes and custom border colors
-- Adjustable shutter delay
-- A private, on-device gallery for every session
-- Fully on-device and works offline—nothing is ever uploaded
+Everything still happens on your device; nothing is uploaded.
 
 Thanks for booth-bopping with us. Feedback: support@boothbop.com
 ```
@@ -241,31 +243,32 @@ Only standard encryption (HTTPS/OS crypto). Add to Info.plist:
 ### Identifiers
 
 - Bundle ID: `com.boothbop.app` (permanent; register exactly; must match `capacitor.config`)
-- Version `1.0.0` · Build `1` (increment build every upload)
+- Version `0.1.0` · Build `3` (increment build every upload)
 
 ### App Review notes (paste into the reviewer Notes field)
 
 ```
 Thank you for reviewing BoothBop.
 
-NO LOGIN REQUIRED. There is no account or sign-up. The core booth is available
-immediately on launch—no demo credentials needed. BoothBop Pro is an optional
-in-app purchase for premium templates, captions, print sheets, HD exports, and
-watermark-free saved outputs.
+NO LOGIN REQUIRED. There is no account, sign-up, paywall, or in-app purchase in
+version 0.1.0. The full booth is available immediately on launch—no demo
+credentials needed.
 
 WHAT THE APP DOES
 BoothBop is a self-contained native photo-booth app. It uses the live device
 camera (front-facing) to capture four photos on a countdown, then composites
-them on-device into a photo strip (4x1 or 2x2), an animated GIF, and a short
-looping video.
+them on-device into photo strips, an animated GIF, a ping-pong loop, and a short
+looping video. Users can retake, reorder, style, caption, import, save, share,
+and reopen sessions in the local gallery.
 
 HOW TO TEST (about 30 seconds)
 1. Launch and allow camera access when prompted.
-2. (Optional) Choose a theme/border color and adjust the shutter delay.
-3. Tap Start. The app counts down and captures four photos automatically.
-4. View the strip, then switch between strip / GIF / video outputs.
-5. Open BoothBop Gallery to see the session saved locally; tap Save to Photos
-   or Share, or delete it.
+2. Tap Take Photo Strip. The app counts down and captures four photos.
+3. Open Edit and try Layout, Look, Props, Caption, and Shots. The preview stays
+   visible while editing.
+4. Switch between Strip, GIF, Loop, and Video, then use Save / Share or Save
+   All.
+5. Return home and open My Photos to reopen or delete the local session.
 
 RE: GUIDELINE 4.2 (MINIMUM FUNCTIONALITY)
 BoothBop is built with a web technology layer inside a native shell, but it is

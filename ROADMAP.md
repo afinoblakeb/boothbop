@@ -1,67 +1,49 @@
 # Roadmap
 
-## Now: a web SPA + installable PWA
+## Current: consumer iOS and PWA
 
-BoothBop is a single-page app (Vite + React) deployed to **GitHub Pages** and
-installable as a **PWA** (Add to Home Screen, works offline). This is the
-primary target **for the foreseeable future** — all current work assumes the
-web SPA.
+BoothBop is a React/Vite photo-booth app distributed as both an installable PWA
+and an iOS app through a thin Capacitor shell. The web app remains the source of
+truth; the native project bundles the production build and adds native media,
+Photos, sharing, and camera integration.
 
-## Monetization
+## 0.1.0: complete the consumer loop
 
-A planned **"BoothBop Pro" one-time unlock** (super small dollars) gates
-vanity/pro-polish features — never usability. See
-[docs/MONETIZATION.md](docs/MONETIZATION.md). Not wired yet; the anchor feature
-(remove watermark) is already architected via the `watermark` flag in
-`gif.ts`/`video.ts`.
+The immediate release is free and consumer-only:
 
-## Later (maybe): native iOS + Android in the app stores
+1. Capture or import four photos.
+2. Retake and reorder individual shots.
+3. Edit against a persistent preview using layouts, looks, props, captions,
+   colors, and templates.
+4. Export a strip, GIF, ping-pong loop, or video.
+5. Save, share, reopen, favorite, rename, and delete local sessions.
 
-We may ship native apps to the **Apple App Store** and **Google Play**. We are
-**not building this now** and intentionally avoid plumbing for it yet — but the
-codebase is kept ready so the eventual port is small, not a rewrite.
+Release gates are browser unit tests, multi-viewport Playwright journeys,
+fresh-install native simulator smoke tests, a signed archive, and a physical
+iPhone review. See [docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md) and
+[docs/RELEASE.md](docs/RELEASE.md).
 
-### Planned approach: Capacitor (wrap, don't rewrite)
+## After 0.1.0
 
-[Capacitor](https://capacitorjs.com) wraps the existing production web build
-(`dist/`) in a thin native shell (WKWebView on iOS, Android WebView) and
-publishes to both stores. It's the lowest-plumbing path for an existing web SPA
-and reuses ~all of our code. When we do it, it adds these as **siblings of the
-web app at the repo root**:
+- Collect consumer feedback on capture completion, editing comprehension, and
+  sharing behavior.
+- Improve accessibility and add regression coverage for permission-denied and
+  storage-failure states.
+- Expand high-quality creative templates and text/prop tools.
+- Automate App Store screenshots from deterministic demo sessions.
+- Revisit monetization only after there is a tested, defensible paid-value
+  contract; see [docs/MONETIZATION.md](docs/MONETIZATION.md).
 
-```
-boothbop/
-├── src/ index.html vite.config.ts   # the web app (unchanged, still the source of truth)
-├── ios/                             # generated native Xcode project (committed)
-├── android/                         # generated native Android project (committed)
-└── capacitor.config.ts             # points Capacitor at dist/
-```
+## Architecture rules
 
-The web app stays exactly where it is; native is additive.
+1. Keep platform capabilities behind `src/lib/` modules or native Capacitor
+   plugins, not inside screens.
+2. Feature-detect behavior instead of relying on user-agent strings.
+3. Keep assets base-path-relative and bundled for offline use.
+4. Keep screens presentational and React-free logic unit-testable.
+5. Never weaken capture readiness, permission-loss, or black-frame protection.
 
-### Why the current code is already a good fit
+## Explicitly deferred
 
-- **Browser APIs are isolated in `src/lib/`**, not scattered through the UI.
-  `camera.ts` (getUserMedia), `platform.ts` (Web Share), and `gallery.ts`
-  (IndexedDB) are the only places that touch platform capabilities. A native
-  port swaps these for Capacitor plugins (`@capacitor/camera`,
-  `@capacitor/share`, `@capacitor/filesystem`) without touching `App.tsx`.
-- **The base path is already build-time configurable.** The web build serves
-  from `/` (custom-domain root) and so does a native build — and any other base
-  is a single `BASE_PATH` env override (`vite.config.ts`), no code change.
-- **Everything runs client-side.** No backend to stand up or auth to migrate.
-
-### Design rules to keep the port cheap (follow these now)
-
-1. **Route every platform capability through `src/lib/`.** Never call
-   `navigator.mediaDevices`, `navigator.share`, or `indexedDB` directly from a
-   component — add/extend a `lib/` module instead.
-2. **Feature-detect, don't UA-sniff** for behavior (see `platform.ts`). Native
-   shells report differently; capability checks keep working.
-3. **Keep assets base-path-relative** via `import.meta.env.BASE_URL`.
-
-### Explicitly deferred until we commit to native
-
-Installing Capacitor, the `ios/`/`android/` projects, store metadata/signing,
-push notifications, and native plugin wiring. None of this is in the repo yet —
-by design.
+Subscriptions, Party/operator mode, printing, accounts, cloud galleries, QR
+event rooms, remote delivery, Android distribution, and upload-based AI tools.

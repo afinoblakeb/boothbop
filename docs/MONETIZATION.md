@@ -1,73 +1,44 @@
 # Monetization plan
 
-> Status: Native iOS Pro is wired through StoreKit 2. The web/PWA remains free
-> and does not sell Pro. The 20-agent adversarial review showed that monthly
-> pricing needs clearer recurring consumer value before launch; see
-> [research/adversarial-review-2026-06-26](./research/adversarial-review-2026-06-26).
+> Status for 0.1.0: deferred. This release has no StoreKit product, paywall,
+> subscription, or paid feature gate. Every creative control in the binary is
+> available for free. BoothBop branding remains on exported media.
 
-## Goal
+## Why monetization is deferred
 
-Monetize for **super small dollars** (`$1.99/month` native Pro) without hurting
-ease of use or the app's viral loop.
+The first App Store build had to establish reliable launch and capture behavior.
+The next release needs to establish whether consumers repeatedly create and
+share strips. Charging before those two contracts are proven adds review risk
+and makes product feedback harder to interpret.
 
-## Guiding principle
+The June subscription prototype is preserved in git on
+`codex/prototype-june-2026`; it is not part of the 0.1.0 runtime.
 
-Free output is the marketing, but the review made one rule non-negotiable:
-the free/Pro split must be clear before a user hits a locked control. So:
+## Free 0.1.0 contract
 
-- **Gate vanity / personalization / pro-polish.**
-- **Never gate usability or the core loop.** A free user must always be able to
-  do a full 4-shot booth and walk away with something genuinely good (just
-  branded). Friendly + viral beats ARPU at this price point.
+- Four-shot capture, retake, reorder, and local gallery.
+- Strip, GIF, ping-pong loop, and video exports.
+- All layouts, looks, props, templates, captions, colors, and quality choices.
+- Import from the photo library and Save All.
+- BoothBop branding on generated outputs.
+- No accounts, uploads, analytics, ads, or tracking.
 
-## Free vs. Pro
+## Future decision gate
 
-| Feature                                                                 | Tier     | Rationale                                            |
-| ----------------------------------------------------------------------- | -------- | ---------------------------------------------------- |
-| 4-shot booth, countdown, on-device gallery                              | **Free** | The core loop — never gate it                        |
-| Strip + GIF + video export                                              | **Free** | Branded unless Pro removes BoothBop branding         |
-| Photo strip                                                             | **Free** | Keep useful; Pro can remove BoothBop branding        |
-| Basic Guest Mode lock/reset                                             | **Free** | Safety/usability for handing the phone around        |
-| 2–3 base filters/looks                                                  | **Free** | Pretty output → more shares                          |
-| Boomerang loop                                                          | **Free** | Shareable = growth; keep it free                     |
-| Haptics, remember-settings, framing guide, "Surprise me", retake-a-shot | **Free** | These are _ease of use_ — paywalling them is hostile |
-| **Remove watermark**                                                    | **Pro**  | The #1 lever; already wired (see below)              |
-| **Custom caption** on the strip                                         | **Pro**  | "Make it mine" — high desire, low effort             |
-| **Premium look/filter pack** (extra filters)                            | **Pro**  | Cosmetic upsell                                      |
-| **Premium layouts/templates + custom border colors**                    | **Pro**  | Cosmetic upsell                                      |
-| Optional: higher-res / longer video                                     | **Pro**  | Keep free quality _good_, not crippled               |
+Do not restore StoreKit until the paid offer has recurring consumer value and a
+complete test plan. Before implementation, decide between:
 
-Bundle the Pro items as a single **BoothBop Pro** entitlement. The first paid
-native SKU is `com.boothbop.app.pro.monthly`; the old one-time
-`com.boothbop.app.removewatermark` entitlement remains restore-compatible for
-early builds.
+1. A one-time branding removal and export upgrade.
+2. A subscription backed by recurring template and creative-tool releases.
 
-## The watermark seam (already in the code)
+Either path must include StoreKit transaction observation at launch, purchase
+and restore tests, offline entitlement behavior, App Store metadata, and a
+clear free-versus-paid contract. Core capture, editing, saving, and sharing
+remain free.
 
-Strip, print-sheet, GIF, boomerang, and video renderers take or receive a
-`watermark` flag. Pro passes `false` for newly generated outputs. Keep that flag
-threaded; it is the anchor Pro feature.
+## Architectural seam
 
-## How we'll actually charge
-
-The app is still local-first with **no backend**. Entitlements come from Apple
-StoreKit in the native iOS shell and are cached locally for instant UI.
-
-1. **Native iOS:** StoreKit 2 auto-renewable subscription. Apple handles billing
-   and restore.
-2. **Web/PWA:** free only for now. A web license key can be added later, but it
-   should not block the App Store Pro path.
-
-## Recommended sequencing
-
-1. **Decide the split** (this doc) — done.
-2. **Build the gate and value** — done for templates, layouts, looks, props,
-   captions, quality, and animated watermark removal.
-3. **Native checkout** — done in code through StoreKit 2; still needs App Store
-   Connect product setup before production release.
-4. **Keep adding recurring value** — new consumer template packs, seasonal
-   drops, better text/sticker tools, and higher-end exports make the monthly
-   price defensible. Without that cadence, use a one-time unlock instead.
-
-Design rule: gate everything on a single `isPro()` so there's exactly one place
-to wire billing.
+The renderers retain an explicit `watermark` input. That is an implementation
+seam, not an active entitlement. A future paid tier can route one tested
+entitlement through that seam without scattering purchase logic through UI
+components.

@@ -2,12 +2,24 @@ Thank you for reviewing BoothBop.
 
 NO LOGIN REQUIRED. There is no account, sign-up, or paywall to use the app.
 The full booth is available immediately on launch—no demo credentials needed.
+Version 0.1.0 contains no in-app purchases or subscription flow.
 
 WHAT THE APP DOES
 BoothBop is a self-contained native photo-booth app. It uses the live device
 camera (front-facing) to capture four photos on a countdown, then composites
-them on-device into a photo strip (4x1 or 2x2), an animated GIF, and a short
-looping video (encoded natively via AVFoundation/AVAssetWriter).
+them on-device into photo strips, an animated GIF, a ping-pong loop, and a
+short looping video (encoded natively via AVFoundation/AVAssetWriter). Users
+can also retake, reorder, style, caption, import, save, share, and reopen their
+sessions in the local gallery.
+
+HOW TO TEST
+1. Launch and allow camera access.
+2. Tap Take Photo Strip and capture four photos.
+3. On the review screen, open Edit and try Layout, Look, Props, Caption, and
+   Shots. The preview remains visible while editing.
+4. Switch between Strip, GIF, Loop, and Video, then use Save / Share or Save
+   All.
+5. Return home and open My Photos to reopen or delete the local session.
 
 RE: GUIDELINE 4.2
 The UI renders in an embedded WKWebView via Capacitor, but ALL assets are
