@@ -219,6 +219,8 @@ async function screenshotStats(filePath) {
   let sum = 0;
   let sumSquares = 0;
   let brightPixels = 0;
+  let brandOrangePixels = 0;
+  let lightSurfacePixels = 0;
 
   for (let y = startY; y < endY; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
@@ -232,6 +234,18 @@ async function screenshotStats(filePath) {
       sum += luminance;
       sumSquares += luminance * luminance;
       if (luminance > 20) brightPixels += 1;
+      if (
+        data[index] > 180 &&
+        data[index + 1] >= 30 &&
+        data[index + 1] <= 130 &&
+        data[index + 2] < 100 &&
+        data[index] > data[index + 1] * 1.6
+      ) {
+        brandOrangePixels += 1;
+      }
+      if (data[index] > 210 && data[index + 1] > 190 && data[index + 2] > 150) {
+        lightSurfacePixels += 1;
+      }
     }
   }
 
@@ -242,7 +256,9 @@ async function screenshotStats(filePath) {
 
   return {
     average,
+    brandOrangeRatio: brandOrangePixels / count,
     brightRatio,
+    lightSurfaceRatio: lightSurfacePixels / count,
     standardDeviation,
     width: info.width,
     height: info.height,
@@ -274,6 +290,16 @@ function assertVisibleScreen(deviceName, stats) {
       `${deviceName} did not advance past the launch screen: average luminance ${stats.average.toFixed(
         2,
       )}.`,
+    );
+  }
+
+  if (stats.brandOrangeRatio < 0.003 || stats.lightSurfaceRatio < 0.35) {
+    throw new Error(
+      `${deviceName} did not render the BoothBop home surface: orange ratio ${(
+        stats.brandOrangeRatio * 100
+      ).toFixed(2)}%, light surface ratio ${(
+        stats.lightSurfaceRatio * 100
+      ).toFixed(2)}%.`,
     );
   }
 }
@@ -410,6 +436,8 @@ async function testDevice(device) {
     }
     if (installError) throw installError;
 
+    const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const screenshot = path.join(screenshotDir, `${safeName}.png`);
     let launchError;
     for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
@@ -432,8 +460,15 @@ async function testDevice(device) {
         launchError = undefined;
         break;
       } catch (error) {
-        process.stdout.write("failed\n");
         launchError = error;
+        try {
+          await captureVisibleScreenshot(device, screenshot);
+          process.stdout.write("command timed out, app visible\n");
+          launchError = undefined;
+          break;
+        } catch {
+          process.stdout.write("failed\n");
+        }
         if (attempt === 1) {
           await run("xcrun", ["simctl", "shutdown", device.udid], {
             allowFailure: true,
@@ -449,15 +484,15 @@ async function testDevice(device) {
 
     await sleep(1500);
 
-    const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-    const screenshot = path.join(screenshotDir, `${safeName}.png`);
     const stats = await captureVisibleScreenshot(device, screenshot);
     await assertNoNativeLaunchFailures(device);
 
     console.log(
       `visible ${stats.width}x${stats.height} avg=${stats.average.toFixed(
         1,
-      )} stddev=${stats.standardDeviation.toFixed(1)} screenshot=${screenshot}`,
+      )} stddev=${stats.standardDeviation.toFixed(1)} orange=${(
+        stats.brandOrangeRatio * 100
+      ).toFixed(1)}% screenshot=${screenshot}`,
     );
   } finally {
     await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
