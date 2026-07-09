@@ -11,26 +11,22 @@ import type { InstallPromptEvent } from "../types";
 export function IdleScreen({
   onStart,
   onBrowseTemplates,
-  onOpenPartySetup,
   onOpenGallery,
   onOpenSettings,
   onImportPhotos,
   demoSets = [],
   onStartDemo,
   installPrompt,
-  partyMode,
   error,
 }: {
   onStart: () => void;
   onBrowseTemplates: () => void;
-  onOpenPartySetup: () => void;
   onOpenGallery: () => void;
   onOpenSettings: () => void;
   onImportPhotos: (files: FileList) => void;
   demoSets?: readonly { id: number; label: string }[];
   onStartDemo?: (setNum: number) => void;
   installPrompt: InstallPromptEvent | null;
-  partyMode: boolean;
   error: string | null;
 }) {
   const importRef = useRef<HTMLInputElement>(null);
@@ -77,12 +73,6 @@ export function IdleScreen({
           />
         )}
 
-        {partyMode && (
-          <p className="mt-2 max-w-xs border-2 border-ink bg-paper px-3 py-2 font-sans text-xs uppercase tracking-wide text-brown">
-            Guest Mode is ready for friends.
-          </p>
-        )}
-
         <Button
           variant="primary"
           size="lg"
@@ -91,93 +81,84 @@ export function IdleScreen({
           className="mt-4 max-w-xs"
         >
           <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-          {partyMode ? "Start Booth" : "Take Photo Strip"}
+          Take Photo Strip
         </Button>
 
-        {!partyMode && (
-          <>
-            <div className="mt-3 grid w-full max-w-xs grid-cols-2 gap-3">
-              <button
-                onClick={onBrowseTemplates}
-                className="flex min-h-16 items-center justify-between border-2 border-ink bg-teal px-3 text-left text-cream transition active:translate-y-px"
-              >
-                <span>
-                  <span className="block font-display text-xl uppercase tracking-wide">
-                    Templates
-                  </span>
-                  <span className="block font-sans text-[11px] font-bold uppercase tracking-wide opacity-85">
-                    Free + Pro looks
-                  </span>
-                </span>
-                <span className="flex gap-1" aria-hidden="true">
-                  <span className="h-8 w-2.5 border-2 border-ink bg-cream" />
-                  <span className="h-8 w-2.5 border-2 border-ink bg-mustard" />
-                  <span className="h-8 w-2.5 border-2 border-ink bg-orange" />
-                </span>
-              </button>
-
-              <button
-                onClick={onOpenGallery}
-                className="flex min-h-16 items-center justify-center gap-2 border-2 border-ink bg-paper px-3 text-ink transition active:translate-y-px"
-              >
-                <BrandIcon name="gallery" className="h-7 w-7" />
-                <span className="font-display text-xl uppercase tracking-wide">
-                  Gallery
-                </span>
-              </button>
-            </div>
-
+        <>
+          <div className="mt-3 grid w-full max-w-xs grid-cols-2 gap-3">
             <button
-              onClick={() => setMoreOpen((open) => !open)}
-              aria-expanded={moreOpen}
-              className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+              onClick={onBrowseTemplates}
+              className="flex min-h-16 items-center justify-between border-2 border-ink bg-teal px-3 text-left text-cream transition active:translate-y-px"
             >
-              <GearIcon className="h-5 w-5" />
-              More
+              <span>
+                <span className="block font-display text-xl uppercase tracking-wide">
+                  Templates
+                </span>
+                <span className="block font-sans text-[11px] font-bold uppercase tracking-wide opacity-85">
+                  Styles and layouts
+                </span>
+              </span>
+              <span className="flex gap-1" aria-hidden="true">
+                <span className="h-8 w-2.5 border-2 border-ink bg-cream" />
+                <span className="h-8 w-2.5 border-2 border-ink bg-mustard" />
+                <span className="h-8 w-2.5 border-2 border-ink bg-orange" />
+              </span>
             </button>
 
-            {moreOpen && (
-              <div className="mt-2 flex max-w-xs flex-wrap justify-center gap-x-5 gap-y-2">
-                <button
-                  onClick={() => importRef.current?.click()}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-                >
-                  <BrandIcon name="gallery" className="h-5 w-5" />
-                  Import
-                </button>
-                <button
-                  onClick={onOpenPartySetup}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-                >
-                  <GearIcon className="h-5 w-5" />
-                  Guest Setup
-                </button>
-                <button
-                  onClick={onOpenSettings}
-                  className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-                >
-                  <GearIcon className="h-5 w-5" />
-                  Settings
-                </button>
-              </div>
-            )}
-            <input
-              ref={importRef}
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                if (e.currentTarget.files?.length) {
-                  onImportPhotos(e.currentTarget.files);
-                  e.currentTarget.value = "";
-                }
-              }}
-            />
-          </>
-        )}
+            <button
+              onClick={onOpenGallery}
+              className="flex min-h-16 items-center justify-center gap-2 border-2 border-ink bg-paper px-3 text-ink transition active:translate-y-px"
+            >
+              <BrandIcon name="gallery" className="h-7 w-7" />
+              <span className="font-display text-xl uppercase tracking-wide">
+                Gallery
+              </span>
+            </button>
+          </div>
 
-        {!partyMode && demoSets.length > 0 && onStartDemo && (
+          <button
+            onClick={() => setMoreOpen((open) => !open)}
+            aria-expanded={moreOpen}
+            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+          >
+            <GearIcon className="h-5 w-5" />
+            More
+          </button>
+
+          {moreOpen && (
+            <div className="mt-2 flex max-w-xs flex-wrap justify-center gap-x-5 gap-y-2">
+              <button
+                onClick={() => importRef.current?.click()}
+                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+              >
+                <BrandIcon name="gallery" className="h-5 w-5" />
+                Import
+              </button>
+              <button
+                onClick={onOpenSettings}
+                className="inline-flex min-h-10 items-center justify-center gap-2 px-2 font-display text-base uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+              >
+                <GearIcon className="h-5 w-5" />
+                Settings
+              </button>
+            </div>
+          )}
+          <input
+            ref={importRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              if (e.currentTarget.files?.length) {
+                onImportPhotos(e.currentTarget.files);
+                e.currentTarget.value = "";
+              }
+            }}
+          />
+        </>
+
+        {demoSets.length > 0 && onStartDemo && (
           <div className="mt-3 grid w-full max-w-xs grid-cols-3 gap-2">
             {demoSets.map((set) => (
               <button
@@ -192,9 +173,7 @@ export function IdleScreen({
           </div>
         )}
 
-        {!partyMode && moreOpen && (
-          <InstallCard installPrompt={installPrompt} />
-        )}
+        {moreOpen && <InstallCard installPrompt={installPrompt} />}
 
         {error && (
           <Callout

@@ -14,6 +14,8 @@ dev-dist          # vite-plugin-pwa dev service worker output
 
 # ---- Test / coverage ----
 coverage
+playwright-report
+test-results
 
 # ---- Caches ----
 .vite
@@ -50,6 +52,7 @@ ios/App/Pods
 ios/App/build
 ios/App/App/public      # the web build is copied in at build time, not committed
 ios/DerivedData
+build
 android/.gradle
 android/app/build
 android/build

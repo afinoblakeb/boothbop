@@ -27,22 +27,19 @@ const CATEGORY_OPTIONS: { id: CategoryFilter; label: string }[] = [
 ];
 
 export function TemplateGalleryScreen({
-  isPro,
   eventName,
   hasCurrentCapture,
   onClose,
   onStart,
   onApplyToCurrent,
-  onUnlockPro,
 }: {
-  isPro: boolean;
   eventName: string;
   hasCurrentCapture: boolean;
   onClose: () => void;
   onStart: (preset: StylePreset) => void;
   onApplyToCurrent: (preset: StylePreset) => void;
-  onUnlockPro: (preset: StylePreset) => void;
 }) {
+  const isPro = true;
   const [category, setCategory] = useState<CategoryFilter>(ALL_CATEGORY);
   const [framesBySet, setFramesBySet] = useState<FramesBySet>({});
   const [error, setError] = useState<string | null>(null);
@@ -84,7 +81,7 @@ export function TemplateGalleryScreen({
           onBack={() => setSelected(null)}
           onStart={onStart}
           onApplyToCurrent={onApplyToCurrent}
-          onUnlockPro={onUnlockPro}
+          onUnlockPro={onStart}
         />
       ) : (
         <>

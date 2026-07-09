@@ -9,9 +9,7 @@ import {
   videoReady,
 } from "./lib/camera";
 import {
-  composePrintSheet,
   composeStrip,
-  printSheetBlob,
   stripBlob,
   THEMES,
   type Layout,
@@ -25,7 +23,6 @@ import {
   blobToCanvas,
   canvasToBlob,
   cleanSessionTitle,
-  listSessions,
   requestPersistence,
   saveSession,
   SESSION_TITLE_MAX,
@@ -62,17 +59,6 @@ import {
   type QualitySettings,
 } from "./lib/settings";
 import {
-  loadPartyModeConfig,
-  isGuestModeActive,
-  cleanPartyPasscodeInput,
-  normalizePartyPasscode,
-  savePartyModeConfig,
-  verifyPartyPasscode,
-  type GuestOutputFormat,
-  type PartyModeConfig,
-  type PartyResetSeconds,
-} from "./lib/partyMode";
-import {
   ensurePhotosPermission,
   canSaveWithPhotosPermission,
   openIosSettings,
@@ -101,21 +87,6 @@ import {
   type SessionStyle,
   type ThemeKey,
 } from "./lib/style";
-import type { ProContext } from "./lib/pro";
-import {
-  isPremiumFilter,
-  isPremiumLayout,
-  isPremiumQuality,
-  isPremiumSticker,
-} from "./lib/entitlements";
-import {
-  getProProduct,
-  isProCached,
-  refreshPro,
-  restorePurchases,
-  subscribeToPro,
-  type ProProduct,
-} from "./lib/purchases";
 import { SHOTS } from "./constants";
 import type { Format, InstallPromptEvent, Phase } from "./types";
 import { TopBar } from "./components/TopBar";
@@ -126,9 +97,6 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { TemplateGalleryScreen } from "./screens/TemplateGalleryScreen";
-import { ProScreen } from "./screens/ProScreen";
-import { PartyExitModal } from "./screens/PartyExitModal";
-import { PartySetupScreen } from "./screens/PartySetupScreen";
 import { useAutosave } from "./hooks/useAutosave";
 
 interface MediaResult {
@@ -147,23 +115,6 @@ const DEMO_SETS = [
   { id: 2, label: "Night Out" },
   { id: 3, label: "Friends" },
 ] as const;
-
-const LAYOUT_LABELS: Record<Layout, string> = {
-  "4x1": "Classic strip",
-  "2x2": "Square grid",
-  "2x6": "2x6 strip",
-  "4x6": "4x6 print",
-  story: "Story",
-};
-
-const THEME_LABELS: Record<ThemeKey, string> = {
-  classic: "Cream",
-  rust: "Rust",
-  teal: "Teal",
-  mustard: "Mustard",
-  olive: "Olive",
-  carbon: "Carbon",
-};
 
 export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -193,16 +144,6 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
-  const [showPro, setShowPro] = useState(false);
-  const [showPartySetup, setShowPartySetup] = useState(false);
-  const [savedSessionCount, setSavedSessionCount] = useState<number | null>(
-    null,
-  );
-  const [proContext, setProContext] = useState<ProContext>("settings");
-  const [proBusy, setProBusy] = useState(false);
-  const [proError, setProError] = useState<string | null>(null);
-  const [showPartyExit, setShowPartyExit] = useState(false);
-  const [partyExitError, setPartyExitError] = useState<string | null>(null);
   const [shareFilesOk, setShareFilesOk] = useState(false);
   const [savingAll, setSavingAll] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -220,10 +161,6 @@ export default function App() {
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
   function changeQuality(media: QualityMedia, q: Quality) {
-    if (isPremiumQuality(q) && !isPro) {
-      openPro("quality");
-      return;
-    }
     saveQuality(media, q);
     setQuality((prev) => ({ ...prev, [media]: q }));
     clearResults();
@@ -242,10 +179,6 @@ export default function App() {
 
   const [filter, setFilterState] = useState<FilterKey>(loadFilter);
   function changeFilter(f: FilterKey) {
-    if (isPremiumFilter(f) && !isPro) {
-      openPro("look");
-      return;
-    }
     saveFilter(f);
     setFilterState(f);
     persistActiveStyle(buildSessionStyle({ filter: f }));
@@ -255,10 +188,6 @@ export default function App() {
 
   const [sticker, setStickerState] = useState<StickerKey>(loadSticker);
   function changeSticker(next: StickerKey) {
-    if (isPremiumSticker(next) && !isPro) {
-      openPro("props");
-      return;
-    }
     saveSticker(next);
     setStickerState(next);
     persistActiveStyle(buildSessionStyle({ sticker: next }));
@@ -267,10 +196,6 @@ export default function App() {
   }
 
   function changeLayout(next: Layout) {
-    if (isPremiumLayout(next) && !isPro) {
-      openPro("layout");
-      return;
-    }
     saveStripLayout(next);
     setLayout(next);
     persistActiveStyle(buildSessionStyle({ layout: next }));
@@ -290,10 +215,6 @@ export default function App() {
   }
 
   function applyStylePreset(preset: StylePreset) {
-    if (preset.pro && !isPro) {
-      openPro("template");
-      return;
-    }
     saveStripLayout(preset.layout);
     saveThemeKey(preset.theme);
     setLayout(preset.layout);
@@ -311,10 +232,9 @@ export default function App() {
         filter: preset.filter,
         sticker: preset.sticker,
         caption: resolveStripCaption({
-          isPro,
+          isPro: true,
           customCaption,
           templateCaption: nextCaption,
-          eventName: activeEventName,
         }),
       }),
     );
@@ -322,88 +242,38 @@ export default function App() {
     setFormat("strip");
   }
 
-  // BoothBop Pro (native iOS). isPro gates premium creative tools and drops the
-  // removable BoothBop mark from strip, GIF, boomerang, and video exports.
-  // StoreKit is the source of truth;
-  // cached locally for instant UI.
-  const [isPro, setIsPro] = useState(isProCached());
-  const [proProduct, setProProduct] = useState<ProProduct | null>(null);
-  const [partyConfig, setPartyConfig] =
-    useState<PartyModeConfig>(loadPartyModeConfig);
-  const partyMode = isGuestModeActive(partyConfig);
+  // 0.1.0 is a free consumer release. Creative tools are unlocked while the
+  // removable BoothBop export mark stays enabled until a later paid release.
   const [customCaption, setCustomCaptionState] = useState(
-    () => localStorage.getItem("bb.pro.caption") ?? "",
+    () =>
+      localStorage.getItem("bb.caption") ??
+      localStorage.getItem("bb.pro.caption") ??
+      "",
   );
-  const [eventName, setEventNameState] = useState(
-    () => localStorage.getItem("bb.pro.eventName") ?? "",
-  );
-  const activeEventName = isPro ? eventName : "";
   const [templateCaption, setTemplateCaption] = useState("");
   function setCustomCaption(value: string) {
     const next = cleanStyleCaption(value);
-    localStorage.setItem("bb.pro.caption", next);
+    localStorage.setItem("bb.caption", next);
     setCustomCaptionState(next);
     persistActiveStyle(
       buildSessionStyle({
         caption: resolveStripCaption({
-          isPro,
+          isPro: true,
           customCaption: next,
           templateCaption,
-          eventName: activeEventName,
-        }),
-      }),
-    );
-  }
-  function setEventName(value: string) {
-    const next = cleanStyleCaption(value);
-    localStorage.setItem("bb.pro.eventName", next);
-    setEventNameState(next);
-    persistActiveStyle(
-      buildSessionStyle({
-        caption: resolveStripCaption({
-          isPro,
-          customCaption,
-          templateCaption,
-          eventName: next,
         }),
       }),
     );
   }
   const stripCaption = resolveStripCaption({
-    isPro,
+    isPro: true,
     customCaption,
     templateCaption,
-    eventName: activeEventName,
   });
-  const partyStyleSummary = [
-    LAYOUT_LABELS[layout],
-    THEME_LABELS[themeKey],
-    FILTERS[filter].label,
-    sticker === "none" ? null : STICKERS[sticker].label,
-    stripCaption || null,
-  ]
-    .filter(Boolean)
-    .join(" / ");
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
   const [brandLogo, setBrandLogo] = useState<HTMLImageElement | null>(null);
-
-  useEffect(() => {
-    if (!showPartySetup) return;
-    let active = true;
-    setSavedSessionCount(null);
-    listSessions()
-      .then((sessions) => {
-        if (active) setSavedSessionCount(sessions.length);
-      })
-      .catch(() => {
-        if (active) setSavedSessionCount(null);
-      });
-    return () => {
-      active = false;
-    };
-  }, [showPartySetup]);
 
   // Auto-save-to-Photos settings + permission handling (native iOS).
   const {
@@ -417,37 +287,6 @@ export default function App() {
     dismissTip: dismissAutosaveTip,
     openSettings,
   } = useAutosave();
-
-  useEffect(() => {
-    if (isPro) return;
-    let changed = false;
-    const nextQuality = { ...quality };
-    for (const media of Object.keys(nextQuality) as QualityMedia[]) {
-      if (isPremiumQuality(nextQuality[media])) {
-        nextQuality[media] = "standard";
-        saveQuality(media, "standard");
-        changed = true;
-      }
-    }
-    if (changed) {
-      setQuality(nextQuality);
-      clearResults();
-    }
-    if (isPremiumFilter(filter)) {
-      saveFilter("none");
-      setFilterState("none");
-      clearResults();
-    }
-    if (isPremiumSticker(sticker)) {
-      saveSticker("none");
-      setStickerState("none");
-      clearResults();
-    }
-    if (isPremiumLayout(layout)) {
-      saveStripLayout("4x1");
-      setLayout("4x1");
-    }
-  }, [filter, isPro, layout, quality, sticker]);
 
   function clearActiveSession() {
     setActiveSessionId(null);
@@ -498,35 +337,20 @@ export default function App() {
 
   function restoreSessionStyle(style: SessionStyle | undefined): boolean {
     if (!style) return false;
-    const nextLayout =
-      isPremiumLayout(style.layout) && !isPro ? "4x1" : style.layout;
-    const nextFilter =
-      isPremiumFilter(style.filter) && !isPro ? "none" : style.filter;
-    const styleSticker = style.sticker ?? "none";
-    const nextSticker =
-      isPremiumSticker(styleSticker) && !isPro ? "none" : styleSticker;
-    const locked =
-      nextLayout !== style.layout ||
-      nextFilter !== style.filter ||
-      nextSticker !== styleSticker;
-
-    saveStripLayout(nextLayout);
+    const nextSticker = style.sticker ?? "none";
+    saveStripLayout(style.layout);
     saveThemeKey(style.themeKey);
-    saveFilter(nextFilter);
+    saveFilter(style.filter);
     saveSticker(nextSticker);
-    setLayout(nextLayout);
+    setLayout(style.layout);
     setThemeKeyState(style.themeKey);
-    setFilterState(nextFilter);
+    setFilterState(style.filter);
     setStickerState(nextSticker);
     const caption = cleanStyleCaption(style.caption ?? "");
-    if (isPro) {
-      localStorage.setItem("bb.pro.caption", caption);
-      setCustomCaptionState(caption);
-      setTemplateCaption("");
-    } else {
-      setTemplateCaption(caption);
-    }
-    return locked;
+    localStorage.setItem("bb.caption", caption);
+    setCustomCaptionState(caption);
+    setTemplateCaption("");
+    return false;
   }
 
   // Auto-dismiss the transient success/info note after a few seconds. The
@@ -567,7 +391,7 @@ export default function App() {
           delay: speedProfile.gifDelay,
           filter,
           sticker,
-          watermark: !isPro,
+          watermark: true,
         }),
       )
       .catch((e) => {
@@ -585,7 +409,7 @@ export default function App() {
           filter,
           sticker,
           motion: "boomerang",
-          watermark: !isPro,
+          watermark: true,
         }),
       )
       .catch((e) => {
@@ -598,7 +422,7 @@ export default function App() {
       .then((watermarkImg) => {
         const opts = {
           watermarkImg,
-          watermark: !isPro,
+          watermark: true,
           filter,
           sticker,
           frameMs: speedProfile.videoFrameMs,
@@ -630,60 +454,9 @@ export default function App() {
     setCaptureSoundState(next);
   }
 
-  function updatePartyConfig(next: PartyModeConfig) {
-    savePartyModeConfig(next);
-    setPartyConfig(next);
-  }
-
-  function changePartyMode(on: boolean) {
-    updatePartyConfig({
-      ...partyConfig,
-      enabled: on,
-      passcode: on
-        ? normalizePartyPasscode(partyConfig.passcode)
-        : partyConfig.passcode,
-    });
-  }
-
-  function changePartyPasscode(passcode: string) {
-    updatePartyConfig({
-      ...partyConfig,
-      passcode: cleanPartyPasscodeInput(passcode),
-    });
-  }
-
-  function changePartyResetSeconds(resetSeconds: PartyResetSeconds) {
-    updatePartyConfig({ ...partyConfig, resetSeconds });
-  }
-
-  function changePartyOutputFormat(outputFormat: GuestOutputFormat) {
-    updatePartyConfig({ ...partyConfig, outputFormat });
-  }
-
-  function guestReviewFormat(): GuestOutputFormat {
-    if (!partyMode) return "strip";
-    if (partyConfig.outputFormat === "video" && !isVideoSupported()) {
-      return "strip";
-    }
-    return partyConfig.outputFormat;
-  }
-
-  function enterReview(src: HTMLCanvasElement[]) {
-    const nextFormat = guestReviewFormat();
-    setFormat(nextFormat);
+  function enterReview() {
+    setFormat("strip");
     setPhase("review");
-    if (nextFormat !== "strip") void ensureFormatFrom(nextFormat, src);
-  }
-
-  function verifyPartyExit(passcode: string) {
-    if (!verifyPartyPasscode(partyConfig, passcode)) {
-      setPartyExitError("That code did not match.");
-      return;
-    }
-    updatePartyConfig({ ...partyConfig, enabled: false });
-    setShowPartyExit(false);
-    setPartyExitError(null);
-    cancelToHome();
   }
 
   const [cameraFacing, setCameraFacingState] = useState<CameraFacing>(() =>
@@ -701,18 +474,6 @@ export default function App() {
   // Preload the strip-footer logo.
   useEffect(() => {
     loadWatermark().then(setBrandLogo);
-  }, []);
-
-  // Native: confirm the Pro entitlement from StoreKit on launch and load the
-  // localized price for the paywall. Best-effort; no-ops on web.
-  useEffect(() => {
-    if (!isNativeShell()) return;
-    refreshPro()
-      .then(setIsPro)
-      .catch(() => {});
-    getProProduct()
-      .then(setProProduct)
-      .catch(() => {});
   }, []);
 
   // Native app: hide the launch splash as soon as React has mounted, rather
@@ -873,61 +634,6 @@ export default function App() {
     setBoomerangResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
     mediaCache.current = {};
-  }
-
-  function openPro(context: ProContext = "settings") {
-    setProContext(context);
-    setProError(null);
-    setShowPro(true);
-  }
-
-  function completeProActivation(message: string) {
-    setIsPro(true);
-    clearResults();
-    setFormat("strip");
-    setShowPro(false);
-    setNote(message);
-  }
-
-  // Buy Pro. On success, drop cached branded media and return to the strip,
-  // which re-renders immediately without the removable BoothBop mark.
-  async function purchasePro() {
-    setError(null);
-    setProError(null);
-    setProBusy(true);
-    try {
-      if (await subscribeToPro()) {
-        completeProActivation("BoothBop Pro active.");
-      } else {
-        setProError("The purchase was cancelled or is still pending.");
-      }
-    } catch {
-      setProError("The purchase didn't go through. Please try again.");
-    } finally {
-      setProBusy(false);
-    }
-  }
-
-  async function restorePro() {
-    setError(null);
-    setProError(null);
-    setProBusy(true);
-    try {
-      if (await restorePurchases()) {
-        completeProActivation("Purchase restored.");
-      } else {
-        setProError("No previous Pro purchase was found.");
-        setProContext("settings");
-        setShowPro(true);
-        setNote("No previous purchase found.");
-      }
-    } catch {
-      setProError("Couldn't restore right now. Please try again.");
-      setProContext("settings");
-      setShowPro(true);
-    } finally {
-      setProBusy(false);
-    }
   }
 
   async function openCamera({
@@ -1102,8 +808,8 @@ export default function App() {
           /* gallery update is best-effort */
         }
       }
-      if (!partyMode) pregenerate(next);
-      enterReview(next);
+      pregenerate(next);
+      enterReview();
       return;
     }
 
@@ -1155,10 +861,10 @@ export default function App() {
     // instant and the short video finishes before the user can navigate away (a
     // backgrounded MediaRecorder stretches the clip). Then auto-save, also in
     // the background. Neither blocks the review screen.
-    if (!partyMode) pregenerate(captured);
+    pregenerate(captured);
     void autoSaveToAlbum(captured, autosave);
 
-    enterReview(captured);
+    enterReview();
   }
 
   async function runDemoSequence(src: HTMLCanvasElement[]) {
@@ -1189,8 +895,8 @@ export default function App() {
       await wait(240);
       setFlash(false);
       setRetakeIndex(null);
-      if (!partyMode) pregenerate(next);
-      enterReview(next);
+      pregenerate(next);
+      enterReview();
       return;
     }
 
@@ -1222,9 +928,9 @@ export default function App() {
       if (shot < SHOTS - 1) await wait(750);
     }
 
-    if (!partyMode) pregenerate(captured);
+    pregenerate(captured);
     setNote("Demo shoot complete.");
-    enterReview(captured);
+    enterReview();
   }
 
   // Warm the GIF/video cache and populate the review results so switching tabs
@@ -1284,43 +990,15 @@ export default function App() {
     openCamera();
   }
 
-  function nextGuest() {
-    if (!partyMode) {
-      retake();
-      return;
-    }
-    if (demoSetNum !== null) {
-      void openDemoCamera(demoSetNum);
-      return;
-    }
-    clearResults();
-    clearActiveSession();
-    setFrames([]);
-    setFormat("strip");
-    void openCamera({ preserveStyle: true });
-  }
-
   function startTemplate(preset: StylePreset) {
-    if (preset.pro && !isPro) {
-      openPro("template");
-      return;
-    }
     applyStylePreset(preset);
     setShowTemplates(false);
     void openCamera({ preserveStyle: true });
   }
 
   function applyTemplateToCurrent(preset: StylePreset) {
-    if (preset.pro && !isPro) {
-      openPro("template");
-      return;
-    }
     applyStylePreset(preset);
     setShowTemplates(false);
-  }
-
-  function unlockTemplate() {
-    openPro("template");
   }
 
   function retakeShot(index: number) {
@@ -1369,7 +1047,7 @@ export default function App() {
     setDemoPreviewIndex(0);
     if (session.id.startsWith("demo-")) clearActiveSession();
     else activateSession(session);
-    const lockedStyle = restoreSessionStyle(session.style);
+    restoreSessionStyle(session.style);
     const canvases = await Promise.all(
       session.photos.map((b) => blobToCanvas(b)),
     );
@@ -1377,7 +1055,6 @@ export default function App() {
     setFormat("strip");
     setShowGallery(false);
     setPhase("review");
-    if (lockedStyle) setNote("Some saved Pro styling is locked.");
   }
 
   // Strip preview (re-rendered when frames / layout / theme change).
@@ -1386,7 +1063,7 @@ export default function App() {
     return composeStrip(frames, layout, THEMES[themeKey], {
       logo: brandLogo,
       cell: PHOTO_CAPTURE[quality.photo],
-      watermark: !isPro,
+      watermark: true,
       filter,
       sticker,
       caption: stripCaption || undefined,
@@ -1397,32 +1074,10 @@ export default function App() {
     themeKey,
     brandLogo,
     quality.photo,
-    isPro,
     filter,
     sticker,
     stripCaption,
   ]);
-  const printUrl = useMemo(() => {
-    if (frames.length < SHOTS || !isPro) return null;
-    return composePrintSheet(frames, THEMES[themeKey], {
-      logo: brandLogo,
-      cell: PHOTO_CAPTURE[quality.photo],
-      watermark: false,
-      filter,
-      sticker,
-      caption: stripCaption || undefined,
-    }).toDataURL("image/png");
-  }, [
-    frames,
-    themeKey,
-    brandLogo,
-    quality.photo,
-    isPro,
-    filter,
-    sticker,
-    stripCaption,
-  ]);
-
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
     [frames],
@@ -1435,10 +1090,7 @@ export default function App() {
 
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
-    if (f === "print" && !isPro) {
-      openPro("print");
-      return;
-    }
+    if (f === "print") return;
     setFormat(f);
     setError(null);
     setNote(null);
@@ -1542,7 +1194,7 @@ export default function App() {
     if (task.layout)
       return stripBlob(src, task.layout, theme, {
         cell: PHOTO_CAPTURE[quality.photo],
-        watermark: !isPro,
+        watermark: true,
         filter,
         sticker,
         caption: stripCaption || undefined,
@@ -1598,19 +1250,10 @@ export default function App() {
     if (format === "gif") return gifResult;
     if (format === "boomerang") return boomerangResult;
     if (format === "video") return videoResult;
-    if (format === "print") {
-      const blob = await printSheetBlob(frames, THEMES[themeKey], {
-        cell: PHOTO_CAPTURE[quality.photo],
-        watermark: false,
-        filter,
-        sticker,
-        caption: stripCaption || undefined,
-      });
-      return { url: "", blob, filename: `boothbop-print-${stamp()}.png` };
-    }
+    if (format === "print") return null;
     const blob = await stripBlob(frames, layout, THEMES[themeKey], {
       cell: PHOTO_CAPTURE[quality.photo],
-      watermark: !isPro,
+      watermark: true,
       filter,
       sticker,
       caption: stripCaption || undefined,
@@ -1764,7 +1407,7 @@ export default function App() {
       const stampNow = stamp();
       const strip = await stripBlob(frames, layout, THEMES[themeKey], {
         cell: PHOTO_CAPTURE[quality.photo],
-        watermark: !isPro,
+        watermark: true,
         filter,
         sticker,
         caption: stripCaption || undefined,
@@ -1792,19 +1435,6 @@ export default function App() {
           kind: "image",
         },
       ];
-      if (isPro) {
-        results.push({
-          blob: await printSheetBlob(frames, THEMES[themeKey], {
-            cell: PHOTO_CAPTURE[quality.photo],
-            watermark: false,
-            filter,
-            sticker,
-            caption: stripCaption || undefined,
-          }),
-          filename: `boothbop-print-${stampNow}.png`,
-          kind: "image",
-        });
-      }
       if (isVideoSupported()) {
         const { blob, extension } = await getVideoResult(frames);
         results.push({
@@ -1855,7 +1485,7 @@ export default function App() {
     format === "strip"
       ? stripUrl
       : format === "print"
-        ? printUrl
+        ? null
         : format === "gif"
           ? (gifResult?.url ?? null)
           : format === "boomerang"
@@ -1865,22 +1495,12 @@ export default function App() {
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">
       <TopBar
-        onHome={
-          partyMode
-            ? () => {
-                setPartyExitError(null);
-                setShowPartyExit(true);
-              }
-            : cancelToHome
-        }
-        homeLabel={partyMode ? "Exit Guest Mode" : "Home"}
+        onHome={cancelToHome}
+        homeLabel="Home"
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
         showActions={
-          phase !== "idle" &&
-          phase !== "capturing" &&
-          !showMigration &&
-          !partyMode
+          phase !== "idle" && phase !== "capturing" && !showMigration
         }
       />
 
@@ -1889,16 +1509,14 @@ export default function App() {
           <MigrationScreen onContinue={dismissMigration} />
         ) : (
           <IdleScreen
-            onStart={() => void openCamera({ preserveStyle: partyMode })}
+            onStart={() => void openCamera()}
             onBrowseTemplates={() => setShowTemplates(true)}
-            onOpenPartySetup={() => setShowPartySetup(true)}
             onOpenGallery={() => setShowGallery(true)}
             onOpenSettings={openSettings}
             onImportPhotos={(files) => void importPhotos(files)}
             demoSets={DEMO ? DEMO_SETS : []}
             onStartDemo={(setNum) => void openDemoCamera(setNum)}
             installPrompt={installPrompt}
-            partyMode={partyMode}
             error={error}
           />
         ))}
@@ -1917,7 +1535,6 @@ export default function App() {
           captureSound={captureSound}
           cameraFacing={cameraFacing}
           mirrorPreview={mirrorPreview}
-          partyMode={partyMode}
           onToggleFacing={toggleCameraFacing}
           onToggleMirror={() => setMirror(!mirrorPreview)}
           onToggleSound={toggleCaptureSound}
@@ -1943,15 +1560,13 @@ export default function App() {
           stickers={STICKERS}
           setSticker={changeSticker}
           stylePresets={TEMPLATE_CATALOG}
-          isPro={isPro}
+          printEnabled={false}
           onApplyPreset={applyStylePreset}
           error={error}
           note={note}
           shareFilesOk={shareFilesOk}
           native={isNativeShell()}
           savingAll={savingAll}
-          partyMode={partyMode}
-          partyResetSeconds={partyConfig.resetSeconds}
           thumbs={thumbs}
           sessionTitle={sessionTitle}
           sessionFavorite={sessionFavorite}
@@ -1960,7 +1575,6 @@ export default function App() {
           autosaveTip={isNativeShell() && !autosaveTipSeen}
           localSaveNotice={activeSessionId !== null && !localSaveNoticeSeen}
           onOpenSettings={openSettings}
-          onOpenPro={() => openPro("caption")}
           onDismissTip={dismissAutosaveTip}
           onDismissLocalSaveNotice={dismissLocalSaveNotice}
           onBrowseTemplates={() => setShowTemplates(true)}
@@ -1970,7 +1584,7 @@ export default function App() {
           onSessionTitle={changeSessionTitle}
           onToggleFavorite={toggleSessionFavorite}
           onCustomCaption={setCustomCaption}
-          onRetake={nextGuest}
+          onRetake={retake}
           onRetakeShot={retakeShot}
           onMoveShot={moveShot}
         />
@@ -1985,13 +1599,11 @@ export default function App() {
 
       {showTemplates && (
         <TemplateGalleryScreen
-          isPro={isPro}
-          eventName={activeEventName}
+          eventName=""
           hasCurrentCapture={frames.length >= SHOTS}
           onClose={() => setShowTemplates(false)}
           onStart={startTemplate}
           onApplyToCurrent={applyTemplateToCurrent}
-          onUnlockPro={unlockTemplate}
         />
       )}
 
@@ -2003,80 +1615,12 @@ export default function App() {
           native={isNativeShell()}
           videoSupported={isVideoSupported()}
           error={autosaveError}
-          isPro={isPro}
-          proPrice={proProduct?.price ?? null}
-          partyMode={partyConfig.enabled}
-          partyPasscode={partyConfig.passcode}
-          partyResetSeconds={partyConfig.resetSeconds}
-          eventName={eventName}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onQuality={changeQuality}
           onExportSpeed={changeExportSpeed}
-          onOpenPro={() => openPro("settings")}
-          onPartyMode={changePartyMode}
-          onPartyPasscode={changePartyPasscode}
-          onPartyResetSeconds={changePartyResetSeconds}
-          onEventName={setEventName}
-          onRestorePurchase={restorePro}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
-        />
-      )}
-
-      {showPartySetup && (
-        <PartySetupScreen
-          native={isNativeShell()}
-          partyMode={partyConfig.enabled}
-          partyPasscode={partyConfig.passcode}
-          partyResetSeconds={partyConfig.resetSeconds}
-          partyOutputFormat={partyConfig.outputFormat}
-          videoSupported={isVideoSupported()}
-          autosave={autosave}
-          savedSessionCount={savedSessionCount}
-          styleSummary={partyStyleSummary}
-          onPartyMode={changePartyMode}
-          onPartyPasscode={changePartyPasscode}
-          onPartyResetSeconds={changePartyResetSeconds}
-          onPartyOutputFormat={changePartyOutputFormat}
-          onBrowseTemplates={() => {
-            setShowPartySetup(false);
-            setShowTemplates(true);
-          }}
-          onOpenSettings={() => {
-            setShowPartySetup(false);
-            openSettings();
-          }}
-          onStart={() => {
-            setShowPartySetup(false);
-            void openCamera({ preserveStyle: true });
-          }}
-          onClose={() => setShowPartySetup(false)}
-        />
-      )}
-
-      {showPro && (
-        <ProScreen
-          context={proContext}
-          price={proProduct?.price ?? null}
-          native={isNativeShell()}
-          isPro={isPro}
-          busy={proBusy}
-          error={proError}
-          onStartPro={purchasePro}
-          onRestore={restorePro}
-          onClose={() => setShowPro(false)}
-        />
-      )}
-
-      {showPartyExit && (
-        <PartyExitModal
-          error={partyExitError}
-          onVerify={verifyPartyExit}
-          onClose={() => {
-            setPartyExitError(null);
-            setShowPartyExit(false);
-          }}
         />
       )}
     </div>

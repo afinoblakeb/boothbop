@@ -11,6 +11,8 @@ export default tseslint.config(
       "dist",
       "dev-dist",
       "coverage",
+      "playwright-report",
+      "test-results",
       "ios/DerivedData",
       "ios/App/build",
       "ios/App/App/public",
@@ -53,7 +55,7 @@ export default tseslint.config(
   },
   // Tests get the Node globals (Vitest helpers are imported explicitly).
   {
-    files: ["**/*.test.{ts,tsx}", "src/test/**"],
+    files: ["**/*.test.{ts,tsx}", "src/test/**", "tests/**"],
     languageOptions: { globals: { ...globals.node } },
   },
   // Keep ESLint out of Prettier's lane (formatting is Prettier's job).

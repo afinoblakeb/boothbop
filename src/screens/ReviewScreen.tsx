@@ -1,7 +1,6 @@
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { SESSION_TITLE_MAX } from "../lib/gallery";
-import type { PartyResetSeconds } from "../lib/partyMode";
 import { THEMES, type Layout } from "../lib/strip";
 import type {
   FilterDef,
@@ -12,7 +11,6 @@ import type {
 import { stylePresetMetaLabel, type StylePreset } from "../lib/templates";
 import type { MoveDirection } from "../lib/sequence";
 import { STYLE_CAPTION_MAX } from "../lib/style";
-import { isPremiumFilter, isPremiumSticker } from "../lib/entitlements";
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -104,15 +102,13 @@ export function ReviewScreen({
   stickers,
   setSticker,
   stylePresets,
-  isPro,
+  printEnabled,
   onApplyPreset,
   error,
   note,
   shareFilesOk,
   native,
   savingAll,
-  partyMode,
-  partyResetSeconds,
   thumbs,
   sessionTitle,
   sessionFavorite,
@@ -121,7 +117,6 @@ export function ReviewScreen({
   autosaveTip,
   localSaveNotice,
   onOpenSettings,
-  onOpenPro,
   onDismissTip,
   onDismissLocalSaveNotice,
   onBrowseTemplates,
@@ -150,15 +145,13 @@ export function ReviewScreen({
   stickers: Record<StickerKey, StickerDef>;
   setSticker: (s: StickerKey) => void;
   stylePresets: readonly StylePreset[];
-  isPro: boolean;
+  printEnabled: boolean;
   onApplyPreset: (preset: StylePreset) => void;
   error: string | null;
   note: string | null;
   shareFilesOk: boolean;
   native: boolean;
   savingAll: boolean;
-  partyMode: boolean;
-  partyResetSeconds: PartyResetSeconds;
   thumbs: string[];
   sessionTitle: string;
   sessionFavorite: boolean;
@@ -167,7 +160,6 @@ export function ReviewScreen({
   autosaveTip: boolean;
   localSaveNotice: boolean;
   onOpenSettings: () => void;
-  onOpenPro: () => void;
   onDismissTip: () => void;
   onDismissLocalSaveNotice: () => void;
   onBrowseTemplates: () => void;
@@ -186,7 +178,7 @@ export function ReviewScreen({
     { id: "gif", label: "GIF" },
     { id: "boomerang", label: "Boom" },
     ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
-    ...(isPro && !partyMode ? [{ id: "print" as Format, label: "4x6" }] : []),
+    ...(printEnabled ? [{ id: "print" as Format, label: "4x6" }] : []),
   ];
   const downloadLabel =
     format === "video"
@@ -201,62 +193,17 @@ export function ReviewScreen({
   const saveLabel = native ? "Save Photo" : downloadLabel;
   const [editOpen, setEditOpen] = useState(false);
   const [editorTab, setEditorTab] = useState<EditorTab>("look");
-  const [guestActionPending, setGuestActionPending] = useState(false);
-  const [partyCountdown, setPartyCountdown] =
-    useState<number>(partyResetSeconds);
-  const onRetakeRef = useRef(onRetake);
-  const retakeLabel = partyMode ? "Next Guest" : "Take Again";
-  const resetActive =
-    partyMode &&
-    partyResetSeconds > 0 &&
-    previewUrl !== null &&
-    !isBusy &&
-    !guestActionPending;
-  const showQuickRetake = !partyMode && thumbs.length >= 4;
+  const showQuickRetake = thumbs.length >= 4;
   const previewFrameClass = showQuickRetake
     ? "mt-1 flex h-[clamp(130px,23svh,300px)] w-full shrink-0 items-center justify-center overflow-hidden"
     : "mt-1 flex h-[clamp(150px,30svh,380px)] w-full shrink-0 items-center justify-center overflow-hidden";
-
-  useEffect(() => {
-    onRetakeRef.current = onRetake;
-  }, [onRetake]);
-
-  useEffect(() => {
-    setGuestActionPending(false);
-    setPartyCountdown(partyResetSeconds);
-  }, [partyMode, partyResetSeconds, previewUrl]);
-
-  useEffect(() => {
-    if (!resetActive) return;
-    setPartyCountdown(partyResetSeconds);
-    const id = window.setInterval(() => {
-      setPartyCountdown((current) => {
-        if (current <= 1) {
-          window.clearInterval(id);
-          onRetakeRef.current();
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-    return () => window.clearInterval(id);
-  }, [partyResetSeconds, resetActive]);
-
-  function runGuestAction(action: () => void | Promise<void>) {
-    if (!partyMode) {
-      void action();
-      return;
-    }
-    setGuestActionPending(true);
-    void Promise.resolve(action()).finally(() => setGuestActionPending(false));
-  }
 
   function selectEditorTab(tab: EditorTab) {
     setEditorTab(tab);
     if (tab === "layout" && format !== "strip") onSelectFormat("strip");
   }
 
-  if (!partyMode && editOpen) {
+  if (editOpen) {
     return (
       <EditorWorkbench
         format={format}
@@ -275,7 +222,6 @@ export function ReviewScreen({
         stickers={stickers}
         setSticker={setSticker}
         stylePresets={stylePresets}
-        isPro={isPro}
         onApplyPreset={onApplyPreset}
         error={error}
         thumbs={thumbs}
@@ -285,7 +231,6 @@ export function ReviewScreen({
         canManageSession={canManageSession}
         autosaveTip={autosaveTip}
         onOpenSettings={onOpenSettings}
-        onOpenPro={onOpenPro}
         onDismissTip={onDismissTip}
         onBrowseTemplates={onBrowseTemplates}
         onSessionTitle={onSessionTitle}
@@ -355,29 +300,23 @@ export function ReviewScreen({
       </section>
 
       <div className="mt-2 grid w-full grid-cols-2 gap-2">
-        {!partyMode && (
-          <Button
-            variant="secondary"
-            size="md"
-            onClick={() => setEditOpen((open) => !open)}
-            aria-expanded="false"
-            className="h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
-          >
-            <SlidersIcon className="h-5 w-5 sm:h-6 sm:w-6" />
-            Edit
-          </Button>
-        )}
+        <Button
+          variant="secondary"
+          size="md"
+          onClick={() => setEditOpen((open) => !open)}
+          aria-expanded="false"
+          className="h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
+        >
+          <SlidersIcon className="h-5 w-5 sm:h-6 sm:w-6" />
+          Edit
+        </Button>
         <Button
           variant="primary"
           size="md"
           fullWidth
-          onClick={() => runGuestAction(onSave)}
+          onClick={() => void onSave()}
           disabled={isBusy || !previewUrl}
-          className={
-            partyMode
-              ? "col-span-2 h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
-              : "h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
-          }
+          className="h-12 whitespace-nowrap px-2 text-lg leading-none sm:h-14 sm:px-3 sm:text-xl"
         >
           <DownloadIcon className="h-5 w-5 sm:h-6 sm:w-6" />
           {saveLabel}
@@ -387,31 +326,25 @@ export function ReviewScreen({
             variant="secondary"
             size="md"
             fullWidth
-            onClick={() => runGuestAction(onShare)}
+            onClick={() => void onShare()}
             disabled={isBusy || !previewUrl}
-            className={
-              partyMode
-                ? "col-span-2 h-11 whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl"
-                : "h-11 whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl"
-            }
+            className="h-11 whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl"
           >
             <ShareIcon className="h-5 w-5" />
             Share
           </Button>
         )}
-        {!partyMode && (
-          <Button
-            variant="secondary"
-            size="md"
-            fullWidth
-            onClick={onSaveAll}
-            disabled={isBusy || savingAll || thumbs.length < 4}
-            className={`${canShare ? "h-11" : "col-span-2 h-11"} whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl`}
-          >
-            <DownloadIcon className="h-5 w-5" />
-            {savingAll ? "Saving…" : "Save All"}
-          </Button>
-        )}
+        <Button
+          variant="secondary"
+          size="md"
+          fullWidth
+          onClick={onSaveAll}
+          disabled={isBusy || savingAll || thumbs.length < 4}
+          className={`${canShare ? "h-11" : "col-span-2 h-11"} whitespace-nowrap px-2 text-base leading-none sm:h-12 sm:px-3 sm:text-xl`}
+        >
+          <DownloadIcon className="h-5 w-5" />
+          {savingAll ? "Saving…" : "Save All"}
+        </Button>
       </div>
 
       {showQuickRetake && (
@@ -459,7 +392,7 @@ export function ReviewScreen({
         </Callout>
       )}
 
-      {localSaveNotice && !partyMode && (
+      {localSaveNotice && (
         <Callout
           tone="info"
           className="mt-3 flex w-full items-center gap-2 px-3 py-2 text-left"
@@ -479,35 +412,13 @@ export function ReviewScreen({
         </Callout>
       )}
 
-      {partyMode ? (
-        <Button
-          variant="secondary"
-          size="md"
-          fullWidth
-          onClick={onRetake}
-          className="mt-3"
-        >
-          <RefreshIcon className="h-6 w-6" />
-          {retakeLabel}
-        </Button>
-      ) : (
-        <button
-          onClick={onRetake}
-          className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 px-3 font-display text-lg uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
-        >
-          <RefreshIcon className="h-5 w-5" />
-          {retakeLabel}
-        </button>
-      )}
-      {partyMode && (
-        <p className="mt-1 max-w-xs text-center font-sans text-xs text-teal">
-          {resetActive
-            ? `Next guest starts in ${partyCountdown}s.`
-            : guestActionPending
-              ? "Finishing save/share, then the next guest starts."
-              : "Guest Mode keeps this style ready for the next friend."}
-        </p>
-      )}
+      <button
+        onClick={onRetake}
+        className="mt-3 inline-flex min-h-11 items-center justify-center gap-2 px-3 font-display text-lg uppercase tracking-wide text-brown underline decoration-2 underline-offset-4 transition active:translate-y-px"
+      >
+        <RefreshIcon className="h-5 w-5" />
+        Take Again
+      </button>
       <p className="review-trust-copy mt-2 max-w-xs text-center font-sans text-xs text-warmgray">
         BoothBop never uploads your photos. Saved sets stay only in this app on
         this device until you delete them.
@@ -576,7 +487,6 @@ function EditorWorkbench({
   stickers,
   setSticker,
   stylePresets,
-  isPro,
   onApplyPreset,
   error,
   thumbs,
@@ -586,7 +496,6 @@ function EditorWorkbench({
   canManageSession,
   autosaveTip,
   onOpenSettings,
-  onOpenPro,
   onDismissTip,
   onBrowseTemplates,
   onSessionTitle,
@@ -613,7 +522,6 @@ function EditorWorkbench({
   stickers: Record<StickerKey, StickerDef>;
   setSticker: (s: StickerKey) => void;
   stylePresets: readonly StylePreset[];
-  isPro: boolean;
   onApplyPreset: (preset: StylePreset) => void;
   error: string | null;
   thumbs: string[];
@@ -623,7 +531,6 @@ function EditorWorkbench({
   canManageSession: boolean;
   autosaveTip: boolean;
   onOpenSettings: () => void;
-  onOpenPro: () => void;
   onDismissTip: () => void;
   onBrowseTemplates: () => void;
   onSessionTitle: (title: string) => void;
@@ -692,11 +599,7 @@ function EditorWorkbench({
             value={filter}
             onChange={setFilter}
             options={(Object.entries(filters) as [FilterKey, FilterDef][]).map(
-              ([value, f]) => ({
-                value,
-                label:
-                  isPremiumFilter(value) && !isPro ? `${f.label} Pro` : f.label,
-              }),
+              ([value, item]) => ({ value, label: item.label }),
             )}
           />
         )}
@@ -712,9 +615,9 @@ function EditorWorkbench({
                 options={[
                   { value: "4x1", label: "Classic" },
                   { value: "2x2", label: "Grid" },
-                  { value: "2x6", label: "2×6 Pro" },
-                  { value: "4x6", label: "4×6 Pro" },
-                  { value: "story", label: "Story Pro" },
+                  { value: "2x6", label: "2×6" },
+                  { value: "4x6", label: "4×6" },
+                  { value: "story", label: "Story" },
                 ]}
               />
             </div>
@@ -749,13 +652,7 @@ function EditorWorkbench({
             onChange={setSticker}
             options={(
               Object.entries(stickers) as [StickerKey, StickerDef][]
-            ).map(([value, item]) => ({
-              value,
-              label:
-                isPremiumSticker(value) && !isPro
-                  ? `${item.label} Pro`
-                  : item.label,
-            }))}
+            ).map(([value, item]) => ({ value, label: item.label }))}
           />
         )}
 
@@ -763,33 +660,18 @@ function EditorWorkbench({
           <div className="space-y-4">
             <div>
               <SectionLabel className="mb-1">Caption</SectionLabel>
-              {isPro ? (
-                <input
-                  value={customCaption}
-                  maxLength={STYLE_CAPTION_MAX}
-                  onChange={(e) => onCustomCaption(e.target.value)}
-                  placeholder="BoothBop"
-                  autoComplete="off"
-                  autoCorrect="off"
-                  autoCapitalize="off"
-                  spellCheck={false}
-                  enterKeyHint="done"
-                  className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
-                />
-              ) : (
-                <button
-                  type="button"
-                  onClick={onOpenPro}
-                  className="flex min-h-11 w-full items-center justify-between border-2 border-ink bg-cream px-3 py-2 text-left transition active:translate-y-px"
-                >
-                  <span className="font-sans text-sm text-brown">
-                    Custom footer text is Pro.
-                  </span>
-                  <span className="font-display text-base uppercase tracking-wide text-orange-dark">
-                    Pro
-                  </span>
-                </button>
-              )}
+              <input
+                value={customCaption}
+                maxLength={STYLE_CAPTION_MAX}
+                onChange={(e) => onCustomCaption(e.target.value)}
+                placeholder="BoothBop"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
+                enterKeyHint="done"
+                className="h-11 w-full border-2 border-ink bg-paper px-3 font-sans text-base text-ink outline-none focus:ring-4 focus:ring-orange/35"
+              />
             </div>
 
             {canManageSession && (
@@ -916,20 +798,16 @@ function EditorWorkbench({
             </Button>
             <div className="grid grid-cols-2 gap-2">
               {stylePresets.map((preset) => {
-                const locked = preset.pro && !isPro;
                 return (
                   <button
                     key={preset.id}
                     type="button"
                     onClick={() => onApplyPreset(preset)}
-                    className={`min-h-[58px] border-2 border-ink px-2 py-2 font-display text-sm uppercase tracking-wide transition active:translate-y-px ${
-                      locked ? "bg-cream text-brown" : "bg-paper text-ink"
-                    }`}
+                    className="min-h-[58px] border-2 border-ink bg-paper px-2 py-2 font-display text-sm uppercase tracking-wide text-ink transition active:translate-y-px"
                   >
                     <span className="block leading-none">{preset.label}</span>
                     <span className="mt-1 block font-sans text-[10px] font-bold uppercase tracking-wide text-brown">
                       {stylePresetMetaLabel(preset)}
-                      {preset.pro ? " / Pro" : ""}
                     </span>
                   </button>
                 );

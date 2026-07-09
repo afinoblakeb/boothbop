@@ -2,11 +2,6 @@ import { describe, expect, it } from "vitest";
 import { FILTERS, STICKERS } from "./render";
 import { THEMES } from "./strip";
 import {
-  isPremiumFilter,
-  isPremiumLayout,
-  isPremiumSticker,
-} from "./entitlements";
-import {
   PREVIEW_DEMO_SET,
   STYLE_PRESETS,
   TEMPLATE_CATALOG,
@@ -44,11 +39,9 @@ describe("style presets", () => {
     });
   });
 
-  it("contains free and Pro presets", () => {
-    expect(STYLE_PRESETS.filter((preset) => !preset.pro)).toHaveLength(6);
-    expect(STYLE_PRESETS.filter((preset) => preset.pro)).toHaveLength(6);
-    expect(TEMPLATE_CATALOG.filter((preset) => !preset.pro)).toHaveLength(14);
-    expect(TEMPLATE_CATALOG.filter((preset) => preset.pro)).toHaveLength(16);
+  it("ships every 0.1.0 preset in the free consumer collection", () => {
+    expect(STYLE_PRESETS.every((preset) => !preset.pro)).toBe(true);
+    expect(TEMPLATE_CATALOG.every((preset) => !preset.pro)).toBe(true);
   });
 
   it("points every preset at valid renderer options", () => {
@@ -112,9 +105,8 @@ describe("style presets", () => {
     }
   });
 
-  it("assigns every template to honest free or Pro pack metadata", () => {
-    expect(TEMPLATE_PACKS.filter((pack) => !pack.pro)).toHaveLength(2);
-    expect(TEMPLATE_PACKS.filter((pack) => pack.pro)).toHaveLength(7);
+  it("assigns every template to honest free pack metadata", () => {
+    expect(TEMPLATE_PACKS.every((pack) => !pack.pro)).toBe(true);
 
     for (const preset of TEMPLATE_CATALOG) {
       const pack = templatePackForPreset(preset);
@@ -136,28 +128,18 @@ describe("style presets", () => {
     );
   });
 
-  it("marks premium presets consistently with entitlement rules", () => {
-    for (const preset of allPresets) {
-      const premium =
-        isPremiumLayout(preset.layout) ||
-        isPremiumFilter(preset.filter) ||
-        isPremiumSticker(preset.sticker);
-      expect(preset.pro).toBe(premium);
-    }
-  });
-
-  it("only gates Pro presets", () => {
+  it("makes every preset available without an entitlement", () => {
     const free = STYLE_PRESETS.find((preset) => !preset.pro)!;
-    const pro = STYLE_PRESETS.find((preset) => preset.pro)!;
     expect(isStylePresetAvailable(free, false)).toBe(true);
-    expect(isStylePresetAvailable(pro, false)).toBe(false);
-    expect(isStylePresetAvailable(pro, true)).toBe(true);
+    expect(
+      TEMPLATE_CATALOG.every((preset) => isStylePresetAvailable(preset, false)),
+    ).toBe(true);
   });
 
   it("picks random templates from the user's available tier", () => {
     const freePresets = availableStylePresets(false);
     const proPresets = availableStylePresets(true);
-    expect(freePresets).toHaveLength(14);
+    expect(freePresets).toHaveLength(TEMPLATE_CATALOG.length);
     expect(freePresets.every((preset) => !preset.pro)).toBe(true);
     expect(proPresets).toHaveLength(TEMPLATE_CATALOG.length);
     expect(pickRandomStylePreset(false, () => 0).id).toBe(freePresets[0].id);
