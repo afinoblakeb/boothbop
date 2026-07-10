@@ -1,67 +1,64 @@
-# Roadmap
+# BoothBop Roadmap
 
-## Now: a web SPA + installable PWA
+BoothBop is developed from the App Store release baseline, not from the June
+feature prototype. The governing product decision is documented in
+[docs/PRODUCT_RESET.md](docs/PRODUCT_RESET.md).
 
-BoothBop is a single-page app (Vite + React) deployed to **GitHub Pages** and
-installable as a **PWA** (Add to Home Screen, works offline). This is the
-primary target **for the foreseeable future** — all current work assumes the
-web SPA.
+## Product Promise
 
-## Monetization
+Take four poses, receive a great classic photo strip, and save or share it
+without setup or explanation.
 
-A planned **"BoothBop Pro" one-time unlock** (super small dollars) gates
-vanity/pro-polish features — never usability. See
-[docs/MONETIZATION.md](docs/MONETIZATION.md). Not wired yet; the anchor feature
-(remove watermark) is already architected via the `watermark` flag in
-`gif.ts`/`video.ts`.
+Every release must improve that promise or leave it untouched. Feature count is
+not a success metric.
 
-## Later (maybe): native iOS + Android in the app stores
+## Current Baseline
 
-We may ship native apps to the **Apple App Store** and **Google Play**. We are
-**not building this now** and intentionally avoid plumbing for it yet — but the
-codebase is kept ready so the eventual port is small, not a rewrite.
+- App Store version: `0.0.1`
+- App Store build: `0.0.2`
+- Git commit: `465876d`
+- Release tag: `appstore-v0.0.1-build-0.0.2`
+- Development branch: `codex/product-reset`
 
-### Planned approach: Capacitor (wrap, don't rewrite)
+The previous feature work remains preserved on `codex/0.1.0` and
+`codex/prototype-june-2026`. Those branches are research and implementation
+references. They must never be merged wholesale into the release line.
 
-[Capacitor](https://capacitorjs.com) wraps the existing production web build
-(`dist/`) in a thin native shell (WKWebView on iOS, Android WebView) and
-publishes to both stores. It's the lowest-plumbing path for an existing web SPA
-and reuses ~all of our code. When we do it, it adds these as **siblings of the
-web app at the repo root**:
+## Next Release: 0.0.3 Quality Baseline
 
-```
-boothbop/
-├── src/ index.html vite.config.ts   # the web app (unchanged, still the source of truth)
-├── ios/                             # generated native Xcode project (committed)
-├── android/                         # generated native Android project (committed)
-└── capacitor.config.ts             # points Capacitor at dist/
-```
+No new user-facing feature is planned for 0.0.3. It must:
 
-The web app stays exactly where it is; native is additive.
+1. Prove a fresh native install advances beyond the launch screen.
+2. Add an automated capture-to-review-to-save journey.
+3. Eliminate horizontal overflow at 320x568 and larger phone sizes.
+4. Remove redundant navigation and keep the primary booth action dominant.
+5. Verify the release on physical iPhone hardware and a small TestFlight group.
 
-### Why the current code is already a good fit
+Only after 0.0.3 is accepted do we select one feature for the following month.
 
-- **Browser APIs are isolated in `src/lib/`**, not scattered through the UI.
-  `camera.ts` (getUserMedia), `platform.ts` (Web Share), and `gallery.ts`
-  (IndexedDB) are the only places that touch platform capabilities. A native
-  port swaps these for Capacitor plugins (`@capacitor/camera`,
-  `@capacitor/share`, `@capacitor/filesystem`) without touching `App.tsx`.
-- **The base path is already build-time configurable.** The web build serves
-  from `/` (custom-domain root) and so does a native build — and any other base
-  is a single `BASE_PATH` env override (`vite.config.ts`), no code change.
-- **Everything runs client-side.** No backend to stand up or auth to migrate.
+## Release Cadence
 
-### Design rules to keep the port cheap (follow these now)
+Each cycle contains one user problem and at most one new user-facing capability:
 
-1. **Route every platform capability through `src/lib/`.** Never call
-   `navigator.mediaDevices`, `navigator.share`, or `indexedDB` directly from a
-   component — add/extend a `lib/` module instead.
-2. **Feature-detect, don't UA-sniff** for behavior (see `platform.ts`). Native
-   shells report differently; capability checks keep working.
-3. **Keep assets base-path-relative** via `import.meta.env.BASE_URL`.
+1. Problem evidence and a written feature brief.
+2. A disposable interaction prototype.
+3. Implementation with unit and end-to-end coverage.
+4. Accessibility, compact-device, offline, and failure-state review.
+5. Physical-device and TestFlight evaluation.
+6. Ship, revise, or hold. A calendar deadline never overrides quality.
 
-### Explicitly deferred until we commit to native
+Use [docs/FEATURE_BRIEF_TEMPLATE.md](docs/FEATURE_BRIEF_TEMPLATE.md) before
+starting feature code.
 
-Installing Capacitor, the `ios/`/`android/` projects, store metadata/signing,
-push notifications, and native plugin wiring. None of this is in the repo yet —
-by design.
+## Explicitly Unscheduled
+
+- Subscription or in-app purchase.
+- Party, operator, kiosk, or passcode modes.
+- A large template, filter, or prop catalog.
+- A general-purpose photo editor.
+- Printing, cloud galleries, QR rooms, accounts, or remote delivery.
+- Upload-based AI features.
+- Android distribution.
+
+These may be reconsidered when user evidence supports them. Existing prototype
+code does not create a commitment to ship them.

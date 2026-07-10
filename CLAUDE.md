@@ -6,6 +6,21 @@ BoothBop is developed entirely by AI agents (Claude + Codex). This file and
 the verification loop below are the contract that keeps that safe: make a
 change, then prove it with `npm run check` before considering the work done.
 
+## Product reset contract
+
+Read `docs/PRODUCT_RESET.md` and `ROADMAP.md` before product work.
+
+- Production development starts from App Store release `0.0.1 (0.0.2)` at
+  commit `465876d` on `codex/product-reset`.
+- `codex/0.1.0` and `codex/prototype-june-2026` are prototype references. Never
+  merge either branch wholesale into the release line.
+- A release may add at most one user-facing capability. Complete
+  `docs/FEATURE_BRIEF_TEMPLATE.md` before implementing it.
+- Existing prototype code creates no commitment to ship. Reimplement or port
+  only the minimum approved behavior.
+- `0.0.3` is a quality baseline with no new feature: launch proof, end-to-end
+  core-flow coverage, and compact-device layout correctness come first.
+
 ## Quality bar — pristine, zero noise
 
 This project holds a **high quality bar**. Treat every warning and error as a
@@ -111,10 +126,11 @@ Gallery and Settings are overlays, orthogonal to phase.
 
 ## Conventions and gotchas that aren't obvious from one file
 
-- **Lazy export generation.** The strip re-renders live via `useMemo`. The GIF
-  and video are only encoded when their tab is first selected
-  (`selectFormat → ensureGif/ensureVideo`), then cached as a `MediaResult`.
-  Don't eagerly generate all three.
+- **Current export warm-up.** The strip re-renders live via `useMemo`. After a
+  capture, `pregenerate()` starts GIF and video encoding in the foreground and
+  caches both results; the tabs reuse that cache. This is part of the released
+  baseline, but it increases post-capture work. Do not expand or rewrite it
+  without measuring the core review transition in the 0.0.3 quality cycle.
 - **Share vs. download is feature-detected, never UA-sniffed.**
   `probeShareFiles()` decides whether the primary button is "Save / Share"
   (native share sheet) or "Save Photo" (download). Share failures fall back to
@@ -141,26 +157,23 @@ Gallery and Settings are overlays, orthogonal to phase.
 See **`ROADMAP.md`** for the full plan. The short version that shapes how to
 write code today:
 
-- **Now and for the foreseeable future: this is a web SPA + PWA** on GitHub
-  Pages. Optimize for that.
-- **Later (maybe): native iOS + Android via Capacitor** — wrapping this same
-  web build in a native shell for the App Store / Play Store. We are **not**
-  building that yet and don't add native plumbing now.
-- **To keep that future port cheap, follow these rules now:**
+- **Current platforms are the web PWA and native iOS via Capacitor.** The React
+  app remains the source of truth; `ios/` is the shipping native shell.
+- **Android is deferred.** Do not add it without a separately approved feature
+  brief and distribution plan.
+- **Keep the shared app portable:**
   1. Route every platform capability through `src/lib/` (camera, share,
      storage). Never call `navigator.mediaDevices`, `navigator.share`, or
      `indexedDB` directly from a component — those `lib/` modules are the exact
-     seam a native port swaps for Capacitor plugins.
+     seam the existing Capacitor shell adapts with native plugins.
   2. Feature-detect behavior, don't UA-sniff (see `platform.ts`).
   3. Keep asset URLs base-path-relative via `import.meta.env.BASE_URL` (a native
-     build just sets `BASE_PATH=/`).
-- The repo is laid out so native is **additive**: the web app stays at the root,
-  and `ios/`, `android/`, and `capacitor.config.ts` will appear as root siblings
-  when added (already pre-ignored in `.gitignore`).
-- **Monetization** (`docs/MONETIZATION.md`): a planned one-time "Pro" unlock
-  gates vanity features only, never usability. When built, gate everything on a
-  single `isPro()` (the `watermark` flag in `gif.ts`/`video.ts` is the anchor).
-  Not wired yet.
+     build sets `BASE_PATH=/`).
+- Native changes remain additive: preserve the root web app and keep iOS code
+  limited to capabilities the shared app cannot provide reliably.
+- **Monetization is unscheduled.** Do not add StoreKit, a paywall, entitlement
+  logic, or paid-feature copy without a future product decision and feature
+  brief. The existing watermark parameter is an implementation seam only.
 
 ## Public-repo hygiene
 
