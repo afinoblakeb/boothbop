@@ -49,11 +49,13 @@ function run(command, args, options = {}) {
     let stderr = "";
     let timedOut = false;
     let timeout;
+    let forceKillTimeout;
 
     if (timeoutMs > 0) {
       timeout = setTimeout(() => {
         timedOut = true;
         child.kill("SIGTERM");
+        forceKillTimeout = setTimeout(() => child.kill("SIGKILL"), 2000);
       }, timeoutMs);
     }
 
@@ -76,6 +78,7 @@ function run(command, args, options = {}) {
     child.on("error", reject);
     child.on("close", (code) => {
       if (timeout) clearTimeout(timeout);
+      if (forceKillTimeout) clearTimeout(forceKillTimeout);
 
       if (timedOut && timeoutOk) {
         resolve({ code, stdout, stderr, timedOut });
@@ -191,12 +194,12 @@ async function buildSimulatorApp() {
 }
 
 async function bootDevice(device) {
-  if (device.state !== "Booted") {
-    await run("xcrun", ["simctl", "boot", device.udid], {
-      allowFailure: true,
-      quiet: true,
-    });
-  }
+  await run("xcrun", ["simctl", "boot", device.udid], {
+    allowFailure: true,
+    quiet: true,
+    timeoutMs: 30000,
+    timeoutOk: true,
+  });
 
   await run("xcrun", ["simctl", "bootstatus", device.udid, "-b"], {
     quiet: true,
@@ -216,6 +219,8 @@ async function screenshotStats(filePath) {
   let sum = 0;
   let sumSquares = 0;
   let brightPixels = 0;
+  let brandOrangePixels = 0;
+  let lightSurfacePixels = 0;
 
   for (let y = startY; y < endY; y += 1) {
     for (let x = 0; x < info.width; x += 1) {
@@ -229,6 +234,18 @@ async function screenshotStats(filePath) {
       sum += luminance;
       sumSquares += luminance * luminance;
       if (luminance > 20) brightPixels += 1;
+      if (
+        data[index] > 180 &&
+        data[index + 1] >= 30 &&
+        data[index + 1] <= 130 &&
+        data[index + 2] < 100 &&
+        data[index] > data[index + 1] * 1.6
+      ) {
+        brandOrangePixels += 1;
+      }
+      if (data[index] > 210 && data[index + 1] > 190 && data[index + 2] > 150) {
+        lightSurfacePixels += 1;
+      }
     }
   }
 
@@ -239,7 +256,9 @@ async function screenshotStats(filePath) {
 
   return {
     average,
+    brandOrangeRatio: brandOrangePixels / count,
     brightRatio,
+    lightSurfaceRatio: lightSurfacePixels / count,
     standardDeviation,
     width: info.width,
     height: info.height,
@@ -262,6 +281,27 @@ function assertVisibleScreen(deviceName, stats) {
       )}.`,
     );
   }
+
+  // The native launch screen is intentionally darker than the loaded home
+  // surface. Requiring the light home luminance proves WKWebView advanced past
+  // splash instead of accepting any nonblack native frame.
+  if (stats.average < 150) {
+    throw new Error(
+      `${deviceName} did not advance past the launch screen: average luminance ${stats.average.toFixed(
+        2,
+      )}.`,
+    );
+  }
+
+  if (stats.brandOrangeRatio < 0.003 || stats.lightSurfaceRatio < 0.35) {
+    throw new Error(
+      `${deviceName} did not render the BoothBop home surface: orange ratio ${(
+        stats.brandOrangeRatio * 100
+      ).toFixed(2)}%, light surface ratio ${(
+        stats.lightSurfaceRatio * 100
+      ).toFixed(2)}%.`,
+    );
+  }
 }
 
 async function sleep(ms) {
@@ -269,7 +309,7 @@ async function sleep(ms) {
 }
 
 async function captureVisibleScreenshot(device, screenshot) {
-  const deadline = Date.now() + 45000;
+  const deadline = Date.now() + 90000;
   let lastError;
 
   while (Date.now() < deadline) {
@@ -300,7 +340,7 @@ async function captureVisibleScreenshot(device, screenshot) {
 }
 
 async function recentNativeLog(device) {
-  const predicate = [
+  const failureEvents = [
     'eventMessage CONTAINS[c] "Unknown class"',
     'eventMessage CONTAINS[c] "BridgeViewController"',
     'eventMessage CONTAINS[c] "customModule"',
@@ -309,18 +349,27 @@ async function recentNativeLog(device) {
     'eventMessage CONTAINS[c] "Terminating app due to uncaught exception"',
     'eventMessage CONTAINS[c] "Fatal error"',
   ].join(" OR ");
+  const predicate = `process == "App" AND (${failureEvents})`;
 
   const { stdout, stderr } = await run(
-    "/usr/bin/log",
-    ["show", "--last", "45s", "--style", "compact", "--predicate", predicate],
-    { capture: true, allowFailure: true, timeoutMs: 15000, timeoutOk: true },
+    "xcrun",
+    [
+      "simctl",
+      "spawn",
+      device.udid,
+      "log",
+      "show",
+      "--last",
+      "60s",
+      "--style",
+      "compact",
+      "--predicate",
+      predicate,
+    ],
+    { capture: true, allowFailure: true, timeoutMs: 30000, timeoutOk: true },
   );
 
-  return `${stdout}\n${stderr}`
-    .split("\n")
-    .filter((line) => line.includes(device.udid) || !line.includes(" log["))
-    .join("\n")
-    .trim();
+  return `${stdout}\n${stderr}`.trim();
 }
 
 async function assertNoNativeLaunchFailures(device) {
@@ -343,45 +392,136 @@ async function testDevice(device) {
   )})`;
   console.log(`\n==> ${label}`);
 
-  await bootDevice(device);
-  await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
-    allowFailure: true,
-    quiet: true,
-    timeoutMs: 8000,
-    timeoutOk: true,
-  });
-  await run("xcrun", ["simctl", "uninstall", device.udid, bundleId], {
-    allowFailure: true,
-    quiet: true,
-    timeoutMs: 8000,
-    timeoutOk: true,
-  });
-  await run("xcrun", ["simctl", "install", device.udid, appPath], {
-    quiet: true,
-    timeoutMs: 60000,
-  });
-  await run(
-    "xcrun",
-    ["simctl", "launch", "--terminate-running-process", device.udid, bundleId],
-    {
+  try {
+    process.stdout.write("erasing... ");
+    await run("xcrun", ["simctl", "shutdown", device.udid], {
+      allowFailure: true,
       quiet: true,
-      timeoutMs: 10000,
+      timeoutMs: 30000,
       timeoutOk: true,
-    },
-  );
+    });
+    await run("xcrun", ["simctl", "erase", device.udid], {
+      quiet: true,
+      timeoutMs: 60000,
+    });
+    process.stdout.write("done\n");
+    process.stdout.write("booting... ");
+    await bootDevice(device);
+    process.stdout.write("ready\n");
+    await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
+      allowFailure: true,
+      quiet: true,
+      timeoutMs: 15000,
+      timeoutOk: true,
+    });
+    await run("xcrun", ["simctl", "uninstall", device.udid, bundleId], {
+      allowFailure: true,
+      quiet: true,
+      timeoutMs: 15000,
+      timeoutOk: true,
+    });
 
-  await sleep(1500);
+    let installError;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        process.stdout.write(`installing (attempt ${attempt})... `);
+        await run("xcrun", ["simctl", "install", device.udid, appPath], {
+          quiet: true,
+          timeoutMs: 120000,
+        });
+        process.stdout.write("done\n");
+        installError = undefined;
+        break;
+      } catch (error) {
+        process.stdout.write("failed\n");
+        installError = error;
+        if (attempt === 1) {
+          await run("xcrun", ["simctl", "shutdown", device.udid], {
+            allowFailure: true,
+            quiet: true,
+            timeoutMs: 30000,
+            timeoutOk: true,
+          });
+          await bootDevice(device);
+        }
+      }
+    }
+    if (installError) throw installError;
 
-  const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
-  const screenshot = path.join(screenshotDir, `${safeName}.png`);
-  const stats = await captureVisibleScreenshot(device, screenshot);
-  await assertNoNativeLaunchFailures(device);
+    const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+    const screenshot = path.join(screenshotDir, `${safeName}.png`);
+    let launchError;
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      try {
+        process.stdout.write(`launching (attempt ${attempt})... `);
+        const launched = await run(
+          "xcrun",
+          [
+            "simctl",
+            "launch",
+            "--terminate-running-process",
+            device.udid,
+            bundleId,
+          ],
+          {
+            quiet: true,
+            timeoutMs: 45000,
+          },
+        );
+        if (
+          !new RegExp(`${bundleId.replaceAll(".", "\\.")}:\\s*\\d+`).test(
+            launched.stdout,
+          )
+        ) {
+          throw new Error(
+            `simctl launch did not return a PID: ${launched.stdout.trim()}`,
+          );
+        }
+        process.stdout.write("done\n");
+        launchError = undefined;
+        break;
+      } catch (error) {
+        launchError = error;
+        process.stdout.write("failed\n");
+        if (attempt === 1) {
+          await run("xcrun", ["simctl", "shutdown", device.udid], {
+            allowFailure: true,
+            quiet: true,
+            timeoutMs: 30000,
+            timeoutOk: true,
+          });
+          await bootDevice(device);
+        }
+      }
+    }
+    if (launchError) throw launchError;
 
-  console.log(
-    `visible ${stats.width}x${stats.height} avg=${stats.average.toFixed(
-      1,
-    )} stddev=${stats.standardDeviation.toFixed(1)} screenshot=${screenshot}`,
-  );
+    await sleep(1500);
+
+    const stats = await captureVisibleScreenshot(device, screenshot);
+    await assertNoNativeLaunchFailures(device);
+
+    console.log(
+      `visible ${stats.width}x${stats.height} avg=${stats.average.toFixed(
+        1,
+      )} stddev=${stats.standardDeviation.toFixed(1)} orange=${(
+        stats.brandOrangeRatio * 100
+      ).toFixed(1)}% screenshot=${screenshot}`,
+    );
+  } finally {
+    await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
+      allowFailure: true,
+      quiet: true,
+      timeoutMs: 15000,
+      timeoutOk: true,
+    });
+    await run("xcrun", ["simctl", "shutdown", device.udid], {
+      allowFailure: true,
+      quiet: true,
+      timeoutMs: 30000,
+      timeoutOk: true,
+    });
+  }
 }
 
 async function main() {
@@ -398,6 +538,15 @@ async function main() {
       .map((device) => device.name)
       .join(", ")}`,
   );
+
+  for (const device of devices) {
+    await run("xcrun", ["simctl", "shutdown", device.udid], {
+      allowFailure: true,
+      quiet: true,
+      timeoutMs: 30000,
+      timeoutOk: true,
+    });
+  }
 
   await buildSimulatorApp();
 

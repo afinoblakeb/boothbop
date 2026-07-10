@@ -5,25 +5,23 @@ import { InstallCard } from "../components/InstallCard";
 import { LegalFooter } from "../components/LegalFooter";
 import type { InstallPromptEvent } from "../types";
 
-/** The home screen: brand, pitch, the two primary actions, install nudge, legal. */
+/** The home screen: brand, pitch, primary action, install nudge, and legal. */
 export function IdleScreen({
   onStart,
-  onOpenGallery,
   installPrompt,
   error,
 }: {
   onStart: () => void;
-  onOpenGallery: () => void;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
 }) {
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="flex flex-1 flex-col items-center justify-center text-center">
+    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+      <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
         <img
           src={LOGO}
           alt="BoothBop"
-          className="mx-auto max-h-32 w-auto max-w-xs"
+          className="mx-auto max-h-32 h-auto w-full max-w-xs object-contain"
         />
 
         <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
@@ -40,17 +38,6 @@ export function IdleScreen({
         >
           <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
           Take Photos
-        </Button>
-
-        <Button
-          variant="secondary"
-          size="lg"
-          fullWidth
-          onClick={onOpenGallery}
-          className="mt-3 max-w-xs"
-        >
-          <BrandIcon name="gallery" className="h-8 w-8" />
-          My Photos
         </Button>
 
         <InstallCard installPrompt={installPrompt} />

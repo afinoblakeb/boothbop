@@ -263,11 +263,19 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
         let timescale = CMTimeScale(fps)
         var frameIndex: Int64 = 0
+        let appendDeadline = Date().addingTimeInterval(15)
 
         for _ in 0..<loops {
             for buffer in buffers {
                 for _ in 0..<framesPerPhoto {
-                    while !input.isReadyForMoreMediaData { usleep(2000) }
+                    while !input.isReadyForMoreMediaData {
+                        if writer.status == .failed || writer.status == .cancelled
+                            || Date() >= appendDeadline {
+                            writer.cancelWriting()
+                            throw writer.error ?? VideoError.writer
+                        }
+                        usleep(2000)
+                    }
                     let time = CMTime(value: frameIndex, timescale: timescale)
                     if !adaptor.append(buffer, withPresentationTime: time) {
                         throw writer.error ?? VideoError.append
@@ -280,7 +288,10 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         input.markAsFinished()
         let sem = DispatchSemaphore(value: 0)
         writer.finishWriting { sem.signal() }
-        sem.wait()
+        if sem.wait(timeout: .now() + 15) == .timedOut {
+            writer.cancelWriting()
+            throw VideoError.writer
+        }
         guard writer.status == .completed else { throw writer.error ?? VideoError.writer }
 
         let data = try Data(contentsOf: outURL)

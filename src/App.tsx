@@ -110,10 +110,6 @@ export default function App() {
 
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
-  function changeQuality(media: QualityMedia, q: Quality) {
-    saveQuality(media, q);
-    setQuality((prev) => ({ ...prev, [media]: q }));
-  }
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -198,9 +194,22 @@ export default function App() {
   // than letting it auto-hide on a timeout (which logs a warning).
   useEffect(() => {
     if (!isNativeShell()) return;
+    let cancelled = false;
+    let firstFrame = 0;
+    let secondFrame = 0;
     import("@capacitor/splash-screen").then(({ SplashScreen }) => {
-      SplashScreen.hide().catch(() => {});
+      if (cancelled) return;
+      firstFrame = requestAnimationFrame(() => {
+        secondFrame = requestAnimationFrame(() => {
+          SplashScreen.hide().catch(() => {});
+        });
+      });
     });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
   }, []);
 
   // Detect arrival from the retired PhotoBlast app — its migration page links to
@@ -323,6 +332,13 @@ export default function App() {
     setGenerating(null);
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
+  }
+
+  function changeQuality(media: QualityMedia, q: Quality) {
+    saveQuality(media, q);
+    setQuality((prev) => ({ ...prev, [media]: q }));
+    clearResults();
+    setFormat("strip");
   }
 
   async function openCamera(index: number | null = null) {
@@ -478,7 +494,7 @@ export default function App() {
       const session = await saveSession(photos);
       setActiveSessionId(session.id);
     } catch {
-      /* storage is best-effort — never block the flow on it */
+      setNote("Photos captured, but My Photos couldn't save this session.");
     }
 
     // Auto-save is best-effort and never blocks the review screen.
@@ -658,6 +674,7 @@ export default function App() {
     captured: HTMLCanvasElement[],
     settings: AutosaveSettings,
   ) {
+    const revision = renderRevision.current;
     if (!isNativeShell()) return;
     const tasks = planAutosaveTasks(settings, {
       videoSupported: isVideoSupported(),
@@ -685,7 +702,7 @@ export default function App() {
         /* per-task best-effort */
       }
     }
-    if (savedAny) {
+    if (savedAny && revision === renderRevision.current) {
       setNote(
         settings.dest === "album"
           ? "Saved to your BoothBop album"
@@ -798,7 +815,6 @@ export default function App() {
         ) : (
           <IdleScreen
             onStart={() => void openCamera()}
-            onOpenGallery={() => setShowGallery(true)}
             installPrompt={installPrompt}
             error={error}
           />
