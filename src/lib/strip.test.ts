@@ -91,7 +91,7 @@ describe("composeStrip branding", () => {
     );
     const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, logo);
+    composeStrip(fourFrames(), "4x1", THEMES.classic, { logo });
 
     const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
     expect(drewLogo).toBe(true);
@@ -105,9 +105,27 @@ describe("composeStrip branding", () => {
       ctx as unknown as CanvasRenderingContext2D,
     );
 
-    composeStrip(fourFrames(), "4x1", THEMES.classic, null);
+    composeStrip(fourFrames(), "4x1", THEMES.classic);
 
     expect(drewCaption(ctx)).toBe(true);
+  });
+
+  it("draws neither logo nor wordmark when branding is disabled", () => {
+    const ctx = fakeCtx();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      ctx as unknown as CanvasRenderingContext2D,
+    );
+    const logo = { width: 200, height: 80 } as unknown as HTMLImageElement;
+
+    composeStrip(fourFrames(), "4x1", THEMES.classic, {
+      logo,
+      branding: false,
+    });
+
+    expect(ctx.drawImage.mock.calls.some((call) => call[0] === logo)).toBe(
+      false,
+    );
+    expect(drewCaption(ctx)).toBe(false);
   });
 });
 

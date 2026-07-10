@@ -53,6 +53,40 @@ export async function saveSession(photos: Blob[]): Promise<Session> {
   return session;
 }
 
+/** Replace the photos in an existing session while preserving its identity. */
+export async function updateSessionPhotos(
+  id: string,
+  photos: Blob[],
+): Promise<Session> {
+  const db = await openDB();
+  try {
+    return await new Promise<Session>((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      const request = store.get(id);
+      let updated: Session | null = null;
+
+      request.onsuccess = () => {
+        const existing = request.result as Session | undefined;
+        if (!existing) {
+          transaction.abort();
+          reject(new Error("Session not found"));
+          return;
+        }
+        updated = { ...existing, photos };
+        store.put(updated);
+      };
+      request.onerror = () => reject(request.error);
+      transaction.oncomplete = () => {
+        if (updated) resolve(updated);
+      };
+      transaction.onerror = () => reject(transaction.error);
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export async function listSessions(): Promise<Session[]> {
   const db = await openDB();
   try {

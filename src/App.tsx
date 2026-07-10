@@ -23,6 +23,7 @@ import {
   canvasToBlob,
   requestPersistence,
   saveSession,
+  updateSessionPhotos,
   type Session,
 } from "./lib/gallery";
 import {
@@ -30,8 +31,10 @@ import {
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
   loadQuality,
+  loadBranding,
   planAutosaveTasks,
   saveQuality,
+  saveBranding,
   type AutosaveSettings,
   type AutosaveTask,
   type Quality,
@@ -56,6 +59,8 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useAutosave } from "./hooks/useAutosave";
+import { type FilterId } from "./lib/filter";
+import { replaceFrame } from "./lib/session";
 
 interface MediaResult {
   url: string;
@@ -82,6 +87,22 @@ export default function App() {
   const [generating, setGenerating] = useState<null | "gif" | "video">(null);
   const [gifResult, setGifResult] = useState<MediaResult | null>(null);
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
+  const [filter, setFilter] = useState<FilterId>(() => {
+    const stored = localStorage.getItem("bb.filter");
+    return stored === "warm" ||
+      stored === "cool" ||
+      stored === "bw" ||
+      stored === "sepia" ||
+      stored === "inverse"
+      ? stored
+      : "original";
+  });
+  const [boom, setBoom] = useState(
+    () => localStorage.getItem("bb.boom") === "1",
+  );
+  const [branding, setBranding] = useState(loadBranding);
+  const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
@@ -119,35 +140,41 @@ export default function App() {
     return () => clearTimeout(id);
   }, [note]);
 
-  // GIF/video blobs for the current capture, encoded at most once and shared by
-  // the review tabs and the auto-save path. Reset by clearResults().
-  const mediaCache = useRef<{
-    gif?: Promise<Blob>;
-    video?: Promise<VideoResult>;
-  }>({});
-  function getGifBlob(src: HTMLCanvasElement[]): Promise<Blob> {
-    return (mediaCache.current.gif ??= loadWatermark()
-      .then((watermarkImg) =>
-        encodeGif(src, { watermarkImg, size: GIF_SIZE[quality.gif] }),
-      )
-      .catch((e) => {
-        mediaCache.current.gif = undefined; // let a re-tap retry
-        throw e;
-      }));
+  interface RenderChoices {
+    filter: FilterId;
+    boom: boolean;
+    branding: boolean;
   }
-  function getVideoResult(src: HTMLCanvasElement[]): Promise<VideoResult> {
-    return (mediaCache.current.video ??= loadWatermark()
-      .then((watermarkImg) => {
-        const opts = { watermarkImg, ...VIDEO_PROFILE[quality.video] };
-        // Native iOS: AVAssetWriter plugin (instant, reliable). Web: MediaRecorder.
-        return isNativeShell()
-          ? encodeVideoNative(src, opts)
-          : encodeVideo(src, opts);
-      })
-      .catch((e) => {
-        mediaCache.current.video = undefined; // let a re-tap retry
-        throw e;
-      }));
+  const renderRevision = useRef(0);
+  const currentChoices = (): RenderChoices => ({ filter, boom, branding });
+
+  async function getGifBlob(
+    src: HTMLCanvasElement[],
+    choices: RenderChoices = currentChoices(),
+  ): Promise<Blob> {
+    const watermarkImg = choices.branding ? await loadWatermark() : null;
+    return encodeGif(src, {
+      watermark: choices.branding,
+      watermarkImg,
+      filter: choices.filter,
+      boom: choices.boom,
+      size: GIF_SIZE[quality.gif],
+    });
+  }
+  async function getVideoResult(
+    src: HTMLCanvasElement[],
+    choices: RenderChoices = currentChoices(),
+  ): Promise<VideoResult> {
+    const watermarkImg = choices.branding ? await loadWatermark() : null;
+    const opts = {
+      watermark: choices.branding,
+      watermarkImg,
+      filter: choices.filter,
+      ...VIDEO_PROFILE[quality.video],
+    };
+    return isNativeShell()
+      ? encodeVideoNative(src, opts)
+      : encodeVideo(src, opts);
   }
 
   // Shutter delay (seconds counted down before each shot), persisted.
@@ -234,6 +261,13 @@ export default function App() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const abortRef = useRef(false); // set when the user cancels a session
+  const framesRef = useRef<HTMLCanvasElement[]>([]);
+  const retakeIndexRef = useRef<number | null>(null);
+  const cameraRequestRef = useRef(0);
+
+  useEffect(() => {
+    framesRef.current = frames;
+  }, [frames]);
 
   // Attach the live stream whenever we are showing the camera.
   useEffect(() => {
@@ -248,8 +282,25 @@ export default function App() {
   // Release the camera when the component goes away.
   useEffect(() => () => stopCamera(streamRef.current), []);
 
+  // Retake failures preserve the original four frames; new-shoot failures go home.
+  function failCamera(msg: string) {
+    const preserveReview =
+      retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
+    abortRef.current = true;
+    cameraRequestRef.current += 1;
+    setCountdown(null);
+    setFlash(false);
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    if (!preserveReview) setFrames([]);
+    setRetakeIndex(null);
+    retakeIndexRef.current = null;
+    setPhase(preserveReview ? "review" : "idle");
+    setError(msg);
+  }
+
   // If the user revokes camera permission (Settings, site controls, etc.),
-  // send them home with a clear message.
+  // preserve an in-progress retake or send a new shoot home with a clear message.
   useEffect(() => {
     let status: PermissionStatus | undefined;
     navigator.permissions
@@ -257,76 +308,144 @@ export default function App() {
       .then((s) => {
         status = s;
         s.onchange = () => {
-          if (s.state === "denied") failToHome(CAMERA_MSG);
+          if (s.state === "denied") failCamera(CAMERA_MSG);
         };
       })
       .catch(() => {});
     return () => {
       if (status) status.onchange = null;
     };
-    // failToHome only touches stable setters/refs, so a one-time bind is fine.
+    // failCamera only touches stable setters and refs, so a one-time bind is fine.
   }, []);
 
-  // Bail to the home screen and explain why (camera lost / denied).
-  function failToHome(msg: string) {
-    abortRef.current = true;
-    setCountdown(null);
-    setFlash(false);
-    stopCamera(streamRef.current);
-    streamRef.current = null;
-    setFrames([]);
-    setPhase("idle");
-    setError(msg);
-  }
-
   function clearResults() {
+    renderRevision.current += 1;
+    setGenerating(null);
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
-    mediaCache.current = {};
   }
 
-  async function openCamera() {
+  async function openCamera(index: number | null = null) {
+    const request = ++cameraRequestRef.current;
     setError(null);
     abortRef.current = false;
+    setRetakeIndex(index);
+    retakeIndexRef.current = index;
     try {
       const stream = await startCamera();
+      if (request !== cameraRequestRef.current || abortRef.current) {
+        stopCamera(stream);
+        return;
+      }
       streamRef.current = stream;
       // If the camera track ends mid-use (revoked, taken by another app),
       // drop the user back home with the permission message.
       stream.getVideoTracks().forEach((t) => {
-        t.addEventListener("ended", () => failToHome(CAMERA_MSG));
+        t.addEventListener("ended", () => failCamera(CAMERA_MSG));
       });
-      setFrames([]);
+      if (index === null) {
+        setFrames([]);
+        setActiveSessionId(null);
+      }
       setPhase("preview");
     } catch (e) {
       setError(cameraError(e));
-      setPhase("idle");
+      setRetakeIndex(null);
+      retakeIndexRef.current = null;
+      setPhase(index === null ? "idle" : "review");
     }
   }
 
   // Stop everything and go back to the start screen.
   function cancelToHome() {
     abortRef.current = true;
+    cameraRequestRef.current += 1;
     setCountdown(null);
     setFlash(false);
     stopCamera(streamRef.current);
     streamRef.current = null;
     setFrames([]);
+    setActiveSessionId(null);
+    setRetakeIndex(null);
+    retakeIndexRef.current = null;
     setError(null);
     setPhase("idle");
+  }
+
+  function cancelCamera() {
+    const returnToReview = retakeIndexRef.current !== null;
+    abortRef.current = true;
+    cameraRequestRef.current += 1;
+    setCountdown(null);
+    setFlash(false);
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    setRetakeIndex(null);
+    retakeIndexRef.current = null;
+    if (!returnToReview) setFrames([]);
+    setPhase(returnToReview ? "review" : "idle");
   }
 
   async function runSequence() {
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
     if (!video || !(await videoReady(video))) {
-      setError("The camera isn't ready. Check camera access and try again.");
+      failCamera("The camera isn't ready. Check camera access and try again.");
+      return;
+    }
+    if (abortRef.current) return;
+
+    setPhase("capturing");
+    clearResults();
+    const replacing = retakeIndexRef.current;
+
+    if (replacing !== null) {
+      await wait(400);
+      for (let n = delay; n >= 1; n--) {
+        if (abortRef.current) return;
+        setCountdown(n);
+        await wait(1000);
+      }
+      if (abortRef.current) return;
+      setCountdown(null);
+
+      try {
+        void tapHaptic("Medium");
+        setFlash(true);
+        const replacement = captureSquareFrame(
+          video,
+          PHOTO_CAPTURE[quality.photo],
+        );
+        const updated = replaceFrame(framesRef.current, replacing, replacement);
+        framesRef.current = updated;
+        setFrames(updated);
+        await wait(240);
+        setFlash(false);
+        stopCamera(streamRef.current);
+        streamRef.current = null;
+
+        if (activeSessionId) {
+          try {
+            const photos = await Promise.all(
+              updated.map((c) => canvasToBlob(c)),
+            );
+            await updateSessionPhotos(activeSessionId, photos);
+          } catch {
+            setNote("Photo replaced, but My Photos couldn't be updated.");
+          }
+        }
+
+        setRetakeIndex(null);
+        retakeIndexRef.current = null;
+        setFormat("strip");
+        setPhase("review");
+      } catch {
+        setFlash(false);
+        failCamera("Couldn't retake that photo. Your original is still here.");
+      }
       return;
     }
 
-    abortRef.current = false;
-    setPhase("capturing");
-    clearResults();
     const captured: HTMLCanvasElement[] = [];
     setFrames([]);
     await wait(400);
@@ -356,60 +475,24 @@ export default function App() {
     // Auto-save this session to the private on-device gallery.
     try {
       const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      await saveSession(photos);
+      const session = await saveSession(photos);
+      setActiveSessionId(session.id);
     } catch {
       /* storage is best-effort — never block the flow on it */
     }
 
-    // Start GIF + video encoding right now (foreground) so the review tabs are
-    // instant and the short video finishes before the user can navigate away (a
-    // backgrounded MediaRecorder stretches the clip). Then auto-save, also in
-    // the background. Neither blocks the review screen.
-    pregenerate(captured);
+    // Auto-save is best-effort and never blocks the review screen.
     void autoSaveToAlbum(captured, autosave);
 
     setFormat("strip");
     setPhase("review");
   }
 
-  // Warm the GIF/video cache and populate the review results so switching tabs
-  // is instant. Best-effort; never throws into the capture flow.
-  function pregenerate(src: HTMLCanvasElement[]) {
-    getGifBlob(src)
-      .then((blob) =>
-        setGifResult((r) =>
-          r
-            ? r
-            : {
-                url: URL.createObjectURL(blob),
-                blob,
-                filename: `boothbop-${stamp()}.gif`,
-              },
-        ),
-      )
-      .catch(() => {});
-    if (isVideoSupported()) {
-      getVideoResult(src)
-        .then(({ blob, extension }) =>
-          setVideoResult((r) =>
-            r
-              ? r
-              : {
-                  url: URL.createObjectURL(blob),
-                  blob,
-                  filename: `boothbop-${stamp()}.${extension}`,
-                },
-          ),
-        )
-        .catch(() => {});
-    }
-  }
-
   function retake() {
     clearResults();
     setFrames([]);
     setFormat("strip");
-    openCamera();
+    void openCamera();
   }
 
   // Screenshot mode: inject a staged set of photos as the four frames and jump
@@ -424,6 +507,7 @@ export default function App() {
       );
       clearResults();
       setFrames(canvases);
+      setActiveSessionId(null);
       setFormat("strip");
       setPhase("review");
     } catch {
@@ -441,6 +525,7 @@ export default function App() {
       session.photos.map((b) => blobToCanvas(b)),
     );
     setFrames(canvases);
+    setActiveSessionId(session.id);
     setFormat("strip");
     setShowGallery(false);
     setPhase("review");
@@ -449,14 +534,13 @@ export default function App() {
   // Strip preview (re-rendered when frames / layout / theme change).
   const stripUrl = useMemo(() => {
     if (frames.length < SHOTS) return null;
-    return composeStrip(
-      frames,
-      layout,
-      THEMES[themeKey],
-      brandLogo,
-      PHOTO_CAPTURE[quality.photo],
-    ).toDataURL("image/png");
-  }, [frames, layout, themeKey, brandLogo, quality.photo]);
+    return composeStrip(frames, layout, THEMES[themeKey], {
+      logo: brandLogo,
+      cell: PHOTO_CAPTURE[quality.photo],
+      branding,
+      filter,
+    }).toDataURL("image/png");
+  }, [frames, layout, themeKey, brandLogo, quality.photo, branding, filter]);
 
   const thumbs = useMemo(
     () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
@@ -472,11 +556,13 @@ export default function App() {
     if (f === "video" && !videoResult) await ensureVideo();
   }
 
-  async function ensureGif() {
+  async function ensureGif(choices: RenderChoices = currentChoices()) {
+    const revision = renderRevision.current;
     setGenerating("gif");
     try {
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = await getGifBlob(frames);
+      const blob = await getGifBlob(framesRef.current, choices);
+      if (revision !== renderRevision.current) return;
       setGifResult((r) =>
         r
           ? r
@@ -487,20 +573,26 @@ export default function App() {
             },
       );
     } catch {
-      setError("Couldn't create the GIF.");
+      if (revision === renderRevision.current)
+        setError("Couldn't create the GIF.");
     } finally {
-      setGenerating(null);
+      if (revision === renderRevision.current) setGenerating(null);
     }
   }
 
-  async function ensureVideo() {
+  async function ensureVideo(choices: RenderChoices = currentChoices()) {
     if (!isVideoSupported()) {
       setError("Video recording isn't supported in this browser.");
       return;
     }
+    const revision = renderRevision.current;
     setGenerating("video");
     try {
-      const { blob, extension } = await getVideoResult(frames);
+      const { blob, extension } = await getVideoResult(
+        framesRef.current,
+        choices,
+      );
+      if (revision !== renderRevision.current) return;
       setVideoResult((r) =>
         r
           ? r
@@ -511,10 +603,36 @@ export default function App() {
             },
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't record the video.");
+      if (revision === renderRevision.current)
+        setError(e instanceof Error ? e.message : "Couldn't record the video.");
     } finally {
-      setGenerating(null);
+      if (revision === renderRevision.current) setGenerating(null);
     }
+  }
+
+  function changeFilter(next: FilterId) {
+    localStorage.setItem("bb.filter", next);
+    setFilter(next);
+    clearResults();
+    const choices = { ...currentChoices(), filter: next };
+    if (format === "gif") void ensureGif(choices);
+    if (format === "video") void ensureVideo(choices);
+  }
+
+  function changeBoom(on: boolean) {
+    localStorage.setItem("bb.boom", on ? "1" : "0");
+    setBoom(on);
+    clearResults();
+    if (format === "gif") void ensureGif({ ...currentChoices(), boom: on });
+  }
+
+  function changeBranding(on: boolean) {
+    saveBranding(on);
+    setBranding(on);
+    clearResults();
+    const choices = { ...currentChoices(), branding: on };
+    if (format === "gif") void ensureGif(choices);
+    if (format === "video") void ensureVideo(choices);
   }
 
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
@@ -525,7 +643,11 @@ export default function App() {
     theme: StripTheme,
   ): Promise<Blob> {
     if (task.layout)
-      return stripBlob(src, task.layout, theme, PHOTO_CAPTURE[quality.photo]);
+      return stripBlob(src, task.layout, theme, {
+        cell: PHOTO_CAPTURE[quality.photo],
+        branding,
+        filter,
+      });
     if (task.format === "gif") return getGifBlob(src);
     return (await getVideoResult(src)).blob;
   }
@@ -576,12 +698,11 @@ export default function App() {
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
     if (format === "video") return videoResult;
-    const blob = await stripBlob(
-      frames,
-      layout,
-      THEMES[themeKey],
-      PHOTO_CAPTURE[quality.photo],
-    );
+    const blob = await stripBlob(frames, layout, THEMES[themeKey], {
+      cell: PHOTO_CAPTURE[quality.photo],
+      branding,
+      filter,
+    });
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
@@ -668,7 +789,7 @@ export default function App() {
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
-        showActions={phase !== "capturing" && !showMigration}
+        showActions={(phase === "idle" || phase === "review") && !showMigration}
       />
 
       {phase === "idle" &&
@@ -676,7 +797,7 @@ export default function App() {
           <MigrationScreen onContinue={dismissMigration} />
         ) : (
           <IdleScreen
-            onStart={openCamera}
+            onStart={() => void openCamera()}
             onOpenGallery={() => setShowGallery(true)}
             installPrompt={installPrompt}
             error={error}
@@ -693,6 +814,8 @@ export default function App() {
           delay={delay}
           setDelay={setDelay}
           onStart={runSequence}
+          onCancel={cancelCamera}
+          retakeIndex={retakeIndex}
         />
       )}
 
@@ -715,6 +838,12 @@ export default function App() {
           onShare={shareCurrent}
           onDownload={downloadCurrent}
           onRetake={retake}
+          filter={filter}
+          onFilter={changeFilter}
+          boom={boom}
+          onBoom={changeBoom}
+          thumbs={thumbs}
+          onRetakeOne={(index) => void openCamera(index)}
         />
       )}
 
@@ -737,6 +866,8 @@ export default function App() {
           onQuality={changeQuality}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
+          branding={branding}
+          onBranding={changeBranding}
         />
       )}
 

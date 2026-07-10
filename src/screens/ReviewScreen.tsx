@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
+import { FILTERS, type FilterId } from "../lib/filter";
 import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
 import {
   Button,
@@ -7,6 +9,7 @@ import {
   IconButton,
   SectionLabel,
   SegmentedControl,
+  Toggle,
 } from "../ui";
 import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
@@ -41,6 +44,12 @@ export function ReviewScreen({
   onShare,
   onDownload,
   onRetake,
+  filter,
+  onFilter,
+  boom,
+  onBoom,
+  thumbs,
+  onRetakeOne,
 }: {
   format: Format;
   onSelectFormat: (f: Format) => void;
@@ -59,7 +68,14 @@ export function ReviewScreen({
   onShare: () => void;
   onDownload: () => void;
   onRetake: () => void;
+  filter: FilterId;
+  onFilter: (filter: FilterId) => void;
+  boom: boolean;
+  onBoom: (on: boolean) => void;
+  thumbs: string[];
+  onRetakeOne: (index: number) => void;
 }) {
+  const [showRetakePicker, setShowRetakePicker] = useState(false);
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
     { id: "gif", label: "GIF" },
@@ -111,49 +127,77 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      {/* Strip-only styling controls */}
-      {format === "strip" ? (
-        <>
-          <div className="mt-4">
-            <SectionLabel className="mb-1 text-center">Layout</SectionLabel>
-            <SegmentedControl
-              className="mx-auto"
-              label="Strip layout"
-              value={layout}
-              onChange={setLayout}
-              options={[
-                { value: "4x1", label: "Strip" },
-                { value: "2x2", label: "Grid" },
-              ]}
-              itemClassName="flex min-h-[44px] items-center justify-center px-6 py-2 text-lg"
-            />
+      {format === "gif" && (
+        <div className="mt-3 flex w-full items-center justify-between border-2 border-ink bg-paper px-3 py-2">
+          <div>
+            <SectionLabel>Boom</SectionLabel>
+            <p className="font-sans text-xs text-warmgray">
+              Play forward and back
+            </p>
+          </div>
+          <Toggle on={boom} onChange={onBoom} />
+        </div>
+      )}
+
+      <details className="mt-3 w-full border-2 border-ink bg-paper">
+        <summary className="cursor-pointer px-3 py-2 font-display text-lg uppercase tracking-wide text-ink">
+          Style
+        </summary>
+        <div className="border-t-2 border-ink p-3">
+          <SectionLabel className="mb-1">Look</SectionLabel>
+          <div className="grid grid-cols-3 gap-2">
+            {FILTERS.map((item) => (
+              <button
+                key={item.id}
+                onClick={() => onFilter(item.id)}
+                aria-pressed={filter === item.id}
+                className={`min-h-11 border-2 border-ink px-2 py-1 font-display text-sm uppercase tracking-wide ${
+                  filter === item.id
+                    ? "bg-orange text-cream"
+                    : "bg-cream text-ink"
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
-          <div className="mt-3">
-            <SectionLabel className="mb-1 text-center">Color</SectionLabel>
-            <div className="flex justify-center gap-3">
-              {Object.entries(THEMES).map(([key, theme]) => (
-                <button
-                  key={key}
-                  onClick={() => setThemeKey(key)}
-                  aria-label={THEME_LABELS[key]}
-                  aria-pressed={themeKey === key}
-                  className={`h-11 w-11 border-2 border-ink transition ${
-                    themeKey === key
-                      ? "ring-4 ring-ink ring-offset-2 ring-offset-cream"
-                      : ""
-                  }`}
-                  style={{ background: theme.background }}
-                />
-              ))}
-            </div>
-          </div>
-        </>
-      ) : (
-        <p className="mt-3 text-center font-sans text-xs uppercase tracking-wide text-warmgray">
-          {format === "gif" ? "GIF" : "Video"} plays your four photos in a loop.
-        </p>
-      )}
+          {format === "strip" && (
+            <>
+              <SectionLabel className="mb-1 mt-4">Layout</SectionLabel>
+              <SegmentedControl
+                fullWidth
+                label="Strip layout"
+                value={layout}
+                onChange={setLayout}
+                options={[
+                  { value: "4x1", label: "Strip" },
+                  { value: "2x2", label: "Grid" },
+                ]}
+                itemClassName="flex min-h-11 items-center justify-center py-2 text-base"
+              />
+
+              <SectionLabel className="mb-1 mt-4">Color</SectionLabel>
+              <div className="grid grid-cols-6 gap-2 px-1">
+                {Object.entries(THEMES).map(([key, theme]) => (
+                  <button
+                    key={key}
+                    onClick={() => setThemeKey(key)}
+                    aria-label={THEME_LABELS[key]}
+                    aria-pressed={themeKey === key}
+                    className={`aspect-square w-full border-2 border-ink transition ${
+                      themeKey === key
+                        ? "ring-2 ring-ink ring-offset-2 ring-offset-paper"
+                        : ""
+                    }`}
+                    style={{ background: theme.background }}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      </details>
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
       {autosaveTip && (
@@ -210,11 +254,40 @@ export function ReviewScreen({
         variant="secondary"
         size="md"
         fullWidth
-        onClick={onRetake}
+        onClick={() => setShowRetakePicker((shown) => !shown)}
         className="mt-3"
       >
         <RefreshIcon className="h-6 w-6" />
-        Take Again
+        Retake One
+      </Button>
+      {showRetakePicker && (
+        <div
+          className="mt-2 grid w-full grid-cols-4 gap-2"
+          aria-label="Choose a photo to retake"
+        >
+          {thumbs.map((thumb, index) => (
+            <button
+              key={index}
+              onClick={() => onRetakeOne(index)}
+              aria-label={`Retake photo ${index + 1}`}
+              className="relative aspect-square min-h-11 overflow-hidden border-2 border-ink bg-paper"
+            >
+              <img src={thumb} alt="" className="h-full w-full object-cover" />
+              <span className="absolute bottom-0 right-0 bg-ink px-1.5 py-0.5 font-display text-sm text-cream">
+                {index + 1}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+      <Button
+        variant="secondary"
+        size="sm"
+        fullWidth
+        onClick={onRetake}
+        className="mt-2"
+      >
+        Start Over
       </Button>
 
       {note && (

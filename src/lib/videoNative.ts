@@ -4,6 +4,7 @@
 // instead of the web MediaRecorder's flaky ~5s real-time recording.
 import { drawWatermark } from "./watermark";
 import { encodeVideo, type VideoOptions, type VideoResult } from "./video";
+import { drawFilteredFrame, type FilterId } from "./filter";
 
 const NATIVE_TIMEOUT_MS = 20_000;
 
@@ -32,12 +33,13 @@ function frameToBase64(
   size: number,
   watermark: boolean,
   watermarkImg: HTMLImageElement | null,
+  filter: FilterId,
 ): string {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
-  ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+  drawFilteredFrame(ctx, frame, 0, 0, size, size, filter);
   if (watermark) drawWatermark(ctx, size, size, watermarkImg);
   return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
 }
@@ -51,11 +53,12 @@ export async function encodeVideoNative(
     loops = 2,
     watermark = true,
     watermarkImg = null,
+    filter = "original",
   }: VideoOptions = {},
 ): Promise<VideoResult> {
   try {
     const images = frames.map((f) =>
-      frameToBase64(f, size, watermark, watermarkImg),
+      frameToBase64(f, size, watermark, watermarkImg, filter),
     );
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withTimeout(
@@ -74,6 +77,7 @@ export async function encodeVideoNative(
       loops,
       watermark,
       watermarkImg,
+      filter,
     });
   }
 }

@@ -122,6 +122,17 @@ export function saveQuality(media: QualityMedia, q: Quality): void {
   localStorage.setItem(QUALITY_KEYS[media], q);
 }
 
+const BRANDING_KEY = "bb.branding";
+
+/** Branding stays on unless the user explicitly opts out. */
+export function loadBranding(): boolean {
+  return localStorage.getItem(BRANDING_KEY) !== "0";
+}
+
+export function saveBranding(on: boolean): void {
+  localStorage.setItem(BRANDING_KEY, on ? "1" : "0");
+}
+
 // Pipeline parameters per tier. The photo tier drives the square capture
 // resolution (the ceiling everything downstream samples from) and the strip
 // cell size; GIF and video carry their own size/bitrate so file size stays

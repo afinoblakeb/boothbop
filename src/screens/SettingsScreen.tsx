@@ -34,6 +34,8 @@ export function SettingsScreen({
   onQuality,
   onOpenIosSettings,
   onClose,
+  branding,
+  onBranding,
 }: {
   settings: AutosaveSettings;
   quality: QualitySettings;
@@ -45,6 +47,8 @@ export function SettingsScreen({
   onQuality: (media: QualityMedia, q: Quality) => void;
   onOpenIosSettings: () => void;
   onClose: () => void;
+  branding: boolean;
+  onBranding: (on: boolean) => void;
 }) {
   const formats: { key: AutosaveFormat; label: string; disabled?: boolean }[] =
     [
@@ -64,6 +68,21 @@ export function SettingsScreen({
 
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
+      <Heading as="h3" size="lg" className="mt-6">
+        Exports
+      </Heading>
+      <div className="mt-3 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
+        <div className="pr-4">
+          <Heading as="span" size="md">
+            BoothBop branding
+          </Heading>
+          <p className="font-sans text-xs text-warmgray">
+            Show the logo on saved photos and animations.
+          </p>
+        </div>
+        <Toggle on={branding} onChange={onBranding} />
+      </div>
+
       <Heading as="h3" size="lg" className="mt-6">
         Auto-save to Photos
       </Heading>

@@ -24,17 +24,21 @@ The previous feature work remains preserved on `codex/0.1.0` and
 `codex/prototype-june-2026`. Those branches are research and implementation
 references. They must never be merged wholesale into the release line.
 
-## Next Release: 0.0.3 Quality Baseline
+## Next Release: 0.0.3 Quality Foundation
 
-No new user-facing feature is planned for 0.0.3. It must:
+The owner approved one explicit exception to the one-feature cadence: four
+small, proven capabilities form the initial creative foundation. This is not a
+return to the prototype feature bundle. The release must:
 
 1. Prove a fresh native install advances beyond the launch screen.
 2. Add an automated capture-to-review-to-save journey.
 3. Eliminate horizontal overflow at 320x568 and larger phone sizes.
 4. Remove redundant navigation and keep the primary booth action dominant.
-5. Verify the release on physical iPhone hardware and a small TestFlight group.
+5. Add only the free branding toggle, five distinct looks, GIF Boom toggle,
+   and Retake One defined in `docs/QUALITY_RELEASE_0.0.3.md`.
+6. Build, archive, and pass a compact-to-Pro-Max simulator matrix.
 
-Only after 0.0.3 is accepted do we select one feature for the following month.
+After 0.0.3, the one-feature monthly cadence resumes.
 
 ## Release Cadence
 
@@ -44,7 +48,8 @@ Each cycle contains one user problem and at most one new user-facing capability:
 2. A disposable interaction prototype.
 3. Implementation with unit and end-to-end coverage.
 4. Accessibility, compact-device, offline, and failure-state review.
-5. Physical-device and TestFlight evaluation.
+5. Simulator-first release evaluation, with a personal device spot-check when
+   practical or when hardware-specific behavior is added.
 6. Ship, revise, or hold. A calendar deadline never overrides quality.
 
 Use [docs/FEATURE_BRIEF_TEMPLATE.md](docs/FEATURE_BRIEF_TEMPLATE.md) before

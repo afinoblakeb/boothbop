@@ -21,6 +21,8 @@ export function CameraScreen({
   delay,
   setDelay,
   onStart,
+  onCancel,
+  retakeIndex,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
@@ -30,6 +32,8 @@ export function CameraScreen({
   delay: number;
   setDelay: (n: number) => void;
   onStart: () => void;
+  onCancel: () => void;
+  retakeIndex: number | null;
 }) {
   return (
     <div className="flex flex-1 flex-col py-4">
@@ -49,7 +53,9 @@ export function CameraScreen({
             className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 text-ink"
           >
             <span className="pulse inline-block h-2.5 w-2.5 rounded-full bg-orange" />
-            {thumbs.length}/{SHOTS}
+            {retakeIndex === null
+              ? `${thumbs.length}/${SHOTS}`
+              : `Retake ${retakeIndex + 1}/${SHOTS}`}
           </Heading>
         )}
 
@@ -77,7 +83,11 @@ export function CameraScreen({
         {Array.from({ length: SHOTS }).map((_, i) => (
           <div
             key={i}
-            className="aspect-square overflow-hidden border-2 border-ink bg-paper"
+            className={`aspect-square overflow-hidden border-2 bg-paper ${
+              retakeIndex === i
+                ? "border-orange ring-2 ring-orange ring-offset-2 ring-offset-cream"
+                : "border-ink"
+            }`}
           >
             {thumbs[i] && (
               <img
@@ -111,7 +121,18 @@ export function CameraScreen({
             </div>
             <Button variant="primary" size="lg" fullWidth onClick={onStart}>
               <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-              Take Photos
+              {retakeIndex === null
+                ? "Take Photos"
+                : `Retake Photo ${retakeIndex + 1}`}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              fullWidth
+              onClick={onCancel}
+              className="mt-2"
+            >
+              Cancel
             </Button>
           </>
         ) : (

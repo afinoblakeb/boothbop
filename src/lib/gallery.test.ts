@@ -6,12 +6,12 @@ import {
   deleteSession,
   listSessions,
   saveSession,
+  updateSessionPhotos,
 } from "./gallery";
 
 const photo = (byte: number) =>
   new Blob([new Uint8Array([byte])], { type: "image/jpeg" });
 const fourPhotos = () => [photo(1), photo(2), photo(3), photo(4)];
-
 beforeEach(() => {
   // Fresh database per test.
   globalThis.indexedDB = new IDBFactory();
@@ -68,5 +68,24 @@ describe("gallery sessions", () => {
     expect(stored).toBeDefined();
     expect(stored!.photos).toHaveLength(2);
     expect(stored!.photos[0]).toBeTruthy();
+  });
+
+  it("updates photos without changing identity or creating a duplicate", async () => {
+    const session = await saveSession(fourPhotos());
+    const replacement = [photo(1), photo(2), photo(99)];
+
+    const updated = await updateSessionPhotos(session.id, replacement);
+    const stored = await listSessions();
+
+    expect(updated.id).toBe(session.id);
+    expect(updated.createdAt).toBe(session.createdAt);
+    expect(stored).toHaveLength(1);
+    expect(stored[0].photos).toHaveLength(3);
+  });
+
+  it("rejects an update for a session that no longer exists", async () => {
+    await expect(updateSessionPhotos("missing", fourPhotos())).rejects.toThrow(
+      "Session not found",
+    );
   });
 });

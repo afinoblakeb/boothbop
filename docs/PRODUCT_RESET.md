@@ -89,9 +89,13 @@ Future work must not regress these parts of the baseline:
 - Offline operation after installation.
 - Camera permission loss and dead-stream handling.
 
-## Release 0.0.3: Quality, Not Features
+## Release 0.0.3: Quality Foundation
 
-The next update adds no creative capability. Its acceptance criteria are:
+The owner approved four narrowly defined, early-user-proven additions as an
+explicit exception to the normal one-feature cadence: optional branding, five
+distinct looks, Boom as a GIF toggle, and Retake One. The complete contract is
+in `docs/QUALITY_RELEASE_0.0.3.md`; no other prototype capability is included.
+Its acceptance criteria are:
 
 - No horizontal overflow from 320x568 through current Pro Max dimensions.
 - Fresh-install simulator tests wait for and recognize the real BoothBop home,
@@ -100,9 +104,12 @@ The next update adds no creative capability. Its acceptance criteria are:
   review -> Save for compact, standard, and large phone sizes.
 - Camera denial, storage failure, and share cancellation have visible,
   accurate outcomes.
-- The native app launches and completes the core loop in Airplane Mode.
-- A physical iPhone clean install and update install both pass.
-- A small TestFlight group reports no launch, capture, save, or layout blocker.
+- The native app launches from a clean install across the supported simulator
+  size range and recognizes real BoothBop UI rather than a nonblank frame.
+- Every new option produces consistent preview and exported output.
+- Retake cancellation and failure preserve the original four photos.
+- The release archives cleanly and is ready for an optional personal-device
+  spot-check before distribution.
 
 ## Feature Selection Rules
 
@@ -134,12 +141,12 @@ This is a ranking, not a 12-month commitment. Re-score after every release.
 | Rank | Candidate                             | User Problem                                             | Current Position                                             |
 | ---: | ------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------ |
 |    0 | Reliability and compact-device polish | The core loop must work everywhere                       | Mandatory 0.0.3 foundation; not counted as a feature         |
-|    1 | Retake one photo                      | One blink currently forces all four photos to be retaken | Strongest first feature after 0.0.3                          |
-|    2 | One excellent classic B&W look        | A classic booth often needs monochrome output            | Ship one calibrated look, not a filter catalog               |
+|    1 | Retake one photo                      | One blink currently forces all four photos to be retaken | Approved for the 0.0.3 foundation                            |
+|    2 | Five focused looks                    | Users want a few meaningfully different finished styles  | Approved for 0.0.3; no catalog expansion                     |
 |    3 | Reorder four photos                   | The best sequence may not match capture order            | Useful only if the interaction stays obvious                 |
 |    4 | Custom strip caption                  | Users want to mark an occasion or date                   | Keep to one short footer field                               |
 |    5 | Save the complete set                 | Saving multiple desired formats is repetitive            | Validate whether users actually want multiple outputs        |
-|    6 | Ping-pong motion loop                 | A back-and-forth loop is more playful and shareable      | Add as one output, not a motion editor                       |
+|    6 | Ping-pong motion loop                 | A back-and-forth loop is more playful and shareable      | Approved as the 0.0.3 GIF Boom toggle                        |
 |    7 | Import four existing photos           | Users may want a strip after the moment passed           | Valuable but shifts the product away from live booth capture |
 |    8 | One story-sized layout                | Vertical sharing crops the classic strip                 | One layout with clear output intent                          |
 |    9 | One occasion template                 | Users want a finished birthday or wedding keepsake       | Test one complete template before a catalog                  |

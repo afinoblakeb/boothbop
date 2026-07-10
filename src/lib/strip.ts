@@ -1,5 +1,6 @@
 // Compose the 4 captured frames into a downloadable photo strip.
 import { loadWatermark } from "./watermark";
+import { drawFilteredFrame, type FilterId } from "./filter";
 
 export type Layout = "4x1" | "2x2";
 
@@ -38,6 +39,13 @@ export interface StripGeometry {
   rows: number;
   /** Top-left pixel position of each of the 4 photo cells, in order. */
   cells: { x: number; y: number }[];
+}
+
+export interface StripOptions {
+  logo?: HTMLImageElement | null;
+  cell?: number;
+  branding?: boolean;
+  filter?: FilterId;
 }
 
 /**
@@ -80,8 +88,12 @@ export function composeStrip(
   frames: HTMLCanvasElement[],
   layout: Layout,
   theme: StripTheme,
-  logo: HTMLImageElement | null = null,
-  cell: number = STRIP.cell,
+  {
+    logo = null,
+    cell = STRIP.cell,
+    branding = true,
+    filter = "original",
+  }: StripOptions = {},
 ): HTMLCanvasElement {
   const scale = cell / STRIP.cell;
   const footer = Math.round(STRIP.footer * scale);
@@ -97,10 +109,15 @@ export function composeStrip(
 
   frames.slice(0, 4).forEach((frame, i) => {
     const { x, y } = cells[i];
-    ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, cell, cell);
+    drawFilteredFrame(ctx, frame, x, y, cell, cell, filter);
   });
 
   const footerY = height - footer;
+
+  if (!branding) {
+    drawDate(ctx, width, footerY + footer / 2, theme.text, scale);
+    return canvas;
+  }
 
   if (logo) {
     // Brand logo centered, with a soft light halo so the dark parts stay
@@ -181,11 +198,11 @@ export async function stripBlob(
   frames: HTMLCanvasElement[],
   layout: Layout,
   theme: StripTheme,
-  cell: number = STRIP.cell,
+  options: Omit<StripOptions, "logo"> = {},
 ): Promise<Blob> {
-  const logo = await loadWatermark();
+  const logo = options.branding === false ? null : await loadWatermark();
   return new Promise((resolve, reject) => {
-    composeStrip(frames, layout, theme, logo, cell).toBlob(
+    composeStrip(frames, layout, theme, { ...options, logo }).toBlob(
       (blob) => (blob ? resolve(blob) : reject(new Error("strip failed"))),
       "image/png",
     );

@@ -2,6 +2,7 @@
 // (On native iOS the AVAssetWriter plugin is preferred — see videoNative.ts.)
 import { drawWatermark } from "./watermark";
 import { isNativeShell } from "./platform";
+import { drawFilteredFrame, type FilterId } from "./filter";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
@@ -10,6 +11,7 @@ export interface VideoOptions {
   loops?: number; // how many times to cycle through the 4 photos
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
   watermarkImg?: HTMLImageElement | null; // preloaded logo
+  filter?: FilterId;
 }
 
 export interface VideoResult {
@@ -55,6 +57,7 @@ export async function encodeVideo(
     loops = 2,
     watermark = true,
     watermarkImg = null,
+    filter = "original",
   }: VideoOptions = {},
 ): Promise<VideoResult> {
   const picked = pickMimeType();
@@ -67,7 +70,7 @@ export async function encodeVideo(
 
   const draw = (frame: HTMLCanvasElement) => {
     ctx.clearRect(0, 0, size, size);
-    ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+    drawFilteredFrame(ctx, frame, 0, 0, size, size, filter);
     if (watermark) drawWatermark(ctx, size, size, watermarkImg);
   };
   draw(frames[0]);

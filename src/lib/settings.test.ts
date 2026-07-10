@@ -9,6 +9,8 @@ import {
   saveAutosaveDest,
   saveAutosaveFormat,
   saveQuality,
+  loadBranding,
+  saveBranding,
   type AutosaveSettings,
 } from "./settings";
 
@@ -93,5 +95,15 @@ describe("export quality persistence", () => {
   it("treats an unknown stored tier as standard", () => {
     localStorage.setItem("bb.quality.video", "ultra");
     expect(loadQuality().video).toBe("standard");
+  });
+});
+
+describe("branding preference", () => {
+  it("defaults branding on and persists either choice", () => {
+    expect(loadBranding()).toBe(true);
+    saveBranding(false);
+    expect(loadBranding()).toBe(false);
+    saveBranding(true);
+    expect(loadBranding()).toBe(true);
   });
 });
