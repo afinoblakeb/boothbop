@@ -1,7 +1,7 @@
 name: CI
 
 # Gate every push and PR on the same checks an agent runs locally (`npm run
-# check`) plus a production build. Green here == safe to merge.
+# check`) plus the production browser journey. Green here == safe to merge.
 on:
   push:
     branches: [main]
@@ -19,4 +19,5 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run check
-      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run check:e2e
