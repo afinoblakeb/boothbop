@@ -221,8 +221,10 @@ async function screenshotStats(filePath) {
   let brightPixels = 0;
   let brandOrangePixels = 0;
   let lightSurfacePixels = 0;
+  let maxOrangeRowRatio = 0;
 
   for (let y = startY; y < endY; y += 1) {
+    let rowOrangePixels = 0;
     for (let x = 0; x < info.width; x += 1) {
       const index = (y * info.width + x) * channels;
       const luminance =
@@ -242,11 +244,16 @@ async function screenshotStats(filePath) {
         data[index] > data[index + 1] * 1.6
       ) {
         brandOrangePixels += 1;
+        rowOrangePixels += 1;
       }
       if (data[index] > 210 && data[index + 1] > 190 && data[index + 2] > 150) {
         lightSurfacePixels += 1;
       }
     }
+    maxOrangeRowRatio = Math.max(
+      maxOrangeRowRatio,
+      rowOrangePixels / info.width,
+    );
   }
 
   const average = sum / count;
@@ -259,6 +266,7 @@ async function screenshotStats(filePath) {
     brandOrangeRatio: brandOrangePixels / count,
     brightRatio,
     lightSurfaceRatio: lightSurfacePixels / count,
+    maxOrangeRowRatio,
     standardDeviation,
     width: info.width,
     height: info.height,
@@ -293,12 +301,18 @@ function assertVisibleScreen(deviceName, stats) {
     );
   }
 
-  if (stats.brandOrangeRatio < 0.003 || stats.lightSurfaceRatio < 0.35) {
+  if (
+    stats.brandOrangeRatio < 0.003 ||
+    stats.lightSurfaceRatio < 0.35 ||
+    stats.maxOrangeRowRatio < 0.45
+  ) {
     throw new Error(
       `${deviceName} did not render the BoothBop home surface: orange ratio ${(
         stats.brandOrangeRatio * 100
       ).toFixed(2)}%, light surface ratio ${(
         stats.lightSurfaceRatio * 100
+      ).toFixed(2)}%, widest orange row ${(
+        stats.maxOrangeRowRatio * 100
       ).toFixed(2)}%.`,
     );
   }
@@ -393,18 +407,6 @@ async function testDevice(device) {
   console.log(`\n==> ${label}`);
 
   try {
-    process.stdout.write("erasing... ");
-    await run("xcrun", ["simctl", "shutdown", device.udid], {
-      allowFailure: true,
-      quiet: true,
-      timeoutMs: 30000,
-      timeoutOk: true,
-    });
-    await run("xcrun", ["simctl", "erase", device.udid], {
-      quiet: true,
-      timeoutMs: 60000,
-    });
-    process.stdout.write("done\n");
     process.stdout.write("booting... ");
     await bootDevice(device);
     process.stdout.write("ready\n");

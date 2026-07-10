@@ -43,9 +43,8 @@ feature; match it.
 npm run check      # typecheck + lint + format:check + tests — the single gate
 ```
 
-`npm run check` is exactly what CI runs (`.github/workflows/ci.yml`). If it's
-green locally, the PR is green. Treat a red `check` as "not done." Individual
-pieces, for tighter loops:
+CI runs `npm run check` plus the production Playwright journey. Treat a red
+gate as "not done." Individual pieces, for tighter loops:
 
 ```bash
 npm run typecheck                         # tsc --noEmit
@@ -54,6 +53,7 @@ npm run lint:fix                          # auto-fix lint
 npm run format                            # prettier --write . (fix formatting)
 npm run test                              # vitest run (one-shot)
 npm run test:watch                        # vitest (re-run on change while iterating)
+npm run check:e2e                         # production build + Playwright browser journeys
 npx vitest run src/lib/strip.test.ts      # a single test file
 npx vitest run -t "pickMimeType"          # tests matching a name
 ```
@@ -194,10 +194,13 @@ context, no live camera, no MediaRecorder**. So:
   (via `fake-indexeddb`), `video.ts` mime selection (mock `MediaRecorder`).
   When adding logic, prefer extracting a pure function (like `stripGeometry`) so
   it can be tested without a browser.
-- **NOT covered:** actual pixel output of `composeStrip`/`encodeGif`/
-  `encodeVideo`, the live capture sequence, getUserMedia, and the share sheet.
-  Verify these by hand in a real browser (`npm run dev`) — jsdom will return a
-  null canvas context and throw if you try to assert on pixels.
+- **Browser-covered:** `tests/e2e/` runs against a production build with real
+  canvas and deterministic fake camera input. It protects compact layout,
+  capture-to-save, filters, Boom, Retake One, Settings persistence, and gallery
+  identity. Extend this suite for user-facing journeys and pixel integration.
+- **Still hardware-specific:** the real iPhone camera, Photos library, and
+  native share sheet. Keep their adapters small and run `npm run ios:smoke`
+  plus a personal-device spot-check when those native paths change.
 
 ## Asset pipeline
 
