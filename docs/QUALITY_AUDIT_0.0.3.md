@@ -23,8 +23,8 @@ Date: 2026-07-10
   stream or reopen a cancelled flow.
 - Hid gallery/settings actions during camera use and added an explicit Cancel.
 - Removed the duplicate home-gallery action and compact horizontal overflow.
-- Moved style controls into a collapsed drawer so preview and Save / Share stay
-  visible on a 320x568 viewport.
+- Moved style controls into a bottom-sheet overlay so opening the editor cannot
+  resize the preview and Save / Share stays visible when editing is closed.
 - Made native splash ownership explicit: it remains visible until React has
   committed and painted, preventing the prior blank interval.
 - Added deadlines to native video writer waits so a failed AVAssetWriter cannot

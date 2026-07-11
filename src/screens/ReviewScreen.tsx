@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
 import { FILTERS, type FilterId } from "../lib/filter";
@@ -76,6 +76,15 @@ export function ReviewScreen({
   onRetakeOne: (index: number) => void;
 }) {
   const [showRetakePicker, setShowRetakePicker] = useState(false);
+  const [showStyle, setShowStyle] = useState(false);
+  useEffect(() => {
+    if (!showStyle) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setShowStyle(false);
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [showStyle]);
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
     { id: "gif", label: "GIF" },
@@ -139,65 +148,98 @@ export function ReviewScreen({
         </div>
       )}
 
-      <details className="mt-3 w-full border-2 border-ink bg-paper">
-        <summary className="cursor-pointer px-3 py-2 font-display text-lg uppercase tracking-wide text-ink">
-          Style
-        </summary>
-        <div className="border-t-2 border-ink p-3">
-          <SectionLabel className="mb-1">Look</SectionLabel>
-          <div className="grid grid-cols-3 gap-2">
-            {FILTERS.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => onFilter(item.id)}
-                aria-pressed={filter === item.id}
-                className={`min-h-11 border-2 border-ink px-2 py-1 font-display text-sm uppercase tracking-wide ${
-                  filter === item.id
-                    ? "bg-orange text-cream"
-                    : "bg-cream text-ink"
-                }`}
+      <Button
+        variant="secondary"
+        size="sm"
+        fullWidth
+        onClick={() => setShowStyle(true)}
+        className="mt-3"
+      >
+        Style
+      </Button>
+
+      {showStyle && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Style"
+          className="fixed inset-0 z-50"
+        >
+          <button
+            aria-label="Close Style"
+            className="absolute inset-0 cursor-default"
+            onClick={() => setShowStyle(false)}
+          />
+          <div className="absolute inset-x-0 bottom-0 max-h-[48dvh] overflow-y-auto border-t-2 border-ink bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_0_rgba(17,17,17,0.12)]">
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-ink bg-paper px-4 py-2">
+              <h2 className="font-display text-2xl uppercase tracking-wide text-ink">
+                Style
+              </h2>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => setShowStyle(false)}
               >
-                {item.label}
-              </button>
-            ))}
-          </div>
-
-          {format === "strip" && (
-            <>
-              <SectionLabel className="mb-1 mt-4">Layout</SectionLabel>
-              <SegmentedControl
-                fullWidth
-                label="Strip layout"
-                value={layout}
-                onChange={setLayout}
-                options={[
-                  { value: "4x1", label: "Strip" },
-                  { value: "2x2", label: "Grid" },
-                ]}
-                itemClassName="flex min-h-11 items-center justify-center py-2 text-base"
-              />
-
-              <SectionLabel className="mb-1 mt-4">Color</SectionLabel>
-              <div className="grid grid-cols-6 gap-2 px-1">
-                {Object.entries(THEMES).map(([key, theme]) => (
+                Done
+              </Button>
+            </div>
+            <div className="p-4">
+              <SectionLabel className="mb-1">Look</SectionLabel>
+              <div className="grid grid-cols-3 gap-2">
+                {FILTERS.map((item) => (
                   <button
-                    key={key}
-                    onClick={() => setThemeKey(key)}
-                    aria-label={THEME_LABELS[key]}
-                    aria-pressed={themeKey === key}
-                    className={`aspect-square w-full border-2 border-ink transition ${
-                      themeKey === key
-                        ? "ring-2 ring-ink ring-offset-2 ring-offset-paper"
-                        : ""
+                    key={item.id}
+                    onClick={() => onFilter(item.id)}
+                    aria-pressed={filter === item.id}
+                    className={`min-h-11 border-2 border-ink px-2 py-1 font-display text-sm uppercase tracking-wide ${
+                      filter === item.id
+                        ? "bg-orange text-cream"
+                        : "bg-cream text-ink"
                     }`}
-                    style={{ background: theme.background }}
-                  />
+                  >
+                    {item.label}
+                  </button>
                 ))}
               </div>
-            </>
-          )}
+
+              {format === "strip" && (
+                <>
+                  <SectionLabel className="mb-1 mt-4">Layout</SectionLabel>
+                  <SegmentedControl
+                    fullWidth
+                    label="Strip layout"
+                    value={layout}
+                    onChange={setLayout}
+                    options={[
+                      { value: "4x1", label: "Strip" },
+                      { value: "2x2", label: "Grid" },
+                    ]}
+                    itemClassName="flex min-h-11 items-center justify-center py-2 text-base"
+                  />
+
+                  <SectionLabel className="mb-1 mt-4">Color</SectionLabel>
+                  <div className="grid grid-cols-6 gap-2 px-1">
+                    {Object.entries(THEMES).map(([key, theme]) => (
+                      <button
+                        key={key}
+                        onClick={() => setThemeKey(key)}
+                        aria-label={THEME_LABELS[key]}
+                        aria-pressed={themeKey === key}
+                        className={`aspect-square w-full border-2 border-ink transition ${
+                          themeKey === key
+                            ? "ring-2 ring-ink ring-offset-2 ring-offset-paper"
+                            : ""
+                        }`}
+                        style={{ background: theme.background }}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
-      </details>
+      )}
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
       {autosaveTip && (

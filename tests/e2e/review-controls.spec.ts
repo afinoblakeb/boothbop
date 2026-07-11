@@ -2,16 +2,24 @@ import { expect, installDemoImages, openDemoReview, test } from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("Style drawer exposes every look, layout, and color control", async ({
+test("Style overlay preserves the preview and exposes every control", async ({
   page,
 }) => {
   await openDemoReview(page);
-  await page.getByText("Style", { exact: true }).click();
+  const preview = page.getByRole("img", { name: "Your strip" });
+  const before = await preview.boundingBox();
+  await page.getByRole("button", { name: "Style" }).click();
+
+  const editor = page.getByRole("dialog", { name: "Style" });
+  await expect(editor).toBeVisible();
+  const after = await preview.boundingBox();
+  expect(after?.width).toBeCloseTo(before?.width ?? 0, 0);
+  expect(after?.height).toBeCloseTo(before?.height ?? 0, 0);
 
   const looks = ["Original", "Warm", "Cool", "B&W", "Sepia", "Inverse"];
   const renderedLooks = new Set<string>();
   for (const look of looks) {
-    const button = page.getByRole("button", { name: look, exact: true });
+    const button = editor.getByRole("button", { name: look, exact: true });
     await expect(button).toBeVisible();
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
@@ -21,7 +29,7 @@ test("Style drawer exposes every look, layout, and color control", async ({
   }
   expect(renderedLooks.size, "every look must render distinct pixels").toBe(6);
 
-  const layout = page.getByRole("group", { name: "Strip layout" });
+  const layout = editor.getByRole("group", { name: "Strip layout" });
   await layout.getByRole("button", { name: "Grid" }).click();
   await expect(layout.getByRole("button", { name: "Grid" })).toHaveAttribute(
     "aria-pressed",
@@ -29,10 +37,13 @@ test("Style drawer exposes every look, layout, and color control", async ({
   );
 
   for (const color of ["Cream", "Rust", "Teal", "Mustard", "Olive", "Carbon"]) {
-    const swatch = page.getByRole("button", { name: color });
+    const swatch = editor.getByRole("button", { name: color });
     await swatch.click();
     await expect(swatch).toHaveAttribute("aria-pressed", "true");
   }
+
+  await editor.getByRole("button", { name: "Done" }).click();
+  await expect(editor).toHaveCount(0);
 });
 
 test("GIF Boom toggle updates and persists", async ({ page }) => {

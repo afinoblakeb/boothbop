@@ -26,10 +26,8 @@ for (const phone of phones) {
       await expectNoHorizontalOverflow(page);
 
       await openDemoReview(page);
-      const styleDrawer = page.locator("details", {
-        has: page.getByText("Style", { exact: true }),
-      });
-      await expect(styleDrawer).not.toHaveAttribute("open");
+      await expect(page.getByRole("button", { name: "Style" })).toBeVisible();
+      await expect(page.getByRole("dialog", { name: "Style" })).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await expectFullyInViewport(
         page.getByRole("button", { name: "Save / Share" }),
