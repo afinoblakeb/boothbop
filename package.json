@@ -25,7 +25,9 @@
     "ios:smoke": "node scripts/ios-smoke.mjs",
     "ios:open": "npx cap open ios",
     "ios": "npm run ios:sync && npm run ios:open",
-    "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs"
+    "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs",
+    "appstore": "node scripts/app-store.mjs",
+    "appstore:status": "node scripts/app-store.mjs status"
   },
   "dependencies": {
     "@capacitor/browser": "^8.0.3",

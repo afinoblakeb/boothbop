@@ -10,6 +10,7 @@ node_modules
 dist
 dist-ssr
 dev-dist          # vite-plugin-pwa dev service worker output
+/build/           # signed archives and exported App Store IPAs
 *.tsbuildinfo
 
 # ---- Test / coverage ----
