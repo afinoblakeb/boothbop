@@ -9,6 +9,24 @@ export const test = playwrightTest.extend<{ applicationErrors: string[] }>({
   applicationErrors: [
     async ({ page }, use) => {
       const errors: string[] = [];
+      await page.route(/https:\/\/boothbop\.com\/config\/v1\.json.*/, (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            schemaVersion: 1,
+            revision: 1,
+            features: {
+              editor: true,
+              gif: true,
+              video: true,
+              boom: true,
+              retakeOne: true,
+              brandingControl: true,
+            },
+          }),
+        }),
+      );
       page.on("console", (message) => {
         if (message.type() === "error") {
           errors.push(`console.error: ${message.text()}`);
@@ -27,6 +45,20 @@ export const test = playwrightTest.extend<{ applicationErrors: string[] }>({
 });
 
 export { expect };
+
+export async function installRemoteConfig(
+  page: Page,
+  features: Record<string, boolean>,
+): Promise<void> {
+  await page.unroute(/https:\/\/boothbop\.com\/config\/v1\.json.*/);
+  await page.route(/https:\/\/boothbop\.com\/config\/v1\.json.*/, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ schemaVersion: 1, revision: 2, features }),
+    }),
+  );
+}
 
 export async function installDemoImages(page: Page): Promise<void> {
   await page.route(/\/demo\/set\d+-\d+\.jpg$/, async (route) => {

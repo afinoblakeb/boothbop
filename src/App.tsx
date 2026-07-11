@@ -67,6 +67,7 @@ import {
   saveBoomSpeed,
   type BoomSpeed,
 } from "./lib/boom";
+import { useRemoteConfig } from "./hooks/useRemoteConfig";
 
 interface MediaResult {
   url: string;
@@ -81,6 +82,11 @@ const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const DEMO = import.meta.env.DEV || import.meta.env.VITE_DEMO === "1";
 
 export default function App() {
+  const remoteConfig = useRemoteConfig();
+  const runtimeFeatures = {
+    ...remoteConfig.features,
+    video: remoteConfig.features.video && isVideoSupported(),
+  };
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
@@ -152,7 +158,7 @@ export default function App() {
   const renderRevision = useRef(0);
   const currentChoices = (): RenderChoices => ({
     filter,
-    boom,
+    boom: runtimeFeatures.boom && boom,
     boomSpeed,
     branding,
   });
@@ -195,6 +201,15 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem("bb.delay", String(delay));
   }, [delay]);
+
+  useEffect(() => {
+    if (
+      (format === "gif" && !runtimeFeatures.gif) ||
+      (format === "video" && !runtimeFeatures.video)
+    ) {
+      setFormat("strip");
+    }
+  }, [format, runtimeFeatures.gif, runtimeFeatures.video]);
 
   useEffect(() => setShareFilesOk(probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
@@ -579,6 +594,8 @@ export default function App() {
 
   // Switching format lazily generates the GIF / video the first time.
   async function selectFormat(f: Format) {
+    if (f === "gif" && !runtimeFeatures.gif) return;
+    if (f === "video" && !runtimeFeatures.video) return;
     setFormat(f);
     setError(null);
     setNote(null);
@@ -699,7 +716,8 @@ export default function App() {
     const revision = renderRevision.current;
     if (!isNativeShell()) return;
     const tasks = planAutosaveTasks(settings, {
-      videoSupported: isVideoSupported(),
+      gifSupported: runtimeFeatures.gif,
+      videoSupported: runtimeFeatures.video,
     });
     if (!tasks.length) return;
     // Access was granted when the toggle was enabled; re-check WITHOUT prompting
@@ -884,6 +902,7 @@ export default function App() {
           onBoomSpeed={changeBoomSpeed}
           thumbs={thumbs}
           onRetakeOne={(index) => void openCamera(index)}
+          features={runtimeFeatures}
         />
       )}
 
@@ -899,7 +918,7 @@ export default function App() {
           settings={autosave}
           quality={quality}
           native={isNativeShell()}
-          videoSupported={isVideoSupported()}
+          videoSupported={runtimeFeatures.video}
           error={autosaveError}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
@@ -908,6 +927,7 @@ export default function App() {
           onClose={() => setShowSettings(false)}
           branding={branding}
           onBranding={changeBranding}
+          features={runtimeFeatures}
         />
       )}
 

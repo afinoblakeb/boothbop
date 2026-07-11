@@ -77,6 +77,14 @@ describe("planAutosaveTasks", () => {
     const tasks = planAutosaveTasks(all, { videoSupported: false });
     expect(tasks.map((t) => t.format)).toEqual(["strip", "grid", "gif"]);
   });
+
+  it("honors remote format kill switches for background auto-save", () => {
+    const tasks = planAutosaveTasks(all, {
+      gifSupported: false,
+      videoSupported: false,
+    });
+    expect(tasks.map((t) => t.format)).toEqual(["strip", "grid"]);
+  });
 });
 
 describe("export quality persistence", () => {

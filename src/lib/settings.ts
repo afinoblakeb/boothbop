@@ -72,12 +72,13 @@ export interface AutosaveTask {
  */
 export function planAutosaveTasks(
   s: AutosaveSettings,
-  opts: { videoSupported: boolean },
+  opts: { gifSupported?: boolean; videoSupported: boolean },
 ): AutosaveTask[] {
   const tasks: AutosaveTask[] = [];
   if (s.strip) tasks.push({ format: "strip", layout: "4x1", kind: "image" });
   if (s.grid) tasks.push({ format: "grid", layout: "2x2", kind: "image" });
-  if (s.gif) tasks.push({ format: "gif", kind: "image" });
+  if (s.gif && opts.gifSupported !== false)
+    tasks.push({ format: "gif", kind: "image" });
   if (s.video && opts.videoSupported)
     tasks.push({ format: "video", kind: "video" });
   return tasks;

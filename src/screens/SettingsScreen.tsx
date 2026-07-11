@@ -6,6 +6,7 @@ import {
   type QualityMedia,
   type QualitySettings,
 } from "../lib/settings";
+import type { RuntimeFeatureFlags } from "../lib/remoteConfig";
 import {
   Button,
   Callout,
@@ -36,6 +37,7 @@ export function SettingsScreen({
   onClose,
   branding,
   onBranding,
+  features,
 }: {
   settings: AutosaveSettings;
   quality: QualitySettings;
@@ -49,18 +51,28 @@ export function SettingsScreen({
   onClose: () => void;
   branding: boolean;
   onBranding: (on: boolean) => void;
+  features: RuntimeFeatureFlags;
 }) {
-  const formats: { key: AutosaveFormat; label: string; disabled?: boolean }[] =
-    [
-      { key: "strip", label: "Photo strip" },
-      { key: "grid", label: "Grid (2×2)" },
-      { key: "gif", label: "Animated GIF" },
-      { key: "video", label: "Looping video", disabled: !videoSupported },
-    ];
+  const allFormats: {
+    key: AutosaveFormat;
+    label: string;
+    disabled?: boolean;
+  }[] = [
+    { key: "strip", label: "Photo strip" },
+    { key: "grid", label: "Grid (2×2)" },
+    { key: "gif", label: "Animated GIF" },
+    { key: "video", label: "Looping video", disabled: !videoSupported },
+  ];
+  const formats = allFormats.filter(
+    ({ key }) =>
+      (key !== "gif" || features.gif) && (key !== "video" || features.video),
+  );
 
   const qualityRows: { key: QualityMedia; label: string }[] = [
     { key: "photo", label: "Photo strip" },
-    { key: "gif", label: "Animated GIF" },
+    ...(features.gif
+      ? [{ key: "gif" as QualityMedia, label: "Animated GIF" }]
+      : []),
     ...(videoSupported
       ? [{ key: "video" as QualityMedia, label: "Looping video" }]
       : []),
@@ -68,20 +80,24 @@ export function SettingsScreen({
 
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
-      <Heading as="h3" size="lg" className="mt-6">
-        Exports
-      </Heading>
-      <div className="mt-3 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
-        <div className="pr-4">
-          <Heading as="span" size="md">
-            BoothBop branding
+      {features.brandingControl && (
+        <>
+          <Heading as="h3" size="lg" className="mt-6">
+            Exports
           </Heading>
-          <p className="font-sans text-xs text-warmgray">
-            Show the logo on saved photos and animations.
-          </p>
-        </div>
-        <Toggle on={branding} onChange={onBranding} />
-      </div>
+          <div className="mt-3 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
+            <div className="pr-4">
+              <Heading as="span" size="md">
+                BoothBop branding
+              </Heading>
+              <p className="font-sans text-xs text-warmgray">
+                Show the logo on saved photos and animations.
+              </p>
+            </div>
+            <Toggle on={branding} onChange={onBranding} />
+          </div>
+        </>
+      )}
 
       <Heading as="h3" size="lg" className="mt-6">
         Auto-save to Photos

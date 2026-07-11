@@ -1,4 +1,10 @@
-import { expect, installDemoImages, openDemoReview, test } from "./fixtures";
+import {
+  expect,
+  installDemoImages,
+  installRemoteConfig,
+  openDemoReview,
+  test,
+} from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
@@ -131,4 +137,32 @@ test("branding setting persists across a reload", async ({ page }) => {
       })
       .getByRole("switch"),
   ).toHaveAttribute("aria-checked", "false");
+});
+
+test("reviewed features can be remotely disabled without loading code", async ({
+  page,
+}) => {
+  await installRemoteConfig(page, {
+    editor: false,
+    gif: false,
+    video: false,
+    boom: false,
+    retakeOne: false,
+    brandingControl: false,
+  });
+  await openDemoReview(page);
+
+  await expect(page.getByRole("tab", { name: "Strip" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "GIF" })).toHaveCount(0);
+  await expect(page.getByRole("tab", { name: "Video" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Retake One" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: /Save (?:\/ Share|Photo)/ }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Settings" }).click();
+  await expect(
+    page.getByText("BoothBop branding", { exact: true }),
+  ).toHaveCount(0);
 });

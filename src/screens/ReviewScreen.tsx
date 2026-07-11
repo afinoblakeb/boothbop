@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
 import { createFilterPreview, FILTERS, type FilterId } from "../lib/filter";
 import {
@@ -21,6 +20,7 @@ import {
 import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
 import type { BoomSpeed } from "../lib/boom";
+import type { RuntimeFeatureFlags } from "../lib/remoteConfig";
 
 // Human-readable names for the strip color themes (for screen readers — the
 // swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
@@ -62,6 +62,7 @@ export function ReviewScreen({
   onBoomSpeed,
   thumbs,
   onRetakeOne,
+  features,
 }: {
   format: Format;
   onSelectFormat: (f: Format) => void;
@@ -88,6 +89,7 @@ export function ReviewScreen({
   onBoomSpeed: (speed: BoomSpeed) => void;
   thumbs: string[];
   onRetakeOne: (index: number) => void;
+  features: RuntimeFeatureFlags;
 }) {
   const [showRetakePicker, setShowRetakePicker] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -130,8 +132,8 @@ export function ReviewScreen({
   };
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
-    { id: "gif", label: "GIF" },
-    ...(isVideoSupported() ? [{ id: "video" as Format, label: "Video" }] : []),
+    ...(features.gif ? [{ id: "gif" as Format, label: "GIF" }] : []),
+    ...(features.video ? [{ id: "video" as Format, label: "Video" }] : []),
   ];
   const saveLabel =
     format === "video"
@@ -179,7 +181,7 @@ export function ReviewScreen({
         ) : null}
       </div>
 
-      {format === "gif" && (
+      {format === "gif" && features.boom && (
         <div className="mt-3 w-full border-2 border-ink bg-paper px-3 py-2">
           <div className="flex items-center justify-between">
             <div>
@@ -215,7 +217,7 @@ export function ReviewScreen({
         </div>
       )}
 
-      {editing && (
+      {editing && features.editor && (
         <PhotoEditor
           previewUrl={previewUrl}
           activeTool={editTool}
@@ -257,17 +259,26 @@ export function ReviewScreen({
       )}
 
       {/* Compact review toolbar keeps the output visible on every phone size. */}
-      <div className="mt-3 grid w-full grid-cols-3 border-y-2 border-ink bg-paper">
-        <ReviewAction label="Edit" onClick={openEditor}>
-          <SlidersHorizontal className="h-6 w-6" strokeWidth={2.25} />
-        </ReviewAction>
-        <ReviewAction
-          label="Retake One"
-          onClick={() => setShowRetakePicker((shown) => !shown)}
-          pressed={showRetakePicker}
-        >
-          <RefreshIcon className="h-6 w-6" />
-        </ReviewAction>
+      <div
+        className="mt-3 grid w-full border-y-2 border-ink bg-paper"
+        style={{
+          gridTemplateColumns: `repeat(${1 + Number(features.editor) + Number(features.retakeOne)}, minmax(0, 1fr))`,
+        }}
+      >
+        {features.editor && (
+          <ReviewAction label="Edit" onClick={openEditor}>
+            <SlidersHorizontal className="h-6 w-6" strokeWidth={2.25} />
+          </ReviewAction>
+        )}
+        {features.retakeOne && (
+          <ReviewAction
+            label="Retake One"
+            onClick={() => setShowRetakePicker((shown) => !shown)}
+            pressed={showRetakePicker}
+          >
+            <RefreshIcon className="h-6 w-6" />
+          </ReviewAction>
+        )}
         {shareFilesOk ? (
           <ReviewAction
             label="Save / Share"
@@ -288,7 +299,7 @@ export function ReviewScreen({
           </ReviewAction>
         )}
       </div>
-      {showRetakePicker && (
+      {showRetakePicker && features.retakeOne && (
         <div
           className="mt-2 grid w-full grid-cols-4 gap-2"
           aria-label="Choose a photo to retake"
