@@ -45,12 +45,17 @@ Date: 2026-07-10
 - **Looks:** Original, Warm, Cool, B&W, Sepia, and Inverse use deterministic CPU
   pixel recipes. The same renderer is used before branding in every output.
 - **Boom:** GIF-only toggle renders `1,2,3,4,3,2`, without duplicated endpoints.
+  Its persisted speed control defaults to a brisk 160ms per frame and offers
+  medium and slow pacing.
 - **Retake One:** any frame can be selected, cancelled without loss, or replaced
   with one countdown and one capture while preserving the other frames.
+- **Export quality:** new installs default photo, GIF, and video exports to High;
+  GIF High is 900px. The watermark is regenerated at 1440px with clean alpha
+  edges and a tighter contrast treatment.
 
 ## Automated Evidence
 
-- `npm run check`: 8 test files, 73 tests, zero type/lint/format warnings.
+- `npm run check`: 9 test files, 76 tests, zero type/lint/format warnings.
 - `npm run check:e2e`: 8 production-browser journeys, including a real
   four-capture fake-camera flow, successful Retake One, one gallery record,
   six distinct rendered looks, Boom, branding persistence, and 320/390/430px

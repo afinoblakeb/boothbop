@@ -61,6 +61,12 @@ import { SettingsScreen } from "./screens/SettingsScreen";
 import { useAutosave } from "./hooks/useAutosave";
 import { type FilterId } from "./lib/filter";
 import { replaceFrame } from "./lib/session";
+import {
+  boomFrameDelay,
+  loadBoomSpeed,
+  saveBoomSpeed,
+  type BoomSpeed,
+} from "./lib/boom";
 
 interface MediaResult {
   url: string;
@@ -100,6 +106,7 @@ export default function App() {
   const [boom, setBoom] = useState(
     () => localStorage.getItem("bb.boom") === "1",
   );
+  const [boomSpeed, setBoomSpeed] = useState<BoomSpeed>(loadBoomSpeed);
   const [branding, setBranding] = useState(loadBranding);
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -139,10 +146,16 @@ export default function App() {
   interface RenderChoices {
     filter: FilterId;
     boom: boolean;
+    boomSpeed: BoomSpeed;
     branding: boolean;
   }
   const renderRevision = useRef(0);
-  const currentChoices = (): RenderChoices => ({ filter, boom, branding });
+  const currentChoices = (): RenderChoices => ({
+    filter,
+    boom,
+    boomSpeed,
+    branding,
+  });
 
   async function getGifBlob(
     src: HTMLCanvasElement[],
@@ -154,6 +167,7 @@ export default function App() {
       watermarkImg,
       filter: choices.filter,
       boom: choices.boom,
+      delay: choices.boom ? boomFrameDelay(choices.boomSpeed) : undefined,
       size: GIF_SIZE[quality.gif],
     });
   }
@@ -642,6 +656,14 @@ export default function App() {
     if (format === "gif") void ensureGif({ ...currentChoices(), boom: on });
   }
 
+  function changeBoomSpeed(speed: BoomSpeed) {
+    saveBoomSpeed(speed);
+    setBoomSpeed(speed);
+    clearResults();
+    if (format === "gif")
+      void ensureGif({ ...currentChoices(), boomSpeed: speed });
+  }
+
   function changeBranding(on: boolean) {
     saveBranding(on);
     setBranding(on);
@@ -858,6 +880,8 @@ export default function App() {
           onFilter={changeFilter}
           boom={boom}
           onBoom={changeBoom}
+          boomSpeed={boomSpeed}
+          onBoomSpeed={changeBoomSpeed}
           thumbs={thumbs}
           onRetakeOne={(index) => void openCamera(index)}
         />

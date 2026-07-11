@@ -42,12 +42,11 @@ export function drawWatermark(
 
   ctx.save();
   ctx.globalAlpha = opacity;
-  // Soft light halo so the dark parts read on dark photos (invisible on light).
-  ctx.shadowColor = "rgba(255,255,255,0.85)";
-  ctx.shadowBlur = Math.max(4, width * 0.018);
+  // A tight light edge preserves contrast without softening the small mark.
+  ctx.shadowColor = "rgba(255,255,255,0.9)";
+  ctx.shadowBlur = Math.max(2, width * 0.006);
   ctx.drawImage(img, x, y, w, h);
-  ctx.drawImage(img, x, y, w, h); // second pass strengthens the halo
   ctx.shadowBlur = 0;
-  ctx.drawImage(img, x, y, w, h); // crisp logo on top
+  ctx.drawImage(img, x, y, w, h);
   ctx.restore();
 }

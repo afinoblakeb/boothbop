@@ -106,8 +106,9 @@ async function uiIcon(name, size = 256) {
   console.log("wrote", `ic-${name}.png`, `${size}x${size}`);
 }
 
-// Transparent horizontal wordmark for the GIF/video watermark: knock out the
-// white margin + cream artboard (light pixels), keep the black + orange art.
+// Transparent horizontal wordmark for GIF/video. The source is anti-aliased
+// against a cream gradient, so a hard chroma key leaves a dirty cream fringe.
+// Reconstruct clean ink/orange pixels with alpha derived from their contrast.
 async function watermark() {
   const { data, info } = await sharp(WIDE)
     .ensureAlpha()
@@ -115,9 +116,19 @@ async function watermark() {
     .toBuffer({ resolveWithObject: true });
   const ch = info.channels;
   for (let i = 0; i < data.length; i += ch) {
-    if (data[i] > 200 && data[i + 1] > 185 && data[i + 2] > 160) {
-      data[i + 3] = 0; // light background -> transparent
-    }
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    const orange = r > g * 1.35 && r > b * 1.8;
+    const rawAlpha = orange ? (chroma - 28) / 170 : (218 - luminance) / 180;
+    const alpha = Math.max(0, Math.min(1, rawAlpha));
+
+    data[i] = orange ? 238 : 17;
+    data[i + 1] = orange ? 78 : 17;
+    data[i + 2] = orange ? 12 : 17;
+    data[i + 3] = Math.round(alpha * 255);
   }
   await sharp(data, {
     raw: { width: info.width, height: info.height, channels: ch },
@@ -126,10 +137,10 @@ async function watermark() {
     // Full-colour (NOT palette) so the logo's anti-aliased edges stay crisp when
     // composited onto the strip / GIF / video. Higher res gives headroom for the
     // larger draws. (Palette quantization here was softening the strip + GIF.)
-    .resize({ width: 960 })
+    .resize({ width: 1440 })
     .png({ compressionLevel: 9 })
     .toFile(`${OUT}/watermark.png`);
-  console.log("wrote watermark.png (full-colour, w=960)");
+  console.log("wrote watermark.png (clean alpha, w=1440)");
 }
 
 await icon(512, "icon-512.png");

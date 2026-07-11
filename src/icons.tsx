@@ -91,20 +91,6 @@ export const GearIcon = ({ className }: { className?: string }) => (
   </Svg>
 );
 
-export const AdjustmentsIcon = ({ className }: { className?: string }) => (
-  <Svg className={className}>
-    <path d="M4 6h5" />
-    <path d="M15 6h5" />
-    <circle cx="12" cy="6" r="3" />
-    <path d="M4 18h5" />
-    <path d="M15 18h5" />
-    <circle cx="12" cy="18" r="3" />
-    <path d="M4 12h10" />
-    <path d="M20 12h0" />
-    <circle cx="17" cy="12" r="3" />
-  </Svg>
-);
-
 export const LooksIcon = ({ className }: { className?: string }) => (
   <Svg className={className}>
     <circle cx="9" cy="10" r="5" />

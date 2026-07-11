@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   AUTOSAVE_DEFAULTS,
   QUALITY_DEFAULTS,
+  GIF_SIZE,
   anyAutosaveOn,
   loadAutosave,
   loadQuality,
@@ -79,8 +80,14 @@ describe("planAutosaveTasks", () => {
 });
 
 describe("export quality persistence", () => {
-  it("defaults every media type to standard when storage is empty", () => {
+  it("defaults every media type to high when storage is empty", () => {
     expect(loadQuality()).toEqual(QUALITY_DEFAULTS);
+    expect(QUALITY_DEFAULTS).toEqual({
+      photo: "high",
+      gif: "high",
+      video: "high",
+    });
+    expect(GIF_SIZE.high).toBeGreaterThanOrEqual(900);
   });
 
   it("round-trips a per-media quality tier", () => {
@@ -89,12 +96,12 @@ describe("export quality persistence", () => {
     const q = loadQuality();
     expect(q.photo).toBe("high");
     expect(q.gif).toBe("low");
-    expect(q.video).toBe("standard");
+    expect(q.video).toBe("high");
   });
 
-  it("treats an unknown stored tier as standard", () => {
+  it("treats an unknown stored tier as the high-quality default", () => {
     localStorage.setItem("bb.quality.video", "ultra");
-    expect(loadQuality().video).toBe("standard");
+    expect(loadQuality().video).toBe("high");
   });
 });
 

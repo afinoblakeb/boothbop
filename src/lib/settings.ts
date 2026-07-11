@@ -85,8 +85,9 @@ export function planAutosaveTasks(
 
 // ───────────────────────── Export quality ─────────────────────────
 // Each export type (photo strip, GIF, video) has its own Low/Standard/High
-// tier. "standard" is a sensible balanced default; "high" trades file size for
-// sharpness. Persisted under `bb.quality.*`, mirroring the autosave keys.
+// tier. New installs default to high so saved media is never visibly degraded;
+// the smaller tiers remain available for users who prefer compact files.
+// Persisted under `bb.quality.*`, mirroring the autosave keys.
 
 export type Quality = "low" | "standard" | "high";
 export type QualityMedia = "photo" | "gif" | "video";
@@ -94,9 +95,9 @@ export type QualityMedia = "photo" | "gif" | "video";
 export type QualitySettings = Record<QualityMedia, Quality>;
 
 export const QUALITY_DEFAULTS: QualitySettings = {
-  photo: "standard",
-  gif: "standard",
-  video: "standard",
+  photo: "high",
+  gif: "high",
+  video: "high",
 };
 
 const QUALITY_KEYS: Record<QualityMedia, string> = {
@@ -105,16 +106,16 @@ const QUALITY_KEYS: Record<QualityMedia, string> = {
   video: "bb.quality.video",
 };
 
-function readQuality(key: string): Quality {
+function readQuality(key: string, fallback: Quality): Quality {
   const v = localStorage.getItem(key);
-  return v === "low" || v === "high" ? v : "standard";
+  return v === "low" || v === "standard" || v === "high" ? v : fallback;
 }
 
 export function loadQuality(): QualitySettings {
   return {
-    photo: readQuality(QUALITY_KEYS.photo),
-    gif: readQuality(QUALITY_KEYS.gif),
-    video: readQuality(QUALITY_KEYS.video),
+    photo: readQuality(QUALITY_KEYS.photo, QUALITY_DEFAULTS.photo),
+    gif: readQuality(QUALITY_KEYS.gif, QUALITY_DEFAULTS.gif),
+    video: readQuality(QUALITY_KEYS.video, QUALITY_DEFAULTS.video),
   };
 }
 
@@ -144,9 +145,9 @@ export const PHOTO_CAPTURE: Record<Quality, number> = {
 };
 
 export const GIF_SIZE: Record<Quality, number> = {
-  low: 400,
-  standard: 540,
-  high: 720,
+  low: 480,
+  standard: 720,
+  high: 900,
 };
 
 export const VIDEO_PROFILE: Record<Quality, { size: number; bitrate: number }> =

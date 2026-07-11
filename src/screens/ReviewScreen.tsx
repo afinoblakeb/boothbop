@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
 import { createFilterPreview, FILTERS, type FilterId } from "../lib/filter";
 import {
-  AdjustmentsIcon,
   ColorsIcon,
   DownloadIcon,
   LayoutIcon,
@@ -20,6 +20,7 @@ import {
 } from "../ui";
 import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
+import type { BoomSpeed } from "../lib/boom";
 
 // Human-readable names for the strip color themes (for screen readers — the
 // swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
@@ -57,6 +58,8 @@ export function ReviewScreen({
   onFilter,
   boom,
   onBoom,
+  boomSpeed,
+  onBoomSpeed,
   thumbs,
   onRetakeOne,
 }: {
@@ -81,6 +84,8 @@ export function ReviewScreen({
   onFilter: (filter: FilterId) => void;
   boom: boolean;
   onBoom: (on: boolean) => void;
+  boomSpeed: BoomSpeed;
+  onBoomSpeed: (speed: BoomSpeed) => void;
   thumbs: string[];
   onRetakeOne: (index: number) => void;
 }) {
@@ -175,14 +180,38 @@ export function ReviewScreen({
       </div>
 
       {format === "gif" && (
-        <div className="mt-3 flex w-full items-center justify-between border-2 border-ink bg-paper px-3 py-2">
-          <div>
-            <SectionLabel>Boom</SectionLabel>
-            <p className="font-sans text-xs text-warmgray">
-              Play forward and back
-            </p>
+        <div className="mt-3 w-full border-2 border-ink bg-paper px-3 py-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <SectionLabel>Boom</SectionLabel>
+              <p className="font-sans text-xs text-warmgray">
+                Play forward and back
+              </p>
+            </div>
+            <Toggle on={boom} onChange={onBoom} />
           </div>
-          <Toggle on={boom} onChange={onBoom} />
+          {boom && (
+            <label className="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-ink/20 pt-2 font-sans text-[10px] uppercase text-warmgray">
+              <span>Slow</span>
+              <input
+                type="range"
+                min="1"
+                max="3"
+                step="1"
+                value={boomSpeed}
+                onChange={(event) =>
+                  onBoomSpeed(Number(event.target.value) as BoomSpeed)
+                }
+                aria-label="Boom speed"
+                aria-valuetext={
+                  boomSpeed === 3 ? "Fast" : boomSpeed === 2 ? "Medium" : "Slow"
+                }
+                className="h-7 w-full cursor-pointer"
+                style={{ accentColor: "var(--color-orange)" }}
+              />
+              <span>Fast</span>
+            </label>
+          )}
         </div>
       )}
 
@@ -230,7 +259,7 @@ export function ReviewScreen({
       {/* Compact review toolbar keeps the output visible on every phone size. */}
       <div className="mt-3 grid w-full grid-cols-3 border-y-2 border-ink bg-paper">
         <ReviewAction label="Edit" onClick={openEditor}>
-          <AdjustmentsIcon className="h-6 w-6" />
+          <SlidersHorizontal className="h-6 w-6" strokeWidth={2.25} />
         </ReviewAction>
         <ReviewAction
           label="Retake One"

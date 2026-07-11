@@ -60,16 +60,31 @@ test("Edit mode follows the Photos toolbar pattern", async ({ page }) => {
 
 test("GIF Boom toggle updates and persists", async ({ page }) => {
   await openDemoReview(page);
+  await expect(
+    page.getByRole("button", { name: "Edit" }).locator("svg"),
+  ).toHaveClass(/lucide-sliders-horizontal/);
   await page.getByRole("tab", { name: "GIF" }).click();
 
   const boom = page.getByRole("switch");
   await expect(boom).toHaveAttribute("aria-checked", "false");
+  await expect(page.getByRole("slider", { name: "Boom speed" })).toHaveCount(0);
   await boom.click();
   await expect(boom).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("img", { name: "Your gif" })).toBeVisible();
+  const speed = page.getByRole("slider", { name: "Boom speed" });
+  await expect(speed).toHaveValue("3");
+  await speed.fill("2");
+  await expect(speed).toHaveValue("2");
+  const gif = page.getByRole("img", { name: "Your gif" });
+  await expect(gif).toBeVisible();
+  await expect
+    .poll(() => gif.evaluate((image) => image.naturalWidth))
+    .toBe(900);
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("bb.boom")))
     .toBe("1");
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("bb.boomSpeed")))
+    .toBe("2");
 });
 
 test("Retake One picker can enter and cancel a retake without losing review", async ({
