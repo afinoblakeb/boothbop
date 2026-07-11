@@ -50,4 +50,31 @@ is a final personal look, not a large manual test program.
 - Fresh installs launch to recognizable BoothBop UI on supported iPhone
   simulators, including the smallest and largest target sizes.
 - Release build, Capacitor sync, Xcode archive, and repository hygiene pass.
-- The candidate is committed and pushed, but not submitted to App Review.
+- The candidate is committed, tagged, uploaded, and submitted to App Review.
+
+## Distribution Record
+
+- Source tag: `appstore-v0.0.3-build-0.0.3`
+- Binary commit: `0e9497c50529e2de94e79fdb18319ff136689ccd`
+- Version/build: `0.0.3 (0.0.3)`
+- Delivery UUID / build ID: `55737bca-d3ca-49c6-a962-192da51accd6`
+- App Store version ID: `e94d4b29-d4dd-4def-bb96-89257b91811b`
+- Review submission ID: `fb8cfa63-d89b-454e-8ad3-166b776cc856`
+- Submitted: `2026-07-11T04:39:47.707Z`
+- Release behavior: automatic after approval (`AFTER_APPROVAL`)
+
+## Submission Evidence
+
+- `npm run check`: 9 files and 76 tests passed with zero warnings.
+- `npm run check:e2e`: all 8 production-browser journeys passed.
+- Strict Release cold-launch smoke passed on iPhone 17 Pro / iOS 26.5 and
+  advanced beyond the native launch screen to recognizable BoothBop UI.
+- The iPhone 17e CoreSimulator instance did not finish booting within 120
+  seconds; this was a simulator infrastructure timeout before app install or
+  launch. Compact behavior is covered at 320x568 in the browser matrix.
+- Signed archive and App Store export succeeded with a cloud-managed Apple
+  Distribution certificate and `get-task-allow = false`.
+- Apple server-side IPA validation and upload completed with no errors.
+- App Store Connect accepted build processing as `VALID`, copied all five
+  screenshots, accepted the version metadata and review item, and moved the
+  submission to `WAITING_FOR_REVIEW`.
