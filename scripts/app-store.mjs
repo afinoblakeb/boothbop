@@ -80,11 +80,11 @@ function requiredOption(options, key) {
   return value;
 }
 
-function run(command, args, { capture = false } = {}) {
+function run(command, args, { capture = false, cwd = ROOT, env = {} } = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
-      cwd: ROOT,
-      env: process.env,
+      cwd,
+      env: { ...process.env, ...env },
       stdio: capture ? ["ignore", "pipe", "pipe"] : "inherit",
     });
     let stdout = "";
@@ -343,25 +343,36 @@ async function buildAndMaybeUpload(options) {
     "--apiIssuer",
     credentials.issuerId,
   ];
-  await run("xcrun", [
-    "altool",
-    "--validate-app",
-    "--file",
-    ipaPath,
-    "--type",
-    "ios",
-    ...altoolAuth,
-  ]);
-  if (options.upload) {
-    await run("xcrun", [
+  const altoolOptions = {
+    env: { API_PRIVATE_KEYS_DIR: path.dirname(credentials.keyPath) },
+  };
+  await run(
+    "xcrun",
+    [
       "altool",
-      "--upload-app",
+      "--validate-app",
       "--file",
       ipaPath,
       "--type",
       "ios",
       ...altoolAuth,
-    ]);
+    ],
+    altoolOptions,
+  );
+  if (options.upload) {
+    await run(
+      "xcrun",
+      [
+        "altool",
+        "--upload-app",
+        "--file",
+        ipaPath,
+        "--type",
+        "ios",
+        ...altoolAuth,
+      ],
+      altoolOptions,
+    );
     process.stdout.write(
       `Uploaded ${version} (${build}) to App Store Connect.\n`,
     );

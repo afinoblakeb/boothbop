@@ -34,6 +34,10 @@ APPCONNECT_KEY_PATH=/absolute/path/to/AuthKey_....p8
 
 Never commit the key or these values.
 
+For `altool`, the script sets Apple's `API_PRIVATE_KEYS_DIR` to the private
+key's containing directory. The key file must retain the
+`AuthKey_<KEY_ID>.p8` filename.
+
 ## Release Checklist
 
 1. Choose one small release scope and create `docs/releases/<VERSION>.txt` with
