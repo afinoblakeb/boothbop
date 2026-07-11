@@ -90,3 +90,41 @@ export const GearIcon = ({ className }: { className?: string }) => (
     <path d="M19.4 15a1.6 1.6 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.6 1.6 0 0 0-1.8-.3 1.6 1.6 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.6 1.6 0 0 0-1-1.5 1.6 1.6 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.6 1.6 0 0 0 .3-1.8 1.6 1.6 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.6 1.6 0 0 0 1.5-1 1.6 1.6 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.6 1.6 0 0 0 1.8.3H9a1.6 1.6 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.6 1.6 0 0 0 1 1.5 1.6 1.6 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.6 1.6 0 0 0-.3 1.8V9a1.6 1.6 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.6 1.6 0 0 0-1.5 1z" />
   </Svg>
 );
+
+export const AdjustmentsIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <path d="M4 6h5" />
+    <path d="M15 6h5" />
+    <circle cx="12" cy="6" r="3" />
+    <path d="M4 18h5" />
+    <path d="M15 18h5" />
+    <circle cx="12" cy="18" r="3" />
+    <path d="M4 12h10" />
+    <path d="M20 12h0" />
+    <circle cx="17" cy="12" r="3" />
+  </Svg>
+);
+
+export const LooksIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <circle cx="9" cy="10" r="5" />
+    <circle cx="15" cy="10" r="5" />
+    <circle cx="12" cy="15" r="5" />
+  </Svg>
+);
+
+export const LayoutIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <rect x="4" y="3" width="6" height="18" />
+    <rect x="14" y="3" width="6" height="8" />
+    <rect x="14" y="15" width="6" height="6" />
+  </Svg>
+);
+
+export const ColorsIcon = ({ className }: { className?: string }) => (
+  <Svg className={className}>
+    <circle cx="12" cy="12" r="8" />
+    <path d="M12 4v16" />
+    <path d="M12 12h8" />
+  </Svg>
+);

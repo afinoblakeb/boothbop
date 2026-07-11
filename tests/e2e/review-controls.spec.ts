@@ -2,33 +2,44 @@ import { expect, installDemoImages, openDemoReview, test } from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("Style overlay preserves the preview and exposes every control", async ({
-  page,
-}) => {
+test("Edit mode follows the Photos toolbar pattern", async ({ page }) => {
   await openDemoReview(page);
-  const preview = page.getByRole("img", { name: "Your strip" });
-  const before = await preview.boundingBox();
-  await page.getByRole("button", { name: "Style" }).click();
+  await page.getByRole("button", { name: "Edit" }).click();
 
-  const editor = page.getByRole("dialog", { name: "Style" });
+  const editor = page.getByRole("dialog", { name: "Edit photos" });
   await expect(editor).toBeVisible();
-  const after = await preview.boundingBox();
-  expect(after?.width).toBeCloseTo(before?.width ?? 0, 0);
-  expect(after?.height).toBeCloseTo(before?.height ?? 0, 0);
+  await expect(editor.getByRole("button", { name: "Done" })).toBeVisible();
+  await expect(
+    editor.getByRole("img", { name: "Editing strip" }),
+  ).toBeVisible();
+
+  const toolNames = ["Look", "Layout", "Colors"];
+  for (const tool of toolNames) {
+    await expect(editor.getByRole("button", { name: tool })).toBeVisible();
+  }
+
+  await expect(editor.getByRole("button", { name: "Look" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
 
   const looks = ["Original", "Warm", "Cool", "B&W", "Sepia", "Inverse"];
   const renderedLooks = new Set<string>();
   for (const look of looks) {
     const button = editor.getByRole("button", { name: look, exact: true });
     await expect(button).toBeVisible();
+    await expect(
+      editor.getByRole("img", { name: `${look} preview` }),
+    ).toBeVisible();
     await button.click();
     await expect(button).toHaveAttribute("aria-pressed", "true");
-    const preview = page.getByRole("img", { name: "Your strip" });
+    const preview = editor.getByRole("img", { name: "Editing strip" });
     await expect(preview).toHaveAttribute("src", /^data:image\/png/);
     renderedLooks.add((await preview.getAttribute("src")) ?? "");
   }
   expect(renderedLooks.size, "every look must render distinct pixels").toBe(6);
 
+  await editor.getByRole("button", { name: "Layout" }).click();
   const layout = editor.getByRole("group", { name: "Strip layout" });
   await layout.getByRole("button", { name: "Grid" }).click();
   await expect(layout.getByRole("button", { name: "Grid" })).toHaveAttribute(
@@ -36,6 +47,7 @@ test("Style overlay preserves the preview and exposes every control", async ({
     "true",
   );
 
+  await editor.getByRole("button", { name: "Colors" }).click();
   for (const color of ["Cream", "Rust", "Teal", "Mustard", "Olive", "Carbon"]) {
     const swatch = editor.getByRole("button", { name: color });
     await swatch.click();

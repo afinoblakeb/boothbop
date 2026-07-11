@@ -87,3 +87,29 @@ export function drawFilteredFrame(
   ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, width, height);
   filterCanvasRegion(ctx, x, y, width, height, filter);
 }
+
+/** Render a small, real preview using the same CPU recipe as exported media. */
+export function createFilterPreview(
+  sourceUrl: string,
+  filter: FilterId,
+  size = 88,
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject(new Error("Canvas unavailable"));
+        return;
+      }
+      ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, size, size);
+      filterCanvasRegion(ctx, 0, 0, size, size, filter);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    image.onerror = () => reject(new Error("Preview image failed to load"));
+    image.src = sourceUrl;
+  });
+}

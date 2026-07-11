@@ -23,8 +23,11 @@ Date: 2026-07-10
   stream or reopen a cancelled flow.
 - Hid gallery/settings actions during camera use and added an explicit Cancel.
 - Removed the duplicate home-gallery action and compact horizontal overflow.
-- Moved style controls into a bottom-sheet overlay so opening the editor cannot
-  resize the preview and Save / Share stays visible when editing is closed.
+- Replaced the scrolling style drawer with a full-screen, Photos-style editor:
+  a persistent output preview, Done action, real Look thumbnails, secondary
+  control rail, and fixed Look / Layout / Colors toolbar.
+- Consolidated Edit, Retake One, and Save / Share into a compact review toolbar
+  so the output remains visible without scrolling on 320px-wide phone layouts.
 - Made native splash ownership explicit: it remains visible until React has
   committed and painted, preventing the prior blank interval.
 - Added deadlines to native video writer waits so a failed AVAssetWriter cannot
@@ -51,7 +54,7 @@ Date: 2026-07-10
 - `npm run check:e2e`: 8 production-browser journeys, including a real
   four-capture fake-camera flow, successful Retake One, one gallery record,
   six distinct rendered looks, Boom, branding persistence, and 320/390/430px
-  layout assertions.
+  review/editor viewport assertions.
 - Clean generic iOS Release build: succeeded with zero warnings.
 - Unsigned distribution archive: succeeded and reports version/build `0.0.3`.
 - CI installs Chromium and runs both unit and production-browser gates.
@@ -69,6 +72,7 @@ before the matrix can produce valid post-splash evidence.
 ## Deliberately Held Back
 
 No templates, stickers, props, captions, reorder tools, party mode, imports,
-subscriptions, paywall, or prototype editor were included. Automatic Photos
-saving remains opt-in; Retake One updates the private gallery but does not
-create a second automatic Photos export that the app could not later remove.
+subscriptions, paywall, or general-purpose editor were included. Automatic
+Photos saving remains opt-in; Retake One updates the private gallery but does
+not create a second automatic Photos export that the app could not later
+remove.

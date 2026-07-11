@@ -1,10 +1,17 @@
 import { useEffect, useState } from "react";
 import { isVideoSupported } from "../lib/video";
 import { THEMES, type Layout } from "../lib/strip";
-import { FILTERS, type FilterId } from "../lib/filter";
-import { DownloadIcon, RefreshIcon, ShareIcon } from "../icons";
+import { createFilterPreview, FILTERS, type FilterId } from "../lib/filter";
 import {
-  Button,
+  AdjustmentsIcon,
+  ColorsIcon,
+  DownloadIcon,
+  LayoutIcon,
+  LooksIcon,
+  RefreshIcon,
+  ShareIcon,
+} from "../icons";
+import {
   Callout,
   IconButton,
   SectionLabel,
@@ -24,6 +31,8 @@ const THEME_LABELS: Record<string, string> = {
   olive: "Olive",
   carbon: "Carbon",
 };
+
+type EditTool = "look" | "layout" | "colors";
 
 /** The result screen: format tabs, live preview, strip styling, and actions. */
 export function ReviewScreen({
@@ -76,15 +85,44 @@ export function ReviewScreen({
   onRetakeOne: (index: number) => void;
 }) {
   const [showRetakePicker, setShowRetakePicker] = useState(false);
-  const [showStyle, setShowStyle] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editTool, setEditTool] = useState<EditTool>("look");
+  const [lookPreviews, setLookPreviews] = useState<
+    Partial<Record<FilterId, string>>
+  >({});
+
   useEffect(() => {
-    if (!showStyle) return;
+    if (!editing) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setShowStyle(false);
+      if (event.key === "Escape") setEditing(false);
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [showStyle]);
+  }, [editing]);
+
+  useEffect(() => {
+    if (!editing || !thumbs[0]) return;
+    let cancelled = false;
+
+    void Promise.all(
+      FILTERS.map(
+        async ({ id }) =>
+          [id, await createFilterPreview(thumbs[0], id)] as const,
+      ),
+    ).then((previews) => {
+      if (!cancelled) setLookPreviews(Object.fromEntries(previews));
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, thumbs]);
+
+  const openEditor = () => {
+    onSelectFormat("strip");
+    setEditTool("look");
+    setEditing(true);
+  };
   const tabs: { id: Format; label: string }[] = [
     { id: "strip", label: "Strip" },
     { id: "gif", label: "GIF" },
@@ -148,97 +186,20 @@ export function ReviewScreen({
         </div>
       )}
 
-      <Button
-        variant="secondary"
-        size="sm"
-        fullWidth
-        onClick={() => setShowStyle(true)}
-        className="mt-3"
-      >
-        Style
-      </Button>
-
-      {showStyle && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Style"
-          className="fixed inset-0 z-50"
-        >
-          <button
-            aria-label="Close Style"
-            className="absolute inset-0 cursor-default"
-            onClick={() => setShowStyle(false)}
-          />
-          <div className="absolute inset-x-0 bottom-0 max-h-[48dvh] overflow-y-auto border-t-2 border-ink bg-paper pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_0_rgba(17,17,17,0.12)]">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-ink bg-paper px-4 py-2">
-              <h2 className="font-display text-2xl uppercase tracking-wide text-ink">
-                Style
-              </h2>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setShowStyle(false)}
-              >
-                Done
-              </Button>
-            </div>
-            <div className="p-4">
-              <SectionLabel className="mb-1">Look</SectionLabel>
-              <div className="grid grid-cols-3 gap-2">
-                {FILTERS.map((item) => (
-                  <button
-                    key={item.id}
-                    onClick={() => onFilter(item.id)}
-                    aria-pressed={filter === item.id}
-                    className={`min-h-11 border-2 border-ink px-2 py-1 font-display text-sm uppercase tracking-wide ${
-                      filter === item.id
-                        ? "bg-orange text-cream"
-                        : "bg-cream text-ink"
-                    }`}
-                  >
-                    {item.label}
-                  </button>
-                ))}
-              </div>
-
-              {format === "strip" && (
-                <>
-                  <SectionLabel className="mb-1 mt-4">Layout</SectionLabel>
-                  <SegmentedControl
-                    fullWidth
-                    label="Strip layout"
-                    value={layout}
-                    onChange={setLayout}
-                    options={[
-                      { value: "4x1", label: "Strip" },
-                      { value: "2x2", label: "Grid" },
-                    ]}
-                    itemClassName="flex min-h-11 items-center justify-center py-2 text-base"
-                  />
-
-                  <SectionLabel className="mb-1 mt-4">Color</SectionLabel>
-                  <div className="grid grid-cols-6 gap-2 px-1">
-                    {Object.entries(THEMES).map(([key, theme]) => (
-                      <button
-                        key={key}
-                        onClick={() => setThemeKey(key)}
-                        aria-label={THEME_LABELS[key]}
-                        aria-pressed={themeKey === key}
-                        className={`aspect-square w-full border-2 border-ink transition ${
-                          themeKey === key
-                            ? "ring-2 ring-ink ring-offset-2 ring-offset-paper"
-                            : ""
-                        }`}
-                        style={{ background: theme.background }}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
+      {editing && (
+        <PhotoEditor
+          previewUrl={previewUrl}
+          activeTool={editTool}
+          setActiveTool={setEditTool}
+          lookPreviews={lookPreviews}
+          filter={filter}
+          onFilter={onFilter}
+          layout={layout}
+          setLayout={setLayout}
+          themeKey={themeKey}
+          setThemeKey={setThemeKey}
+          onDone={() => setEditing(false)}
+        />
       )}
 
       {/* One-time nudge: surface the native auto-save-to-Photos feature. */}
@@ -266,42 +227,38 @@ export function ReviewScreen({
         </Callout>
       )}
 
-      {/* Actions: one dominant primary, clear secondaries */}
-      {shareFilesOk ? (
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={onShare}
-          disabled={isBusy || !previewUrl}
-          className="mt-4"
+      {/* Compact review toolbar keeps the output visible on every phone size. */}
+      <div className="mt-3 grid w-full grid-cols-3 border-y-2 border-ink bg-paper">
+        <ReviewAction label="Edit" onClick={openEditor}>
+          <AdjustmentsIcon className="h-6 w-6" />
+        </ReviewAction>
+        <ReviewAction
+          label="Retake One"
+          onClick={() => setShowRetakePicker((shown) => !shown)}
+          pressed={showRetakePicker}
         >
-          <ShareIcon className="h-7 w-7" />
-          Save / Share
-        </Button>
-      ) : (
-        <Button
-          variant="primary"
-          size="lg"
-          fullWidth
-          onClick={onDownload}
-          disabled={isBusy || !previewUrl}
-          className="mt-4"
-        >
-          <DownloadIcon className="h-7 w-7" />
-          {saveLabel}
-        </Button>
-      )}
-      <Button
-        variant="secondary"
-        size="md"
-        fullWidth
-        onClick={() => setShowRetakePicker((shown) => !shown)}
-        className="mt-3"
-      >
-        <RefreshIcon className="h-6 w-6" />
-        Retake One
-      </Button>
+          <RefreshIcon className="h-6 w-6" />
+        </ReviewAction>
+        {shareFilesOk ? (
+          <ReviewAction
+            label="Save / Share"
+            onClick={onShare}
+            disabled={isBusy || !previewUrl}
+            primary
+          >
+            <ShareIcon className="h-6 w-6" />
+          </ReviewAction>
+        ) : (
+          <ReviewAction
+            label={saveLabel}
+            onClick={onDownload}
+            disabled={isBusy || !previewUrl}
+            primary
+          >
+            <DownloadIcon className="h-6 w-6" />
+          </ReviewAction>
+        )}
+      </div>
       {showRetakePicker && (
         <div
           className="mt-2 grid w-full grid-cols-4 gap-2"
@@ -322,15 +279,13 @@ export function ReviewScreen({
           ))}
         </div>
       )}
-      <Button
-        variant="secondary"
-        size="sm"
-        fullWidth
+      <button
+        type="button"
         onClick={onRetake}
-        className="mt-2"
+        className="mt-2 min-h-8 font-sans text-xs font-semibold text-brown underline underline-offset-2"
       >
         Start Over
-      </Button>
+      </button>
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
@@ -350,5 +305,249 @@ export function ReviewScreen({
         </Callout>
       )}
     </div>
+  );
+}
+
+function ReviewAction({
+  label,
+  onClick,
+  disabled = false,
+  pressed,
+  primary = false,
+  children,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+  pressed?: boolean;
+  primary?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={pressed}
+      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 border-x border-ink px-1 font-sans text-[11px] font-semibold leading-tight disabled:opacity-40 ${
+        primary ? "bg-orange text-cream" : "text-ink"
+      }`}
+    >
+      {children}
+      <span className="max-w-full text-center">{label}</span>
+    </button>
+  );
+}
+
+function PhotoEditor({
+  previewUrl,
+  activeTool,
+  setActiveTool,
+  lookPreviews,
+  filter,
+  onFilter,
+  layout,
+  setLayout,
+  themeKey,
+  setThemeKey,
+  onDone,
+}: {
+  previewUrl: string | null;
+  activeTool: EditTool;
+  setActiveTool: (tool: EditTool) => void;
+  lookPreviews: Partial<Record<FilterId, string>>;
+  filter: FilterId;
+  onFilter: (filter: FilterId) => void;
+  layout: Layout;
+  setLayout: (layout: Layout) => void;
+  themeKey: keyof typeof THEMES;
+  setThemeKey: (theme: keyof typeof THEMES) => void;
+  onDone: () => void;
+}) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label="Edit photos"
+      className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden bg-ink text-cream"
+    >
+      <header className="relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end justify-center border-b border-cream/15 px-4 pb-3 pt-[env(safe-area-inset-top)]">
+        <h2 className="font-sans text-base font-semibold">Edit</h2>
+        <button
+          type="button"
+          onClick={onDone}
+          className="absolute bottom-2 right-3 min-h-11 px-2 font-sans text-base font-semibold text-orange"
+        >
+          Done
+        </button>
+      </header>
+
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden px-3 py-2">
+        {previewUrl && (
+          <img
+            src={previewUrl}
+            alt="Editing strip"
+            className="max-h-full max-w-full object-contain shadow-[0_2px_16px_rgba(0,0,0,0.45)]"
+          />
+        )}
+      </div>
+
+      <div className="h-[7.4rem] shrink-0 border-t border-cream/15">
+        {activeTool === "look" && (
+          <div className="flex h-full snap-x items-center gap-3 overflow-x-auto px-4 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {FILTERS.map((item) => (
+              <button
+                type="button"
+                key={item.id}
+                onClick={() => onFilter(item.id)}
+                aria-label={item.label}
+                aria-pressed={filter === item.id}
+                className="flex w-[4.5rem] shrink-0 snap-center flex-col items-center gap-1 font-sans text-[11px]"
+              >
+                <span
+                  className={`block h-[4.5rem] w-[4.5rem] overflow-hidden rounded border-2 ${
+                    filter === item.id ? "border-orange" : "border-transparent"
+                  }`}
+                >
+                  <img
+                    src={lookPreviews[item.id] ?? lookPreviews.original}
+                    alt={`${item.label} preview`}
+                    className="h-full w-full object-cover"
+                  />
+                </span>
+                <span className={filter === item.id ? "text-orange" : ""}>
+                  {item.label}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {activeTool === "layout" && (
+          <div
+            role="group"
+            aria-label="Strip layout"
+            className="flex h-full items-center justify-center gap-10"
+          >
+            <LayoutChoice
+              label="Strip"
+              selected={layout === "4x1"}
+              onClick={() => setLayout("4x1")}
+              layout="strip"
+            />
+            <LayoutChoice
+              label="Grid"
+              selected={layout === "2x2"}
+              onClick={() => setLayout("2x2")}
+              layout="grid"
+            />
+          </div>
+        )}
+
+        {activeTool === "colors" && (
+          <div className="flex h-full items-center gap-5 overflow-x-auto px-6 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {Object.entries(THEMES).map(([key, theme]) => (
+              <button
+                type="button"
+                key={key}
+                onClick={() => setThemeKey(key)}
+                aria-label={THEME_LABELS[key]}
+                aria-pressed={themeKey === key}
+                className={`h-14 w-14 shrink-0 rounded-full border-2 transition ${
+                  themeKey === key
+                    ? "border-orange ring-2 ring-orange ring-offset-2 ring-offset-ink"
+                    : "border-cream/40"
+                }`}
+                style={{ background: theme.background }}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <nav className="grid h-[calc(4.4rem+env(safe-area-inset-bottom))] shrink-0 grid-cols-3 border-t border-cream/15 pb-[env(safe-area-inset-bottom)]">
+        <EditorTool
+          label="Look"
+          selected={activeTool === "look"}
+          onClick={() => setActiveTool("look")}
+        >
+          <LooksIcon className="h-6 w-6" />
+        </EditorTool>
+        <EditorTool
+          label="Layout"
+          selected={activeTool === "layout"}
+          onClick={() => setActiveTool("layout")}
+        >
+          <LayoutIcon className="h-6 w-6" />
+        </EditorTool>
+        <EditorTool
+          label="Colors"
+          selected={activeTool === "colors"}
+          onClick={() => setActiveTool("colors")}
+        >
+          <ColorsIcon className="h-6 w-6" />
+        </EditorTool>
+      </nav>
+    </div>
+  );
+}
+
+function EditorTool({
+  label,
+  selected,
+  onClick,
+  children,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`flex min-w-0 flex-col items-center justify-center gap-1 font-sans text-[11px] font-medium ${
+        selected ? "text-orange" : "text-cream/65"
+      }`}
+    >
+      {children}
+      {label}
+    </button>
+  );
+}
+
+function LayoutChoice({
+  label,
+  selected,
+  onClick,
+  layout,
+}: {
+  label: string;
+  selected: boolean;
+  onClick: () => void;
+  layout: "strip" | "grid";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={selected}
+      className={`flex min-w-20 flex-col items-center gap-2 font-sans text-xs ${
+        selected ? "text-orange" : "text-cream/70"
+      }`}
+    >
+      <span
+        className={`grid h-16 w-16 gap-1 border-2 p-1 ${
+          selected ? "border-orange" : "border-cream/40"
+        } ${layout === "strip" ? "grid-cols-1" : "grid-cols-2"}`}
+      >
+        {[0, 1, 2, 3].map((index) => (
+          <span key={index} className="bg-cream/75" />
+        ))}
+      </span>
+      {label}
+    </button>
   );
 }
