@@ -9,8 +9,10 @@ node_modules
 # ---- Build output ----
 dist
 dist-ssr
-dev-dist          # vite-plugin-pwa dev service worker output
-/build/           # signed archives and exported App Store IPAs
+# vite-plugin-pwa dev service worker output
+dev-dist
+# signed archives and exported App Store IPAs
+/build/
 *.tsbuildinfo
 
 # ---- Test / coverage ----
@@ -25,7 +27,8 @@ coverage
 *.local
 .env
 .env.*
-!.env.example      # a committed template is fine; real .env files are not
+# a committed template is fine; real .env files are not
+!.env.example
 *.pem
 *.key
 
@@ -49,12 +52,14 @@ npm-debug.log*
 # so the first native build stays clean.
 ios/App/Pods
 ios/App/build
-ios/App/App/public      # the web build is copied in at build time, not committed
+# the web build is copied in at build time, not committed
+ios/App/App/public
 ios/DerivedData
 android/.gradle
 android/app/build
 android/build
-android/app/src/main/assets/public   # copied-in web build
+# copied-in web build
+android/app/src/main/assets/public
 android/local.properties
 *.keystore
 
