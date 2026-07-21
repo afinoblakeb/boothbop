@@ -154,6 +154,58 @@ test("GIF sharing creates a compatible MP4 and preserves the original GIF", asyn
       size: expect.any(Number),
     });
 
+  const media = await page.evaluate(async () => {
+    const file = (
+      window as typeof window & {
+        __sharedFiles?: File[];
+      }
+    ).__sharedFiles?.[0];
+    if (!file) throw new Error("No shared social video was captured.");
+
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const containsAscii = (text: string) => {
+      const needle = new TextEncoder().encode(text);
+      return bytes.some((_, start) =>
+        needle.every((value, offset) => bytes[start + offset] === value),
+      );
+    };
+    const url = URL.createObjectURL(file);
+    const metadata = await new Promise<{
+      duration: number;
+      width: number;
+      height: number;
+    }>((resolve, reject) => {
+      const video = document.createElement("video");
+      video.preload = "metadata";
+      video.onloadedmetadata = () =>
+        resolve({
+          duration: video.duration,
+          width: video.videoWidth,
+          height: video.videoHeight,
+        });
+      video.onerror = () => reject(new Error("Generated MP4 is not playable."));
+      video.src = url;
+    });
+    URL.revokeObjectURL(url);
+
+    return {
+      ...metadata,
+      hasMp4Container: containsAscii("ftyp"),
+      hasAvcVideo: containsAscii("avc1"),
+      hasUnexpectedAacAudio: containsAscii("mp4a"),
+    };
+  });
+
+  expect(media).toMatchObject({
+    width: 1080,
+    height: 1080,
+    hasMp4Container: true,
+    hasAvcVideo: true,
+    hasUnexpectedAacAudio: false,
+  });
+  expect(media.duration).toBeGreaterThanOrEqual(5);
+  expect(media.duration).toBeLessThanOrEqual(6);
+
   await page.getByRole("button", { name: "Share Original GIF" }).click();
   await expect
     .poll(() =>

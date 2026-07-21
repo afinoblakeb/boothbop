@@ -100,6 +100,7 @@ export async function enableFileSharing(page: Page): Promise<void> {
           __sharePayloads?: {
             files: { name: string; type: string; size: number }[];
           }[];
+          __sharedFiles?: File[];
         };
         state.__shareCalls = (state.__shareCalls ?? 0) + 1;
         state.__sharePayloads ??= [];
@@ -110,6 +111,8 @@ export async function enableFileSharing(page: Page): Promise<void> {
             size: file.size,
           })),
         });
+        state.__sharedFiles ??= [];
+        state.__sharedFiles.push(...(data.files ?? []));
       },
     });
   });
