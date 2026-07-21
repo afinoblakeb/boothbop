@@ -13,11 +13,13 @@ export interface GifOptions {
   boom?: boolean;
 }
 
+export const GIF_DEFAULT_DELAY_MS = 450;
+
 export function encodeGif(
   frames: HTMLCanvasElement[],
   {
     size = 640,
-    delay = 450,
+    delay = GIF_DEFAULT_DELAY_MS,
     watermark = true,
     watermarkImg = null,
     filter = "original",
