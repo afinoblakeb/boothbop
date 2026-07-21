@@ -78,6 +78,10 @@ import {
   shareAction,
   SOCIAL_VIDEO_MIME,
 } from "./lib/socialShare";
+import {
+  dismissReleaseAnnouncement,
+  loadReleaseAnnouncement,
+} from "./lib/whatsNew";
 
 interface MediaResult {
   url: string;
@@ -134,6 +138,9 @@ export default function App() {
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
   const [shareFilesOk, setShareFilesOk] = useState(false);
+  const [releaseAnnouncement, setReleaseAnnouncement] = useState(
+    loadReleaseAnnouncement,
+  );
 
   // Export quality per media type (photo strip / GIF / video), persisted.
   const [quality, setQuality] = useState<QualitySettings>(loadQuality);
@@ -956,6 +963,11 @@ export default function App() {
             onStart={() => void openCamera()}
             installPrompt={installPrompt}
             error={error}
+            releaseAnnouncement={releaseAnnouncement}
+            onDismissReleaseAnnouncement={() => {
+              dismissReleaseAnnouncement();
+              setReleaseAnnouncement(null);
+            }}
           />
         ))}
 

@@ -9,6 +9,26 @@ import {
 
 test.use({ viewport: { width: 390, height: 844 } });
 
+test("release announcement appears once and stays dismissed", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByText("Sharing made social")).toBeVisible();
+  await expect(
+    page.getByText(
+      "GIF animations now share as videos, so they work with Instagram and more.",
+    ),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Dismiss update" }).click();
+  await expect(page.getByText("Sharing made social")).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText("Sharing made social")).toHaveCount(0);
+  await expect
+    .poll(() => page.evaluate(() => localStorage.getItem("bb.lastSeenRelease")))
+    .toBe("0.0.4");
+});
+
 test("Edit mode follows the Photos toolbar pattern", async ({ page }) => {
   await openDemoReview(page);
   await page.getByRole("button", { name: "Edit" }).click();

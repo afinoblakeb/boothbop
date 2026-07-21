@@ -1,7 +1,7 @@
 {
   "name": "boothbop",
   "private": true,
-  "version": "0.0.3",
+  "version": "0.0.4",
   "type": "module",
   "description": "Turn your phone into a selfie photo booth — 4 photos back to back, then a strip, GIF, or video.",
   "scripts": {
