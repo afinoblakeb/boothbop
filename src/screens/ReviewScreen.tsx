@@ -52,6 +52,8 @@ export function ReviewScreen({
   onOpenSettings,
   onDismissTip,
   onShare,
+  shareLabel,
+  onShareOriginalGif,
   onDownload,
   onRetake,
   filter,
@@ -67,7 +69,7 @@ export function ReviewScreen({
   format: Format;
   onSelectFormat: (f: Format) => void;
   previewUrl: string | null;
-  generating: null | "gif" | "video";
+  generating: null | "gif" | "video" | "share";
   layout: Layout;
   setLayout: (l: Layout) => void;
   themeKey: keyof typeof THEMES;
@@ -79,6 +81,8 @@ export function ReviewScreen({
   onOpenSettings: () => void;
   onDismissTip: () => void;
   onShare: () => void;
+  shareLabel: string;
+  onShareOriginalGif: () => void;
   onDownload: () => void;
   onRetake: () => void;
   filter: FilterId;
@@ -142,6 +146,8 @@ export function ReviewScreen({
         ? "Save GIF"
         : "Save Photo";
   const isBusy = generating !== null;
+  const mediaGenerating = generating === "gif" || generating === "video";
+  const sharePreparing = generating === "share";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center py-4">
@@ -157,7 +163,7 @@ export function ReviewScreen({
 
       {/* Live preview of the selected output */}
       <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
-        {isBusy ? (
+        {mediaGenerating ? (
           <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
             {generating === "gif" ? "Making your GIF…" : "Recording video…"}
@@ -281,7 +287,7 @@ export function ReviewScreen({
         )}
         {shareFilesOk ? (
           <ReviewAction
-            label="Save / Share"
+            label={sharePreparing ? "Preparing..." : shareLabel}
             onClick={onShare}
             disabled={isBusy || !previewUrl}
             primary
@@ -299,6 +305,11 @@ export function ReviewScreen({
           </ReviewAction>
         )}
       </div>
+      {sharePreparing && (
+        <p role="status" aria-live="polite" className="sr-only">
+          Preparing a social video to share
+        </p>
+      )}
       {showRetakePicker && features.retakeOne && (
         <div
           className="mt-2 grid w-full grid-cols-4 gap-2"
@@ -319,13 +330,25 @@ export function ReviewScreen({
           ))}
         </div>
       )}
-      <button
-        type="button"
-        onClick={onRetake}
-        className="mt-2 min-h-8 font-sans text-xs font-semibold text-brown underline underline-offset-2"
-      >
-        Start Over
-      </button>
+      <div className="mt-2 flex min-h-8 items-center justify-center gap-4 font-sans text-xs font-semibold text-brown">
+        {format === "gif" && shareFilesOk && (
+          <button
+            type="button"
+            onClick={onShareOriginalGif}
+            disabled={isBusy || !previewUrl}
+            className="min-h-8 underline underline-offset-2 disabled:opacity-40"
+          >
+            Share Original GIF
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRetake}
+          className="min-h-8 underline underline-offset-2"
+        >
+          Start Over
+        </button>
+      </div>
 
       {note && (
         <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>

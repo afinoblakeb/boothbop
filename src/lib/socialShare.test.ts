@@ -8,7 +8,7 @@ import {
 
 describe("social-ready sharing", () => {
   it("shares GIF animations as social-compatible MP4 by default", () => {
-    expect(shareAction("gif", true)).toEqual({
+    expect(shareAction("gif", true, true)).toEqual({
       label: "Share Animation",
       kind: "socialVideo",
     });
@@ -18,6 +18,13 @@ describe("social-ready sharing", () => {
     });
     expect(shareAction("video", true)).toEqual({
       label: "Share Video",
+      kind: "current",
+    });
+  });
+
+  it("keeps the GIF payload when this browser cannot make MP4", () => {
+    expect(shareAction("gif", true, false)).toEqual({
+      label: "Share GIF",
       kind: "current",
     });
   });

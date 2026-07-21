@@ -94,9 +94,22 @@ export async function enableFileSharing(page: Page): Promise<void> {
     });
     Object.defineProperty(navigator, "share", {
       configurable: true,
-      value: async () => {
-        const state = window as typeof window & { __shareCalls?: number };
+      value: async (data: ShareData) => {
+        const state = window as typeof window & {
+          __shareCalls?: number;
+          __sharePayloads?: {
+            files: { name: string; type: string; size: number }[];
+          }[];
+        };
         state.__shareCalls = (state.__shareCalls ?? 0) + 1;
+        state.__sharePayloads ??= [];
+        state.__sharePayloads.push({
+          files: (data.files ?? []).map((file) => ({
+            name: file.name,
+            type: file.type,
+            size: file.size,
+          })),
+        });
       },
     });
   });

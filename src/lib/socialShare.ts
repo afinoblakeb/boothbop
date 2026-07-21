@@ -24,7 +24,11 @@ export interface SocialVideoPlan {
   extension: "mp4";
 }
 
-export function shareAction(format: Format, canShare: boolean): ShareAction {
+export function shareAction(
+  format: Format,
+  canShare: boolean,
+  socialVideoSupported = true,
+): ShareAction {
   if (!canShare) {
     return {
       label:
@@ -37,11 +41,16 @@ export function shareAction(format: Format, canShare: boolean): ShareAction {
     };
   }
 
-  if (format === "gif") {
+  if (format === "gif" && socialVideoSupported) {
     return { label: "Share Animation", kind: "socialVideo" };
   }
   return {
-    label: format === "video" ? "Share Video" : "Share Photo",
+    label:
+      format === "video"
+        ? "Share Video"
+        : format === "gif"
+          ? "Share GIF"
+          : "Share Photo",
     kind: "current",
   };
 }

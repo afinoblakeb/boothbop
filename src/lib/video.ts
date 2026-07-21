@@ -48,6 +48,12 @@ export function isVideoSupported(): boolean {
   return isNativeShell() || webVideoSupported();
 }
 
+/** True only when this runtime can produce the MP4 social apps expect. */
+export function isSocialVideoSupported(): boolean {
+  if (isNativeShell()) return true;
+  return webVideoSupported() && pickMimeType()?.extension === "mp4";
+}
+
 export async function encodeVideo(
   frames: HTMLCanvasElement[],
   {

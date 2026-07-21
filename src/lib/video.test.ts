@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { isVideoSupported, pickMimeType } from "./video";
+import {
+  isSocialVideoSupported,
+  isVideoSupported,
+  pickMimeType,
+} from "./video";
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -50,5 +54,23 @@ describe("isVideoSupported", () => {
       HTMLCanvasElement.prototype as { captureStream?: () => MediaStream }
     ).captureStream = () => ({}) as MediaStream;
     expect(isVideoSupported()).toBe(true);
+  });
+});
+
+describe("isSocialVideoSupported", () => {
+  it("requires MP4 on the web", () => {
+    stubMediaRecorder(["video/webm;codecs=vp9"]);
+    (
+      HTMLCanvasElement.prototype as { captureStream?: () => MediaStream }
+    ).captureStream = () => ({}) as MediaStream;
+    expect(isSocialVideoSupported()).toBe(false);
+  });
+
+  it("accepts an MP4-capable browser", () => {
+    stubMediaRecorder(["video/mp4"]);
+    (
+      HTMLCanvasElement.prototype as { captureStream?: () => MediaStream }
+    ).captureStream = () => ({}) as MediaStream;
+    expect(isSocialVideoSupported()).toBe(true);
   });
 });

@@ -30,7 +30,7 @@ for (const phone of phones) {
       ).toHaveCount(0);
       await expectNoHorizontalOverflow(page);
       await expectFullyInViewport(
-        page.getByRole("button", { name: "Save / Share" }),
+        page.getByRole("button", { name: "Share Photo" }),
       );
 
       await page.getByRole("button", { name: "Edit" }).click();

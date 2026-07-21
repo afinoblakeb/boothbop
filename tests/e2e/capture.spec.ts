@@ -2,7 +2,7 @@ import { enableFileSharing, expect, test } from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
-test("captures four camera frames and reaches Save / Share", async ({
+test("captures four camera frames and reaches Share Photo", async ({
   page,
 }) => {
   await enableFileSharing(page);
@@ -19,7 +19,7 @@ test("captures four camera frames and reaches Save / Share", async ({
   await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
     timeout: 20_000,
   });
-  const save = page.getByRole("button", { name: "Save / Share" });
+  const save = page.getByRole("button", { name: "Share Photo" });
   await expect(save).toBeEnabled();
   await save.click();
   await expect

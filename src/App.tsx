@@ -15,7 +15,12 @@ import {
   type StripTheme,
 } from "./lib/strip";
 import { encodeGif } from "./lib/gif";
-import { encodeVideo, isVideoSupported, type VideoResult } from "./lib/video";
+import {
+  encodeVideo,
+  isSocialVideoSupported,
+  isVideoSupported,
+  type VideoResult,
+} from "./lib/video";
 import { encodeVideoNative } from "./lib/videoNative";
 import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
 import {
@@ -68,6 +73,11 @@ import {
   type BoomSpeed,
 } from "./lib/boom";
 import { useRemoteConfig } from "./hooks/useRemoteConfig";
+import {
+  planSocialVideo,
+  shareAction,
+  SOCIAL_VIDEO_MIME,
+} from "./lib/socialShare";
 
 interface MediaResult {
   url: string;
@@ -96,9 +106,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
 
   const [format, setFormat] = useState<Format>("strip");
-  const [generating, setGenerating] = useState<null | "gif" | "video">(null);
+  const [generating, setGenerating] = useState<
+    null | "gif" | "video" | "share"
+  >(null);
   const [gifResult, setGifResult] = useState<MediaResult | null>(null);
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
+  const [socialVideoResult, setSocialVideoResult] =
+    useState<MediaResult | null>(null);
   const [filter, setFilter] = useState<FilterId>(() => {
     const stored = localStorage.getItem("bb.filter");
     return stored === "warm" ||
@@ -193,6 +207,41 @@ export default function App() {
       : encodeVideo(src, opts);
   }
 
+  async function getSocialVideoResult(
+    src: HTMLCanvasElement[],
+    choices: RenderChoices = currentChoices(),
+  ): Promise<VideoResult> {
+    const profile = VIDEO_PROFILE[quality.video];
+    const plan = planSocialVideo({
+      frameCount: src.length,
+      boom: choices.boom,
+      boomSpeed: choices.boomSpeed,
+      requestedSize: profile.size,
+    });
+    const orderedFrames = plan.frameIndexes.map((index) => src[index]);
+    const watermarkImg = choices.branding ? await loadWatermark() : null;
+    const options = {
+      watermark: choices.branding,
+      watermarkImg,
+      filter: choices.filter,
+      size: plan.size,
+      bitrate: profile.bitrate,
+      frameMs: plan.frameMs,
+      loops: plan.loops,
+    };
+    const result = isNativeShell()
+      ? await encodeVideoNative(orderedFrames, options)
+      : await encodeVideo(orderedFrames, options);
+
+    if (
+      result.extension !== "mp4" ||
+      !result.blob.type.startsWith("video/mp4")
+    ) {
+      throw new Error("This device did not produce a compatible MP4.");
+    }
+    return result;
+  }
+
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
     const v = Number(localStorage.getItem("bb.delay"));
@@ -211,7 +260,7 @@ export default function App() {
     }
   }, [format, runtimeFeatures.gif, runtimeFeatures.video]);
 
-  useEffect(() => setShareFilesOk(probeShareFiles()), []);
+  useEffect(() => setShareFilesOk(isNativeShell() || probeShareFiles()), []);
   // Best-effort: ask the browser to keep the private gallery through eviction.
   useEffect(() => requestPersistence(), []);
   // Preload the strip-footer logo.
@@ -361,6 +410,10 @@ export default function App() {
     setGenerating(null);
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
+    setSocialVideoResult((r) => {
+      if (r?.url) URL.revokeObjectURL(r.url);
+      return null;
+    });
   }
 
   function changeQuality(media: QualityMedia, q: Quality) {
@@ -824,8 +877,49 @@ export default function App() {
   }
 
   async function shareCurrent() {
+    const action = shareAction(format, shareFilesOk, isSocialVideoSupported());
+    if (action.kind === "socialVideo") {
+      await shareSocialAnimation();
+      return;
+    }
     const media = await currentMedia();
     if (media) await shareMedia(media.blob, media.filename);
+  }
+
+  async function shareSocialAnimation() {
+    if (socialVideoResult) {
+      await shareMedia(socialVideoResult.blob, socialVideoResult.filename);
+      return;
+    }
+
+    const revision = renderRevision.current;
+    setError(null);
+    setNote(null);
+    setGenerating("share");
+    try {
+      await wait(30);
+      const { blob } = await getSocialVideoResult(framesRef.current);
+      if (revision !== renderRevision.current) return;
+      const media = {
+        url: "",
+        blob: new Blob([blob], { type: SOCIAL_VIDEO_MIME }),
+        filename: `boothbop-animation-${stamp()}.mp4`,
+      };
+      setSocialVideoResult(media);
+      await shareMedia(media.blob, media.filename);
+    } catch {
+      if (revision === renderRevision.current) {
+        setError(
+          "Couldn't prepare a social video. You can still share the original GIF.",
+        );
+      }
+    } finally {
+      if (revision === renderRevision.current) setGenerating(null);
+    }
+  }
+
+  async function shareOriginalGif() {
+    if (gifResult) await shareMedia(gifResult.blob, gifResult.filename);
   }
 
   async function downloadCurrent() {
@@ -839,6 +933,11 @@ export default function App() {
       : format === "gif"
         ? (gifResult?.url ?? null)
         : (videoResult?.url ?? null);
+  const primaryShare = shareAction(
+    format,
+    shareFilesOk,
+    isSocialVideoSupported(),
+  );
 
   return (
     <div className="mx-auto flex h-full max-w-md flex-col px-4">
@@ -892,6 +991,8 @@ export default function App() {
           onOpenSettings={openSettings}
           onDismissTip={dismissAutosaveTip}
           onShare={shareCurrent}
+          shareLabel={primaryShare.label}
+          onShareOriginalGif={shareOriginalGif}
           onDownload={downloadCurrent}
           onRetake={retake}
           filter={filter}

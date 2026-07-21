@@ -1,4 +1,5 @@
 import {
+  enableFileSharing,
   expect,
   installDemoImages,
   installRemoteConfig,
@@ -93,6 +94,134 @@ test("GIF Boom toggle updates and persists", async ({ page }) => {
     .toBe("2");
 });
 
+test("GIF sharing creates a compatible MP4 and preserves the original GIF", async ({
+  page,
+}) => {
+  await enableFileSharing(page);
+  await openDemoReview(page);
+  await page.getByRole("tab", { name: "GIF" }).click();
+  await expect(page.getByRole("img", { name: "Your gif" })).toBeVisible();
+
+  const shareAnimation = page.getByRole("button", {
+    name: "Share Animation",
+  });
+  await shareAnimation.click();
+  await expect(
+    page.getByRole("button", { name: "Preparing..." }),
+  ).toBeVisible();
+  await expect(page.getByRole("status")).toHaveText(
+    "Preparing a social video to share",
+  );
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (
+              window as typeof window & {
+                __sharePayloads?: {
+                  files: { name: string; type: string; size: number }[];
+                }[];
+              }
+            ).__sharePayloads?.[0]?.files[0],
+        ),
+      { timeout: 15_000 },
+    )
+    .toMatchObject({
+      name: expect.stringMatching(/^boothbop-animation-.*\.mp4$/),
+      type: "video/mp4",
+      size: expect.any(Number),
+    });
+
+  await page.getByRole("button", { name: "Share Original GIF" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __sharePayloads?: {
+                files: { name: string; type: string; size: number }[];
+              }[];
+            }
+          ).__sharePayloads?.[1]?.files[0],
+      ),
+    )
+    .toMatchObject({
+      name: expect.stringMatching(/^boothbop-.*\.gif$/),
+      type: "image/gif",
+      size: expect.any(Number),
+    });
+
+  const started = Date.now();
+  await shareAnimation.click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __shareCalls?: number }).__shareCalls ??
+          0,
+      ),
+    )
+    .toBe(3);
+  expect(
+    Date.now() - started,
+    "repeat sharing should reuse the MP4",
+  ).toBeLessThan(1_500);
+});
+
+test("GIF sharing does not promise social video without MP4 support", async ({
+  page,
+}) => {
+  await enableFileSharing(page);
+  await page.addInitScript(() => {
+    const supported = MediaRecorder.isTypeSupported.bind(MediaRecorder);
+    MediaRecorder.isTypeSupported = (type: string) =>
+      type.startsWith("video/mp4") ? false : supported(type);
+  });
+  await openDemoReview(page);
+  await page.getByRole("tab", { name: "GIF" }).click();
+  await expect(page.getByRole("button", { name: "Share GIF" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Share Animation" }),
+  ).toHaveCount(0);
+});
+
+test("social-video failure preserves an actionable GIF fallback", async ({
+  page,
+}) => {
+  await enableFileSharing(page);
+  await page.addInitScript(() => {
+    const ActualMediaRecorder = MediaRecorder;
+    class BrokenMediaRecorder extends ActualMediaRecorder {
+      static isTypeSupported(type: string) {
+        return type.startsWith("video/mp4");
+      }
+
+      constructor() {
+        throw new Error("intentional encoder failure");
+      }
+    }
+    Object.defineProperty(window, "MediaRecorder", {
+      configurable: true,
+      value: BrokenMediaRecorder,
+    });
+  });
+  await openDemoReview(page);
+  await page.getByRole("tab", { name: "GIF" }).click();
+  await page.getByRole("button", { name: "Share Animation" }).click();
+
+  await expect(
+    page.getByText(
+      "Couldn't prepare a social video. You can still share the original GIF.",
+    ),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Share Original GIF" }),
+  ).toBeEnabled();
+});
+
 test("Retake One picker can enter and cancel a retake without losing review", async ({
   page,
 }) => {
@@ -158,7 +287,7 @@ test("reviewed features can be remotely disabled without loading code", async ({
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Retake One" })).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: /Save (?:\/ Share|Photo)/ }),
+    page.getByRole("button", { name: /Share Photo|Save Photo/ }),
   ).toBeVisible();
 
   await page.getByRole("button", { name: "Settings" }).click();
