@@ -1,0 +1,6 @@
+Sharing is easier. GIF animations now share as social-ready videos, so they
+work with Instagram and other video-first apps. You can still share the
+original GIF whenever you want.
+
+This update also includes a one-time, permission-free notice so major BoothBop
+improvements are easy to discover after an automatic update.

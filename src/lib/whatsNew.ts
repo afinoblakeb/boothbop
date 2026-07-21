@@ -1,3 +1,5 @@
+import packageJson from "../../package.json";
+
 export interface ReleaseAnnouncement {
   version: string;
   title: string;
@@ -44,4 +46,3 @@ export function dismissReleaseAnnouncement(
     // Dismissal still succeeds for this session when storage is unavailable.
   }
 }
-import packageJson from "../../package.json";

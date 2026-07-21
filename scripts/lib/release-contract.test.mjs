@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appStoreVersionCreateBody,
+  assertPackageVersion,
   assertProjectVersions,
   assertReleaseVersion,
   buildLinkBody,
@@ -31,6 +32,18 @@ describe("App Store release contract", () => {
     ).not.toThrow();
     expect(() => assertProjectVersions(project, "0.0.5", "0.0.4")).toThrow(
       /MARKETING_VERSION/,
+    );
+  });
+
+  it("requires the bundled web app to match the requested release", () => {
+    expect(() =>
+      assertPackageVersion('{"name":"boothbop","version":"0.0.4"}', "0.0.4"),
+    ).not.toThrow();
+    expect(() =>
+      assertPackageVersion('{"name":"boothbop","version":"0.0.3"}', "0.0.4"),
+    ).toThrow(/package.json version/);
+    expect(() => assertPackageVersion("not json", "0.0.4")).toThrow(
+      /package.json is not valid JSON/,
     );
   });
 

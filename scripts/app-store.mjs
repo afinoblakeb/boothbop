@@ -11,6 +11,7 @@ import {
   APP_BUNDLE_ID,
   APP_STORE_APP_ID,
   appStoreVersionCreateBody,
+  assertPackageVersion,
   assertProjectVersions,
   assertReleaseVersion,
   buildLinkBody,
@@ -24,6 +25,7 @@ import {
 const ROOT = process.cwd();
 const PROJECT_PATH = path.join(ROOT, "ios", "App", "App.xcodeproj");
 const PROJECT_FILE = path.join(PROJECT_PATH, "project.pbxproj");
+const PACKAGE_FILE = path.join(ROOT, "package.json");
 const ACTIVE_REVIEW_STATES = new Set([
   "READY_FOR_REVIEW",
   "WAITING_FOR_REVIEW",
@@ -136,8 +138,9 @@ async function assertTaggedRelease(version, build) {
   }
 }
 
-async function assertXcodeVersions(version, build) {
+async function assertReleaseVersions(version, build) {
   assertProjectVersions(await readFile(PROJECT_FILE, "utf8"), version, build);
+  assertPackageVersion(await readFile(PACKAGE_FILE, "utf8"), version);
 }
 
 function queryPath(resourcePath, query) {
@@ -266,7 +269,7 @@ async function buildAndMaybeUpload(options) {
   const version = assertReleaseVersion(requiredOption(options, "version"));
   const build = assertReleaseVersion(requiredOption(options, "build"), "build");
   await assertCleanRepository();
-  await assertXcodeVersions(version, build);
+  await assertReleaseVersions(version, build);
   if (options.upload) await assertTaggedRelease(version, build);
 
   await run("npm", ["run", "check"]);
@@ -447,7 +450,7 @@ async function submit(options) {
   const build = assertReleaseVersion(requiredOption(options, "build"), "build");
   const whatsNewPath = requiredOption(options, "whats-new");
   await assertCleanRepository();
-  await assertXcodeVersions(version, build);
+  await assertReleaseVersions(version, build);
   await assertTaggedRelease(version, build);
 
   const client = await createAppStoreClient();

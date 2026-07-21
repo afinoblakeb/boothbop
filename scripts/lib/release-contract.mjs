@@ -116,3 +116,17 @@ export function assertProjectVersions(projectText, version, build) {
     );
   }
 }
+
+export function assertPackageVersion(packageText, version) {
+  let packageJson;
+  try {
+    packageJson = JSON.parse(packageText);
+  } catch {
+    throw new Error("package.json is not valid JSON.");
+  }
+  if (packageJson.version !== version) {
+    throw new Error(
+      `package.json version is ${packageJson.version ?? "missing"}; expected ${version}.`,
+    );
+  }
+}
