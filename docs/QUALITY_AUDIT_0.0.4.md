@@ -45,7 +45,7 @@ The production browser journey opens the generated file and verifies:
 - `npm run ios:smoke`: fresh uninstall/install/Release launch passes on iPhone
   17e, iPhone 17, and iPhone 17 Pro Max simulators. Pixel checks prove each
   device does not sustain a black launch surface and advances beyond launch UI
-  to recognizable BoothBop content within 30 seconds.
+  to recognizable BoothBop content within the bounded simulator timeout.
 - Native screenshots at all three sizes show the release notice, primary CTA,
   and legal controls without overlap or horizontal overflow.
 

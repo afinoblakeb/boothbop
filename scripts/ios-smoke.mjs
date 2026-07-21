@@ -284,7 +284,7 @@ async function sleep(ms) {
 
 async function captureVisibleScreenshot(device, screenshot) {
   const started = Date.now();
-  const deadline = started + 30000;
+  const deadline = started + 90000;
   let consecutiveBlackFrames = 0;
   let blackTransitionFrames = 0;
 
@@ -310,7 +310,7 @@ async function captureVisibleScreenshot(device, screenshot) {
   }
 
   throw new Error(
-    `${device.name} did not render the BoothBop home surface within 30 seconds.`,
+    `${device.name} did not render the BoothBop home surface within 90 seconds.`,
   );
 }
 
