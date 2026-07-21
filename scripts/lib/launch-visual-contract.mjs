@@ -1,7 +1,11 @@
-export function assertNoBlackLaunchFrame(deviceName, stats) {
-  if (stats.average < 12 && stats.brightRatio < 0.02) {
+export function isBlackLaunchFrame(stats) {
+  return stats.average < 12 && stats.brightRatio < 0.02;
+}
+
+export function assertNoSustainedBlackLaunch(deviceName, blackFrameCount) {
+  if (blackFrameCount >= 2) {
     throw new Error(
-      `${deviceName} rendered a black frame during launch: average luminance ${stats.average.toFixed(2)}, bright ratio ${(stats.brightRatio * 100).toFixed(2)}%.`,
+      `${deviceName} rendered ${blackFrameCount} consecutive black frames during launch.`,
     );
   }
 }

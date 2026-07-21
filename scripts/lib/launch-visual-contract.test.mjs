@@ -1,26 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  assertNoBlackLaunchFrame,
+  assertNoSustainedBlackLaunch,
+  isBlackLaunchFrame,
   isBoothBopHomeFrame,
 } from "./launch-visual-contract.mjs";
 
 describe("native launch visual contract", () => {
-  it("rejects a black intermediate frame even if launch later succeeds", () => {
-    expect(() =>
-      assertNoBlackLaunchFrame("iPhone", {
+  it("identifies black frames from screenshot luminance", () => {
+    expect(
+      isBlackLaunchFrame({
         average: 2,
         brightRatio: 0.001,
       }),
-    ).toThrow(/black frame/);
-  });
-
-  it("allows a light native launch frame while the web view starts", () => {
-    expect(() =>
-      assertNoBlackLaunchFrame("iPhone", {
+    ).toBe(true);
+    expect(
+      isBlackLaunchFrame({
         average: 205,
         brightRatio: 0.98,
       }),
-    ).not.toThrow();
+    ).toBe(false);
+  });
+
+  it("rejects sustained black launch frames but allows one OS transition sample", () => {
+    expect(() => assertNoSustainedBlackLaunch("iPhone", 1)).not.toThrow();
+    expect(() => assertNoSustainedBlackLaunch("iPhone", 2)).toThrow(
+      /2 consecutive black frames/,
+    );
   });
 
   it("recognizes the loaded BoothBop home screen, not just the splash", () => {

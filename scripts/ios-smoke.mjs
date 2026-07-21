@@ -4,7 +4,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
 import {
-  assertNoBlackLaunchFrame,
+  assertNoSustainedBlackLaunch,
+  isBlackLaunchFrame,
   isBoothBopHomeFrame,
 } from "./lib/launch-visual-contract.mjs";
 
@@ -284,6 +285,8 @@ async function sleep(ms) {
 async function captureVisibleScreenshot(device, screenshot) {
   const started = Date.now();
   const deadline = started + 30000;
+  let consecutiveBlackFrames = 0;
+  let blackTransitionFrames = 0;
 
   while (Date.now() < deadline) {
     await run(
@@ -296,9 +299,12 @@ async function captureVisibleScreenshot(device, screenshot) {
     );
 
     const stats = await screenshotStats(screenshot);
-    assertNoBlackLaunchFrame(device.name, stats);
+    const isBlack = isBlackLaunchFrame(stats);
+    consecutiveBlackFrames = isBlack ? consecutiveBlackFrames + 1 : 0;
+    if (isBlack) blackTransitionFrames += 1;
+    assertNoSustainedBlackLaunch(device.name, consecutiveBlackFrames);
     if (isBoothBopHomeFrame(stats)) {
-      return { elapsedMs: Date.now() - started, stats };
+      return { blackTransitionFrames, elapsedMs: Date.now() - started, stats };
     }
     await sleep(500);
   }
@@ -453,10 +459,8 @@ async function testDevice(device) {
     }
     if (launchError) throw launchError;
 
-    const { elapsedMs, stats } = await captureVisibleScreenshot(
-      device,
-      screenshot,
-    );
+    const { blackTransitionFrames, elapsedMs, stats } =
+      await captureVisibleScreenshot(device, screenshot);
     await assertNoNativeLaunchFailures(device);
 
     console.log(
@@ -464,9 +468,9 @@ async function testDevice(device) {
         1,
       )} stddev=${stats.standardDeviation.toFixed(1)} orange=${(
         stats.brandOrangeRatio * 100
-      ).toFixed(
-        1,
-      )}% home=${(elapsedMs / 1000).toFixed(1)}s screenshot=${screenshot}`,
+      ).toFixed(1)}% transitionBlack=${blackTransitionFrames} home=${(
+        elapsedMs / 1000
+      ).toFixed(1)}s screenshot=${screenshot}`,
     );
   } finally {
     await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {

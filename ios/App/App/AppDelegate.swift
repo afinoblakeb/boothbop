@@ -25,10 +25,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 }
 
-// The Main storyboard (referenced by the scene manifest) supplies the Capacitor
-// bridge view controller and the window automatically, so this scene delegate
-// only forwards URL / user-activity opens to Capacitor (deep links, universal
-// links). Defined here, in the existing file, to avoid Xcode project edits.
+// Build the scene deterministically. Storyboard-driven scene creation can remove
+// the launch screen before a root view is ready, exposing the window's black
+// default during a cold WebKit startup.
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
@@ -38,7 +37,28 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         willConnectTo session: UISceneSession,
         options connectionOptions: UIScene.ConnectionOptions
     ) {
-        window?.backgroundColor = .boothBopCream
+        guard let windowScene = scene as? UIWindowScene else { return }
+
+        let sceneWindow = UIWindow(windowScene: windowScene)
+        sceneWindow.backgroundColor = .boothBopCream
+        let launchViewController = UIStoryboard(
+            name: "LaunchScreen", bundle: nil
+        ).instantiateInitialViewController() ?? UIViewController()
+        launchViewController.view.backgroundColor = .boothBopCream
+        sceneWindow.rootViewController = launchViewController
+        window = sceneWindow
+        sceneWindow.makeKeyAndVisible()
+
+        DispatchQueue.main.async {
+            let rootViewController = BridgeViewController()
+            rootViewController.loadViewIfNeeded()
+            // Capacitor's SplashScreen plugin attaches its launch overlay on
+            // the next main-loop turn. Keep the system launch controller
+            // visible until that overlay exists, then swap without a gap.
+            DispatchQueue.main.async {
+                sceneWindow.rootViewController = rootViewController
+            }
+        }
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {

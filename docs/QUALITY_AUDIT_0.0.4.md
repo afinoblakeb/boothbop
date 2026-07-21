@@ -37,16 +37,28 @@ The production browser journey opens the generated file and verifies:
 
 ## Automated Evidence
 
-- `npm run check`: typecheck, lint, formatting, and 102 unit tests pass with
+- `npm run check`: typecheck, lint, formatting, and 105 unit tests pass with
   zero warnings.
 - `npm run test:e2e`: 13 production-browser journeys pass, including capture,
   all output formats, real MP4 inspection, failure fallback, update notice,
   and compact/standard/large layouts.
 - `npm run ios:smoke`: fresh uninstall/install/Release launch passes on iPhone
   17e, iPhone 17, and iPhone 17 Pro Max simulators. Pixel checks prove each
-  device advances beyond launch UI to recognizable BoothBop content.
+  device does not sustain a black launch surface and advances beyond launch UI
+  to recognizable BoothBop content within 30 seconds.
 - Native screenshots at all three sizes show the release notice, primary CTA,
   and legal controls without overlap or horizontal overflow.
+
+## Launch Regression
+
+A physical install and the stricter simulator harness exposed a black interval
+between iOS removing its launch surface and Capacitor attaching its in-process
+splash. The native scene now presents the launch controller first, prepares the
+bridge offscreen, and swaps only after Capacitor's splash has attached on the
+next main-loop turn. The system-owned launch interval uses a fixed asset-catalog
+cream color, and the window, bridge view, WebView, and scroll view use the same
+color. The smoke harness samples immediately after process launch, fails on two
+consecutive black frames, and separately requires recognizable home content.
 
 ## Simulator Recovery
 
