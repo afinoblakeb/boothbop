@@ -32,13 +32,15 @@ export function drawWatermark(
   height: number,
   img: HTMLImageElement | null,
   opacity = 0.85,
+  originX = 0,
+  originY = 0,
 ) {
   if (!img) return;
   const w = width * 0.4;
   const h = w * (img.height / img.width);
   const pad = Math.round(width * 0.03);
-  const x = width - w - pad;
-  const y = height - h - pad;
+  const x = originX + width - w - pad;
+  const y = originY + height - h - pad;
 
   ctx.save();
   ctx.globalAlpha = opacity;

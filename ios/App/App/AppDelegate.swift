@@ -3,6 +3,14 @@ import Capacitor
 import Photos
 import AVFoundation
 
+private extension UIColor {
+    static let boothBopCream = UIColor(
+        red: 246.0 / 255.0,
+        green: 231.0 / 255.0,
+        blue: 207.0 / 255.0,
+        alpha: 1.0)
+}
+
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
@@ -24,6 +32,14 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
+
+    func scene(
+        _ scene: UIScene,
+        willConnectTo session: UISceneSession,
+        options connectionOptions: UIScene.ConnectionOptions
+    ) {
+        window?.backgroundColor = .boothBopCream
+    }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         guard let url = URLContexts.first?.url else { return }
@@ -205,13 +221,18 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 
     private enum VideoError: Error { case decode, writer, append }
 
-    // make({ images: [base64 jpeg], size, bitrate, frameMs, loops, fps }) -> { base64 }
+    // make({ images: [base64 jpeg], width, height, bitrate, frameMs, loops, fps }) -> { base64 }
     @objc func make(_ call: CAPPluginCall) {
         let images = call.getArray("images", String.self) ?? []
         guard !images.isEmpty else {
             return call.reject("No frames provided", "argumentError")
         }
         let size = call.getInt("size") ?? 720
+        let width = call.getInt("width") ?? size
+        let height = call.getInt("height") ?? size
+        guard width > 0, height > 0 else {
+            return call.reject("Video dimensions must be positive", "argumentError")
+        }
         let bitrate = call.getInt("bitrate") ?? 6_000_000
         let frameMs = call.getInt("frameMs") ?? 600
         let loops = max(1, call.getInt("loops") ?? 2)
@@ -220,7 +241,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 let data = try self.renderMP4(
-                    images: images, size: size, bitrate: bitrate,
+                    images: images, width: width, height: height, bitrate: bitrate,
                     frameMs: frameMs, loops: loops, fps: fps)
                 call.resolve(["base64": data.base64EncodedString()])
             } catch {
@@ -230,7 +251,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func renderMP4(
-        images: [String], size: Int, bitrate: Int,
+        images: [String], width: Int, height: Int, bitrate: Int,
         frameMs: Int, loops: Int, fps: Int
     ) throws -> Data {
         let outURL = FileManager.default.temporaryDirectory
@@ -240,16 +261,16 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
         let settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
-            AVVideoWidthKey: size,
-            AVVideoHeightKey: size,
+            AVVideoWidthKey: width,
+            AVVideoHeightKey: height,
             AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate]
         ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = false
         let attrs: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
-            kCVPixelBufferWidthKey as String: size,
-            kCVPixelBufferHeightKey as String: size
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height
         ]
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input, sourcePixelBufferAttributes: attrs)
@@ -259,7 +280,9 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         writer.startSession(atSourceTime: .zero)
 
         // Decode each frame to a pixel buffer once, then hold it for its slot.
-        let buffers = try images.map { try self.pixelBuffer(fromBase64: $0, size: size) }
+        let buffers = try images.map {
+            try self.pixelBuffer(fromBase64: $0, width: width, height: height)
+        }
         let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
         let timescale = CMTimeScale(fps)
         var frameIndex: Int64 = 0
@@ -299,7 +322,9 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         return data
     }
 
-    private func pixelBuffer(fromBase64 base64: String, size: Int) throws -> CVPixelBuffer {
+    private func pixelBuffer(
+        fromBase64 base64: String, width: Int, height: Int
+    ) throws -> CVPixelBuffer {
         // Tolerate an optional "data:...;base64," prefix.
         let raw = base64.contains(",") ? String(base64.split(separator: ",").last ?? "") : base64
         guard let data = Data(base64Encoded: raw),
@@ -313,7 +338,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         ]
         var pb: CVPixelBuffer?
         let status = CVPixelBufferCreate(
-            kCFAllocatorDefault, size, size,
+            kCFAllocatorDefault, width, height,
             kCVPixelFormatType_32BGRA, attrs as CFDictionary, &pb)
         guard status == kCVReturnSuccess, let buffer = pb else { throw VideoError.decode }
 
@@ -321,7 +346,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
         guard let ctx = CGContext(
             data: CVPixelBufferGetBaseAddress(buffer),
-            width: size, height: size,
+            width: width, height: height,
             bitsPerComponent: 8,
             bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
             space: CGColorSpaceCreateDeviceRGB(),
@@ -329,7 +354,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
                 | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { throw VideoError.decode }
 
-        ctx.draw(image, in: CGRect(x: 0, y: 0, width: size, height: size))
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         return buffer
     }
 }
@@ -337,6 +362,14 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 // Custom bridge VC: registers our local plugins in code so they never depend on
 // the SPM auto-registration path that failed for the third-party plugin.
 class BridgeViewController: CAPBridgeViewController {
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        view.backgroundColor = .boothBopCream
+        webView?.isOpaque = false
+        webView?.backgroundColor = .boothBopCream
+        webView?.scrollView.backgroundColor = .boothBopCream
+    }
+
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(BoothBopPhotos())
         bridge?.registerPluginInstance(BoothBopVideo())

@@ -12,7 +12,9 @@ import { registerPlugin } from "@capacitor/core";
 export interface BoothBopVideoPlugin {
   make(options: {
     images: string[]; // base64 JPEG frames, in play order (no data: prefix needed)
-    size: number; // square output dimension
+    size: number; // legacy square fallback
+    width: number;
+    height: number;
     bitrate: number; // target average bitrate (bits/sec)
     frameMs: number; // how long each photo is held
     loops: number; // how many times to cycle the 4 photos

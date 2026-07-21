@@ -75,6 +75,7 @@ import {
 import { useRemoteConfig } from "./hooks/useRemoteConfig";
 import {
   planSocialVideo,
+  SOCIAL_VIDEO_BACKGROUND,
   shareAction,
   SOCIAL_VIDEO_MIME,
 } from "./lib/socialShare";
@@ -223,7 +224,6 @@ export default function App() {
       frameCount: src.length,
       boom: choices.boom,
       boomSpeed: choices.boomSpeed,
-      requestedSize: profile.size,
     });
     const orderedFrames = plan.frameIndexes.map((index) => src[index]);
     const watermarkImg = choices.branding ? await loadWatermark() : null;
@@ -231,7 +231,9 @@ export default function App() {
       watermark: choices.branding,
       watermarkImg,
       filter: choices.filter,
-      size: plan.size,
+      width: plan.width,
+      height: plan.height,
+      backgroundColor: SOCIAL_VIDEO_BACKGROUND,
       bitrate: profile.bitrate,
       frameMs: plan.frameMs,
       loops: plan.loops,

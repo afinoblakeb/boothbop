@@ -174,15 +174,34 @@ test("GIF sharing creates a compatible MP4 and preserves the original GIF", asyn
       duration: number;
       width: number;
       height: number;
+      topPixel: number[];
+      centerPixel: number[];
+      bottomPixel: number[];
     }>((resolve, reject) => {
       const video = document.createElement("video");
-      video.preload = "metadata";
-      video.onloadedmetadata = () =>
+      video.preload = "auto";
+      video.muted = true;
+      video.onloadedmetadata = () => {
+        video.currentTime = 0.1;
+      };
+      video.onseeked = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        const context = canvas.getContext("2d");
+        if (!context) return reject(new Error("Canvas is unavailable."));
+        context.drawImage(video, 0, 0);
+        const pixel = (x: number, y: number) =>
+          [...context.getImageData(x, y, 1, 1).data].slice(0, 3);
         resolve({
           duration: video.duration,
           width: video.videoWidth,
           height: video.videoHeight,
+          topPixel: pixel(540, 100),
+          centerPixel: pixel(540, 960),
+          bottomPixel: pixel(540, 1820),
         });
+      };
       video.onerror = () => reject(new Error("Generated MP4 is not playable."));
       video.src = url;
     });
@@ -198,13 +217,19 @@ test("GIF sharing creates a compatible MP4 and preserves the original GIF", asyn
 
   expect(media).toMatchObject({
     width: 1080,
-    height: 1080,
+    height: 1920,
     hasMp4Container: true,
     hasAvcVideo: true,
     hasUnexpectedAacAudio: false,
   });
   expect(media.duration).toBeGreaterThanOrEqual(5);
   expect(media.duration).toBeLessThanOrEqual(6);
+  const cream = [246, 231, 207];
+  const colorDistance = (left: number[], right: number[]) =>
+    left.reduce((sum, value, index) => sum + Math.abs(value - right[index]), 0);
+  expect(colorDistance(media.topPixel, cream)).toBeLessThan(25);
+  expect(colorDistance(media.bottomPixel, cream)).toBeLessThan(25);
+  expect(colorDistance(media.centerPixel, media.topPixel)).toBeGreaterThan(40);
 
   await page.getByRole("button", { name: "Share Original GIF" }).click();
   await expect

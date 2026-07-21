@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  SOCIAL_VIDEO_MIN_SIZE,
+  SOCIAL_FEED_SAFE_HEIGHT,
+  SOCIAL_VIDEO_BACKGROUND,
+  SOCIAL_VIDEO_HEIGHT,
   SOCIAL_VIDEO_MIME,
+  SOCIAL_VIDEO_WIDTH,
   planSocialVideo,
   shareAction,
 } from "./socialShare";
@@ -40,14 +43,30 @@ describe("social-ready sharing", () => {
       frameCount: 4,
       boom: false,
       boomSpeed: 3,
-      requestedSize: 1080,
     });
 
     expect(plan.frameIndexes).toEqual([0, 1, 2, 3]);
     expect(plan.frameMs).toBe(450);
     expect(plan.loops).toBe(3);
     expect(plan.durationMs).toBe(5400);
-    expect(plan.size).toBe(1080);
+    expect(plan.width).toBe(SOCIAL_VIDEO_WIDTH);
+    expect(plan.height).toBe(SOCIAL_VIDEO_HEIGHT);
+    expect(plan.contentRect).toEqual({
+      x: 0,
+      y: 420,
+      width: 1080,
+      height: 1080,
+    });
+    expect(plan.feedSafeRect).toEqual({
+      x: 0,
+      y: 285,
+      width: 1080,
+      height: SOCIAL_FEED_SAFE_HEIGHT,
+    });
+    expect(plan.contentRect.y).toBeGreaterThan(plan.feedSafeRect.y);
+    expect(plan.contentRect.y + plan.contentRect.height).toBeLessThan(
+      plan.feedSafeRect.y + plan.feedSafeRect.height,
+    );
     expect(plan.mimeType).toBe(SOCIAL_VIDEO_MIME);
     expect(plan.extension).toBe("mp4");
   });
@@ -63,7 +82,6 @@ describe("social-ready sharing", () => {
         frameCount: 4,
         boom: true,
         boomSpeed,
-        requestedSize: 720,
       });
 
       expect(plan.frameIndexes).toEqual([0, 1, 2, 3, 2, 1]);
@@ -73,15 +91,14 @@ describe("social-ready sharing", () => {
     },
   );
 
-  it("enforces the social-video resolution floor", () => {
-    expect(
-      planSocialVideo({
-        frameCount: 4,
-        boom: false,
-        boomSpeed: 3,
-        requestedSize: 540,
-      }).size,
-    ).toBe(SOCIAL_VIDEO_MIN_SIZE);
+  it("uses a stable Instagram-safe canvas and BoothBop background", () => {
+    const plan = planSocialVideo({
+      frameCount: 4,
+      boom: false,
+      boomSpeed: 3,
+    });
+    expect([plan.width, plan.height]).toEqual([1080, 1920]);
+    expect(SOCIAL_VIDEO_BACKGROUND).toBe("#f6e7cf");
   });
 
   it("rejects an empty animation", () => {
@@ -90,7 +107,6 @@ describe("social-ready sharing", () => {
         frameCount: 0,
         boom: false,
         boomSpeed: 3,
-        requestedSize: 1080,
       }),
     ).toThrow("at least one frame");
   });

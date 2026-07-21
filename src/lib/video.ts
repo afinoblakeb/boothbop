@@ -6,6 +6,9 @@ import { drawFilteredFrame, type FilterId } from "./filter";
 
 export interface VideoOptions {
   size?: number; // output dimension (square)
+  width?: number; // output width; defaults to size
+  height?: number; // output height; defaults to size
+  backgroundColor?: string; // visible around a centered square frame
   bitrate?: number; // target video bitrate (bits/sec)
   frameMs?: number; // how long each photo stays on screen
   loops?: number; // how many times to cycle through the 4 photos
@@ -58,6 +61,9 @@ export async function encodeVideo(
   frames: HTMLCanvasElement[],
   {
     size = 720,
+    width = size,
+    height = size,
+    backgroundColor = "#f6e7cf",
     bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
@@ -70,14 +76,35 @@ export async function encodeVideo(
   if (!picked) throw new Error("Video recording isn't supported here.");
 
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d")!;
+  const contentSize = Math.min(width, height);
+  const contentX = Math.round((width - contentSize) / 2);
+  const contentY = Math.round((height - contentSize) / 2);
 
   const draw = (frame: HTMLCanvasElement) => {
-    ctx.clearRect(0, 0, size, size);
-    drawFilteredFrame(ctx, frame, 0, 0, size, size, filter);
-    if (watermark) drawWatermark(ctx, size, size, watermarkImg);
+    ctx.fillStyle = backgroundColor;
+    ctx.fillRect(0, 0, width, height);
+    drawFilteredFrame(
+      ctx,
+      frame,
+      contentX,
+      contentY,
+      contentSize,
+      contentSize,
+      filter,
+    );
+    if (watermark)
+      drawWatermark(
+        ctx,
+        contentSize,
+        contentSize,
+        watermarkImg,
+        0.85,
+        contentX,
+        contentY,
+      );
   };
   draw(frames[0]);
 

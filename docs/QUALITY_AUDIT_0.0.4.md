@@ -15,7 +15,9 @@ accounts, analytics, a backend, or a permission prompt.
 - Strip shares a PNG, GIF shares a social MP4, and Video shares its existing
   video output with explicit action labels.
 - The social MP4 preserves frame order, selected Look, Boom sequence and speed,
-  output quality, and the branding preference.
+  and the branding preference.
+- The square composition is centered on a 1080x1920 canvas and remains wholly
+  inside Instagram's centered 1080x1350 feed crop.
 - MP4 generation is cached until an output-affecting choice changes.
 - A generation failure remains visible and leaves Share Original GIF usable.
 - The release notice appears once for `0.0.4`, dismisses accessibly, persists
@@ -28,7 +30,8 @@ The production browser journey opens the generated file and verifies:
 - MIME type `video/mp4` and `.mp4` filename.
 - ISO BMFF `ftyp` marker and H.264 `avc1` codec marker.
 - No unexpected AAC audio track.
-- 1080x1080 square dimensions and a duration between 5 and 6 seconds.
+- 1080x1920 dimensions, cream top/bottom margins, visible center content, and a
+  duration between 5 and 6 seconds.
 - The original `.gif` remains separately shareable.
 - A repeated share reuses the prepared result in under 1.5 seconds.
 
@@ -62,6 +65,6 @@ benefit here; the in-app badge-like notice is deterministic and private.
 ## Remaining Platform Boundary
 
 Simulators and automated browser tests cannot complete a handoff into the
-installed Instagram app. The exported contract is the documented compatible
-shape: square H.264 MP4 without audio. App Review receives the same signed
-binary validated by this matrix.
+installed Instagram app. The exported contract is a 9:16 H.264 MP4 without
+audio whose complete square composition fits inside the centered 4:5 feed crop.
+App Review receives the same signed binary validated by this matrix.

@@ -30,17 +30,41 @@ function base64ToBlob(base64: string, mime: string): Blob {
 // prefix) — exactly what the native plugin expects.
 function frameToBase64(
   frame: HTMLCanvasElement,
-  size: number,
+  width: number,
+  height: number,
+  backgroundColor: string,
   watermark: boolean,
   watermarkImg: HTMLImageElement | null,
   filter: FilterId,
 ): string {
   const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = width;
+  canvas.height = height;
   const ctx = canvas.getContext("2d")!;
-  drawFilteredFrame(ctx, frame, 0, 0, size, size, filter);
-  if (watermark) drawWatermark(ctx, size, size, watermarkImg);
+  const contentSize = Math.min(width, height);
+  const contentX = Math.round((width - contentSize) / 2);
+  const contentY = Math.round((height - contentSize) / 2);
+  ctx.fillStyle = backgroundColor;
+  ctx.fillRect(0, 0, width, height);
+  drawFilteredFrame(
+    ctx,
+    frame,
+    contentX,
+    contentY,
+    contentSize,
+    contentSize,
+    filter,
+  );
+  if (watermark)
+    drawWatermark(
+      ctx,
+      contentSize,
+      contentSize,
+      watermarkImg,
+      0.85,
+      contentX,
+      contentY,
+    );
   return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
 }
 
@@ -48,6 +72,9 @@ export async function encodeVideoNative(
   frames: HTMLCanvasElement[],
   {
     size = 720,
+    width = size,
+    height = size,
+    backgroundColor = "#f6e7cf",
     bitrate = 6_000_000,
     frameMs = 600,
     loops = 2,
@@ -58,11 +85,28 @@ export async function encodeVideoNative(
 ): Promise<VideoResult> {
   try {
     const images = frames.map((f) =>
-      frameToBase64(f, size, watermark, watermarkImg, filter),
+      frameToBase64(
+        f,
+        width,
+        height,
+        backgroundColor,
+        watermark,
+        watermarkImg,
+        filter,
+      ),
     );
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withTimeout(
-      BoothBopVideo.make({ images, size, bitrate, frameMs, loops, fps: 30 }),
+      BoothBopVideo.make({
+        images,
+        size,
+        width,
+        height,
+        bitrate,
+        frameMs,
+        loops,
+        fps: 30,
+      }),
       NATIVE_TIMEOUT_MS,
       "native video",
     );
@@ -72,6 +116,9 @@ export async function encodeVideoNative(
     // recorder so the Video tab still produces something.
     return encodeVideo(frames, {
       size,
+      width,
+      height,
+      backgroundColor,
       bitrate,
       frameMs,
       loops,

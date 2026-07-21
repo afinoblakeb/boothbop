@@ -3,6 +3,10 @@ import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import sharp from "sharp";
+import {
+  assertNoBlackLaunchFrame,
+  isBoothBopHomeFrame,
+} from "./lib/launch-visual-contract.mjs";
 
 const projectRoot = process.cwd();
 const projectFile = path.join("ios", "App", "App.xcodeproj");
@@ -273,58 +277,13 @@ async function screenshotStats(filePath) {
   };
 }
 
-function assertVisibleScreen(deviceName, stats) {
-  if (stats.average < 12 && stats.brightRatio < 0.02) {
-    throw new Error(
-      `${deviceName} rendered a black screen: average luminance ${stats.average.toFixed(
-        2,
-      )}, bright ratio ${(stats.brightRatio * 100).toFixed(2)}%.`,
-    );
-  }
-
-  if (stats.standardDeviation < 6) {
-    throw new Error(
-      `${deviceName} rendered a visually blank screen: luminance standard deviation ${stats.standardDeviation.toFixed(
-        2,
-      )}.`,
-    );
-  }
-
-  // The native launch screen is intentionally darker than the loaded home
-  // surface. Requiring the light home luminance proves WKWebView advanced past
-  // splash instead of accepting any nonblack native frame.
-  if (stats.average < 150) {
-    throw new Error(
-      `${deviceName} did not advance past the launch screen: average luminance ${stats.average.toFixed(
-        2,
-      )}.`,
-    );
-  }
-
-  if (
-    stats.brandOrangeRatio < 0.003 ||
-    stats.lightSurfaceRatio < 0.35 ||
-    stats.maxOrangeRowRatio < 0.45
-  ) {
-    throw new Error(
-      `${deviceName} did not render the BoothBop home surface: orange ratio ${(
-        stats.brandOrangeRatio * 100
-      ).toFixed(2)}%, light surface ratio ${(
-        stats.lightSurfaceRatio * 100
-      ).toFixed(2)}%, widest orange row ${(
-        stats.maxOrangeRowRatio * 100
-      ).toFixed(2)}%.`,
-    );
-  }
-}
-
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 async function captureVisibleScreenshot(device, screenshot) {
-  const deadline = Date.now() + 90000;
-  let lastError;
+  const started = Date.now();
+  const deadline = started + 30000;
 
   while (Date.now() < deadline) {
     await run(
@@ -337,19 +296,15 @@ async function captureVisibleScreenshot(device, screenshot) {
     );
 
     const stats = await screenshotStats(screenshot);
-
-    try {
-      assertVisibleScreen(device.name, stats);
-      return stats;
-    } catch (error) {
-      lastError = error;
-      await sleep(2500);
+    assertNoBlackLaunchFrame(device.name, stats);
+    if (isBoothBopHomeFrame(stats)) {
+      return { elapsedMs: Date.now() - started, stats };
     }
+    await sleep(500);
   }
 
-  if (lastError) throw lastError;
   throw new Error(
-    `${device.name} never produced a screenshot before the launch timeout.`,
+    `${device.name} did not render the BoothBop home surface within 30 seconds.`,
   );
 }
 
@@ -498,9 +453,10 @@ async function testDevice(device) {
     }
     if (launchError) throw launchError;
 
-    await sleep(1500);
-
-    const stats = await captureVisibleScreenshot(device, screenshot);
+    const { elapsedMs, stats } = await captureVisibleScreenshot(
+      device,
+      screenshot,
+    );
     await assertNoNativeLaunchFailures(device);
 
     console.log(
@@ -508,7 +464,9 @@ async function testDevice(device) {
         1,
       )} stddev=${stats.standardDeviation.toFixed(1)} orange=${(
         stats.brandOrangeRatio * 100
-      ).toFixed(1)}% screenshot=${screenshot}`,
+      ).toFixed(
+        1,
+      )}% home=${(elapsedMs / 1000).toFixed(1)}s screenshot=${screenshot}`,
     );
   } finally {
     await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
