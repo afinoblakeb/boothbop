@@ -136,11 +136,13 @@ export async function encodeVideoNative(
 ): Promise<VideoResult> {
   try {
     signal?.throwIfAborted();
+    const encodedFrames = new WeakMap<HTMLCanvasElement, Promise<string>>();
     const images: string[] = [];
     for (const frame of frames) {
       signal?.throwIfAborted();
-      images.push(
-        await frameToBase64(
+      let encoded = encodedFrames.get(frame);
+      if (!encoded) {
+        encoded = frameToBase64(
           frame,
           width,
           height,
@@ -148,8 +150,11 @@ export async function encodeVideoNative(
           watermark,
           watermarkImg,
           filter,
-        ),
-      );
+        );
+        encodedFrames.set(frame, encoded);
+      }
+      images.push(await encoded);
+      signal?.throwIfAborted();
     }
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withAbort(

@@ -84,6 +84,33 @@ describe("encodeVideoNative", () => {
     expect(result.blob.type).toBe("video/mp4");
   });
 
+  it("encodes a repeated canvas once while preserving repeated playback slots", async () => {
+    const frame = sourceFrame();
+    const toBlob = vi
+      .spyOn(HTMLCanvasElement.prototype, "toBlob")
+      .mockImplementation((callback, type) => {
+        expect(type).toBe("image/png");
+        callback(new Blob(["shared"], { type: "image/png" }));
+      });
+    make.mockResolvedValue({ base64: "bXA0" });
+
+    await encodeVideoNative([frame, frame, frame], {
+      width: 1080,
+      height: 1350,
+      bitrate: 16_000_000,
+    });
+
+    expect(toBlob).toHaveBeenCalledTimes(1);
+    expect(make).toHaveBeenCalledWith(
+      expect.objectContaining({
+        images: ["c2hhcmVk", "c2hhcmVk", "c2hhcmVk"],
+        width: 1080,
+        height: 1350,
+        bitrate: 16_000_000,
+      }),
+    );
+  });
+
   it("falls back to the web encoder when PNG generation fails", async () => {
     vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
       (callback) => callback(null),

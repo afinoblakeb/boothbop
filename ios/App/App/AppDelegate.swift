@@ -319,31 +319,35 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         writer.startSession(atSourceTime: .zero)
         guard let pixelBufferPool = adaptor.pixelBufferPool else { throw VideoError.writer }
 
-        // Decode each frame to a pixel buffer once, then hold it for its slot.
-        let buffers = try images.map {
-            try self.pixelBuffer(
-                fromBase64: $0, width: width, height: height, pool: pixelBufferPool)
-        }
         let timescale = CMTimeScale(fps)
         var frameIndex: Int64 = 0
         let appendDeadline = Date().addingTimeInterval(15)
 
         for _ in 0..<loops {
-            for buffer in buffers {
-                for _ in 0..<framesPerPhoto {
-                    while !input.isReadyForMoreMediaData {
-                        if writer.status == .failed || writer.status == .cancelled
-                            || Date() >= appendDeadline {
-                            writer.cancelWriting()
-                            throw writer.error ?? VideoError.writer
+            for image in images {
+                // Keep only the current decoded pixel buffer resident. The
+                // encoded PNG strings are cheap to retain, while four 1080p
+                // BGRA buffers would consume roughly 33 MB before AVFoundation
+                // allocates its own working surfaces.
+                try autoreleasepool {
+                    let buffer = try self.pixelBuffer(
+                        fromBase64: image, width: width, height: height,
+                        pool: pixelBufferPool)
+                    for _ in 0..<framesPerPhoto {
+                        while !input.isReadyForMoreMediaData {
+                            if writer.status == .failed || writer.status == .cancelled
+                                || Date() >= appendDeadline {
+                                writer.cancelWriting()
+                                throw writer.error ?? VideoError.writer
+                            }
+                            usleep(2000)
                         }
-                        usleep(2000)
+                        let time = CMTime(value: frameIndex, timescale: timescale)
+                        if !adaptor.append(buffer, withPresentationTime: time) {
+                            throw writer.error ?? VideoError.append
+                        }
+                        frameIndex += 1
                     }
-                    let time = CMTime(value: frameIndex, timescale: timescale)
-                    if !adaptor.append(buffer, withPresentationTime: time) {
-                        throw writer.error ?? VideoError.append
-                    }
-                    frameIndex += 1
                 }
             }
         }
