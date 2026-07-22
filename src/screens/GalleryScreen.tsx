@@ -6,16 +6,18 @@ import {
   type Session,
   type SessionSummary,
 } from "../lib/gallery";
-import { Check } from "lucide-react";
+import { Camera, Check } from "lucide-react";
 import { BrandIcon, TrashIcon } from "../icons";
-import { Button, Heading, OverlayScreen } from "../ui";
+import { Button, Heading, IconButton, OverlayScreen } from "../ui";
 
 /** Full-screen overlay of past booth sessions; tap one to reopen it. */
 export function GalleryScreen({
   onClose,
+  onCamera,
   onOpen,
 }: {
   onClose: () => void;
+  onCamera: () => void;
   onOpen: (session: Session) => void;
 }) {
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
@@ -51,6 +53,12 @@ export function GalleryScreen({
     activeRef.current = false;
     openRequestRef.current += 1;
     onClose();
+  }
+
+  function openCamera() {
+    activeRef.current = false;
+    openRequestRef.current += 1;
+    onCamera();
   }
 
   function toggleSelection(id: string) {
@@ -115,15 +123,22 @@ export function GalleryScreen({
       title="My Photos"
       onClose={close}
       action={
-        sessions?.length ? (
-          <button
-            type="button"
-            onClick={() => (selecting ? leaveSelection() : setSelecting(true))}
-            className="min-h-11 rounded-md px-2 font-sans text-sm font-semibold text-accent outline-none focus-visible:underline focus-visible:underline-offset-4"
-          >
-            {selecting ? "Cancel" : "Select"}
-          </button>
-        ) : null
+        <>
+          <IconButton aria-label="Camera" onClick={openCamera} title="Camera">
+            <Camera className="h-5 w-5" aria-hidden="true" />
+          </IconButton>
+          {sessions?.length ? (
+            <button
+              type="button"
+              onClick={() =>
+                selecting ? leaveSelection() : setSelecting(true)
+              }
+              className="min-h-11 rounded-md px-2 font-sans text-sm font-semibold text-accent outline-none focus-visible:underline focus-visible:underline-offset-4"
+            >
+              {selecting ? "Cancel" : "Select"}
+            </button>
+          ) : null}
+        </>
       }
     >
       <p className="mt-2 max-w-sm font-sans text-sm leading-5 text-text-muted">

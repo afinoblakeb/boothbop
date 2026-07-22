@@ -491,6 +491,13 @@ export default function App() {
     openSettings();
   }
 
+  function openCameraFromGallery() {
+    galleryOpenRequestRef.current += 1;
+    resumeCameraAfterOverlayRef.current = undefined;
+    setShowGallery(false);
+    void openCameraRef.current?.();
+  }
+
   // Retake failures preserve the original four frames; new-shoot failures go home.
   const failCamera = useCallback(
     (msg: string) => {
@@ -1369,9 +1376,11 @@ export default function App() {
     >
       <TopBar
         onHome={cancelToHome}
+        onCamera={() => void openCamera()}
         onAlbum={openGalleryFromTopBar}
         onSettings={openSettingsFromTopBar}
         showActions={phase !== "capturing" && !showMigration}
+        showCamera={phase !== "preview" && phase !== "capturing"}
       />
 
       {phase === "idle" &&
@@ -1443,6 +1452,7 @@ export default function App() {
 
       {showGallery && (
         <GalleryScreen
+          onCamera={openCameraFromGallery}
           onClose={() => {
             galleryOpenRequestRef.current += 1;
             setShowGallery(false);
