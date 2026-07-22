@@ -177,6 +177,42 @@ describe("native camera bridge", () => {
     expect(cameraPlugin.start).toHaveBeenCalledOnce();
   });
 
+  it("serializes a stop requested during startup before the next start", async () => {
+    const events: string[] = [];
+    let finishFirstStart: (() => void) | undefined;
+    cameraPlugin.start
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            events.push("start-1");
+            finishFirstStart = () => {
+              events.push("start-1-ready");
+              resolve({ width: 3024, height: 4032 });
+            };
+          }),
+      )
+      .mockImplementationOnce(async () => {
+        events.push("start-2");
+        return { width: 3024, height: 4032 };
+      });
+    cameraPlugin.stop.mockImplementation(async () => {
+      events.push("stop");
+      return { stopped: true };
+    });
+
+    const firstStart = startNativeCamera();
+    await vi.waitFor(() => expect(events).toEqual(["start-1"]));
+    const stopping = stopNativeCamera();
+    const secondStart = startNativeCamera();
+    await Promise.resolve();
+    expect(events).toEqual(["start-1"]);
+
+    finishFirstStart?.();
+    await Promise.all([firstStart, stopping, secondStart]);
+
+    expect(events).toEqual(["start-1", "start-1-ready", "stop", "start-2"]);
+  });
+
   it("loads the native square from a temporary file without a base64 bridge", async () => {
     const fileURL = "file:///tmp/boothbop-photo.jpg";
     const convertedURL =

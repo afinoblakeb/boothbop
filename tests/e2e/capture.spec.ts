@@ -76,6 +76,121 @@ test("native camera failure stays on a recoverable camera surface", async ({
   );
 });
 
+test("rapid settings transitions cannot strand the native camera black", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = window as typeof window & {
+      __nativeCamera?: {
+        running: boolean;
+        starting: boolean;
+        previewVisible: boolean;
+        starts: number;
+        stops: number;
+      };
+      Capacitor?: Record<string, unknown>;
+      webkit?: unknown;
+    };
+    state.__nativeCamera = {
+      running: false,
+      starting: false,
+      previewVisible: false,
+      starts: 0,
+      stops: 0,
+    };
+    Object.defineProperty(window, "webkit", {
+      configurable: true,
+      value: { messageHandlers: { bridge: {} } },
+    });
+    state.Capacitor = {
+      PluginHeaders: [
+        {
+          name: "BoothBopCamera",
+          methods: [
+            "isAvailable",
+            "start",
+            "setPreviewFrame",
+            "capture",
+            "release",
+            "stop",
+          ].map((name) => ({ name, rtype: "promise" })),
+        },
+      ],
+      nativePromise: async (
+        pluginName: string,
+        methodName: string,
+      ): Promise<Record<string, unknown>> => {
+        if (pluginName !== "BoothBopCamera") {
+          throw new Error(`Unexpected native plugin: ${pluginName}`);
+        }
+        const camera = state.__nativeCamera!;
+        if (methodName === "isAvailable") return { available: true };
+        if (methodName === "start") {
+          camera.starts += 1;
+          if (camera.running) return { width: 1920, height: 1080 };
+          if (camera.starting) throw new Error("Camera start is already busy");
+          camera.starting = true;
+          await new Promise((resolve) => setTimeout(resolve, 180));
+          camera.starting = false;
+          camera.running = true;
+          return { width: 1920, height: 1080 };
+        }
+        if (methodName === "stop") {
+          camera.stops += 1;
+          await new Promise((resolve) => setTimeout(resolve, 40));
+          camera.running = false;
+          camera.previewVisible = false;
+          return { stopped: true };
+        }
+        if (methodName === "setPreviewFrame") {
+          if (!camera.running) throw new Error("Camera is not running");
+          camera.previewVisible = true;
+          return { visible: true };
+        }
+        if (methodName === "release") return { released: true };
+        throw new Error(`Unexpected camera method: ${methodName}`);
+      },
+    };
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException(
+          "Native camera owns the device",
+          "NotReadableError",
+        );
+      },
+    });
+  });
+
+  await page.goto("/?native=1");
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+
+  const settings = page.getByRole("button", { name: "Settings" });
+  await settings.click();
+  await page.getByRole("button", { name: "Close" }).click();
+  await settings.click();
+  await page.getByRole("button", { name: "Close" }).click();
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          const camera = (
+            window as typeof window & {
+              __nativeCamera?: {
+                running: boolean;
+                previewVisible: boolean;
+              };
+            }
+          ).__nativeCamera;
+          return Boolean(camera?.running && camera.previewVisible);
+        }),
+      { timeout: 5_000 },
+    )
+    .toBe(true);
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeEnabled();
+});
+
 test("camera opening is visible and duplicate-proof", async ({ page }) => {
   await page.addInitScript(() => {
     const original = navigator.mediaDevices.getUserMedia.bind(

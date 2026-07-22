@@ -140,6 +140,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [openingCamera, setOpeningCamera] = useState(false);
   const [nativeCameraActive, setNativeCameraActive] = useState(false);
+  const [nativePreviewVisible, setNativePreviewVisible] = useState(false);
 
   const [format, setFormat] = useState<Format>("strip");
   const [generating, setGenerating] = useState<
@@ -427,6 +428,11 @@ export default function App() {
   const retakeIndexRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
   const cameraOpeningRef = useRef(false);
+  const activeCameraOpenRequestRef = useRef<number | null>(null);
+  const pendingCameraOpenRef = useRef<{
+    request: number;
+    index: number | null;
+  } | null>(null);
   const sequenceOwnerRef = useRef<symbol | null>(null);
   const galleryOpenRequestRef = useRef(0);
   const nativeLaunchStartedRef = useRef(false);
@@ -465,6 +471,7 @@ export default function App() {
   const stopActiveCamera = useCallback(() => {
     stopCamera(streamRef.current);
     streamRef.current = null;
+    setNativePreviewVisible(false);
     if (nativeCameraActiveRef.current) {
       nativeCameraActiveRef.current = false;
       setNativeCameraActive(false);
@@ -477,8 +484,7 @@ export default function App() {
     resumeCameraAfterOverlayRef.current = retakeIndexRef.current;
     abortRef.current = true;
     cameraRequestRef.current += 1;
-    cameraOpeningRef.current = false;
-    setOpeningCamera(false);
+    pendingCameraOpenRef.current = null;
     stopActiveCamera();
   }
 
@@ -513,9 +519,8 @@ export default function App() {
         retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
       abortRef.current = true;
       cameraRequestRef.current += 1;
+      pendingCameraOpenRef.current = null;
       sequenceOwnerRef.current = null;
-      cameraOpeningRef.current = false;
-      setOpeningCamera(false);
       setCountdown(null);
       setFreezeFrame(null);
       stopActiveCamera();
@@ -556,24 +561,42 @@ export default function App() {
   useEffect(() => {
     if (phase !== "preview" && phase !== "capturing") return;
     if (nativeCameraActive) {
-      document.documentElement.classList.add("native-camera-active");
+      let cancelled = false;
+      const request = cameraRequestRef.current;
       const preview = document.querySelector<HTMLElement>(".camera-preview");
       if (!preview) return;
-      const positionPreview = () => {
+      const positionPreview = async () => {
         const cornerRadius =
           Number.parseFloat(getComputedStyle(preview).borderTopLeftRadius) || 0;
-        return setNativePreviewFrame(
+        await setNativePreviewFrame(
           preview.getBoundingClientRect(),
           cornerRadius,
         );
+        if (cancelled || request !== cameraRequestRef.current) return;
+        document.documentElement.classList.add("native-camera-active");
+        setNativePreviewVisible(true);
+      };
+      const handlePositionFailure = () => {
+        if (!cancelled && request === cameraRequestRef.current) {
+          failCamera("Couldn't start the iPhone camera.");
+        }
+      };
+      const updatePreview = () => {
+        void positionPreview().catch(handlePositionFailure);
       };
       void positionPreview()
-        .then(() => hideNativeSplash())
-        .catch(() => failCamera("Couldn't start the iPhone camera."));
-      window.addEventListener("resize", positionPreview);
+        .then(() => {
+          if (!cancelled && request === cameraRequestRef.current) {
+            void hideNativeSplash();
+          }
+        })
+        .catch(handlePositionFailure);
+      window.addEventListener("resize", updatePreview);
       return () => {
-        window.removeEventListener("resize", positionPreview);
+        cancelled = true;
+        window.removeEventListener("resize", updatePreview);
         document.documentElement.classList.remove("native-camera-active");
+        setNativePreviewVisible(false);
       };
     }
     const video = videoRef.current;
@@ -655,29 +678,36 @@ export default function App() {
     [],
   );
 
-  async function openCamera(index: number | null = null) {
-    if (cameraOpeningRef.current) return;
-    cameraOpeningRef.current = true;
-    setOpeningCamera(true);
-    const request = ++cameraRequestRef.current;
+  async function performCameraOpen(request: number, index: number | null) {
+    const requestIsStale = () =>
+      request !== cameraRequestRef.current || abortRef.current;
     sequenceOwnerRef.current = null;
     setError(null);
+    setNativePreviewVisible(false);
     abortRef.current = false;
     setRetakeIndex(index);
     retakeIndexRef.current = index;
     try {
       let stream: MediaStream | null = null;
       let native = false;
-      if (await canUseNativeCamera()) {
+      const nativeAvailable = await canUseNativeCamera();
+      if (requestIsStale()) return;
+      if (nativeAvailable) {
         try {
           await startNativeCamera();
           native = true;
-        } catch {
+        } catch (nativeError) {
           await stopNativeCamera();
+          if (requestIsStale()) return;
+          throw nativeError;
         }
       }
+      if (requestIsStale()) {
+        if (native) await stopNativeCamera();
+        return;
+      }
       if (!native) stream = await startCamera();
-      if (request !== cameraRequestRef.current || abortRef.current) {
+      if (requestIsStale()) {
         if (native) await stopNativeCamera();
         else stopCamera(stream);
         return;
@@ -704,17 +734,43 @@ export default function App() {
       }
       setPhase("preview");
     } catch (e) {
+      if (requestIsStale()) return;
       setError(cameraError(e));
       setRetakeIndex(null);
       retakeIndexRef.current = null;
       setPhase(
         index === null ? (isNativeShell() ? "preview" : "idle") : "review",
       );
-    } finally {
-      if (request === cameraRequestRef.current) {
-        cameraOpeningRef.current = false;
-        setOpeningCamera(false);
+    }
+  }
+
+  async function openCamera(index: number | null = null) {
+    if (
+      cameraOpeningRef.current &&
+      activeCameraOpenRequestRef.current === cameraRequestRef.current &&
+      pendingCameraOpenRef.current === null
+    ) {
+      return;
+    }
+
+    const request = ++cameraRequestRef.current;
+    pendingCameraOpenRef.current = { request, index };
+    abortRef.current = false;
+    if (cameraOpeningRef.current) return;
+
+    cameraOpeningRef.current = true;
+    setOpeningCamera(true);
+    try {
+      while (pendingCameraOpenRef.current) {
+        const pending = pendingCameraOpenRef.current;
+        pendingCameraOpenRef.current = null;
+        activeCameraOpenRequestRef.current = pending.request;
+        await performCameraOpen(pending.request, pending.index);
       }
+    } finally {
+      activeCameraOpenRequestRef.current = null;
+      cameraOpeningRef.current = false;
+      setOpeningCamera(false);
     }
   }
   useEffect(() => {
@@ -734,9 +790,8 @@ export default function App() {
   function cancelToHome() {
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    pendingCameraOpenRef.current = null;
     sequenceOwnerRef.current = null;
-    cameraOpeningRef.current = false;
-    setOpeningCamera(false);
     setCountdown(null);
     setFreezeFrame(null);
     stopActiveCamera();
@@ -1411,7 +1466,7 @@ export default function App() {
   return (
     <div
       className={`mx-auto flex h-full max-w-md flex-col px-4 text-text ${
-        nativeCameraActive ? "bg-transparent" : "bg-app-canvas"
+        nativePreviewVisible ? "bg-transparent" : "bg-app-canvas"
       }`}
     >
       <TopBar
@@ -1452,7 +1507,7 @@ export default function App() {
           onStart={runSequence}
           onCancel={cancelCamera}
           retakeIndex={retakeIndex}
-          nativePreview={nativeCameraActive}
+          nativePreview={nativePreviewVisible}
           nativeShell={isNativeShell()}
           cameraError={error}
           onRetry={() => void openCamera()}

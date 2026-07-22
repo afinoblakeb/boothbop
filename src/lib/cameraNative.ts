@@ -7,7 +7,16 @@ const START_TIMEOUT_MS = 12_000;
 const CAPTURE_TIMEOUT_MS = 15_000;
 const WARMUP_JPEG =
   "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q==";
-let pendingStop: Promise<void> = Promise.resolve();
+let lifecycleQueue: Promise<void> = Promise.resolve();
+
+function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
+  const result = lifecycleQueue.then(operation);
+  lifecycleQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+}
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -42,13 +51,14 @@ export async function canUseNativeCamera(): Promise<boolean> {
 }
 
 export async function startNativeCamera(): Promise<void> {
-  await pendingStop;
-  const started = await withTimeout(
-    BoothBopCamera.start(),
-    START_TIMEOUT_MS,
-    "native camera",
-  );
-  await warmWebImagePipeline(started.warmupPath);
+  await enqueueLifecycle(async () => {
+    const started = await withTimeout(
+      BoothBopCamera.start(),
+      START_TIMEOUT_MS,
+      "native camera",
+    );
+    await warmWebImagePipeline(started.warmupPath);
+  });
 }
 
 export async function setNativePreviewFrame(
@@ -65,14 +75,13 @@ export async function setNativePreviewFrame(
 }
 
 export async function stopNativeCamera(): Promise<void> {
-  pendingStop = pendingStop.then(async () => {
+  await enqueueLifecycle(async () => {
     try {
       await BoothBopCamera.stop();
     } catch {
       // Stopping is idempotent and best-effort during navigation/unmount.
     }
   });
-  await pendingStop;
 }
 
 function base64ToBlob(base64: string, mimeType: string): Blob {
