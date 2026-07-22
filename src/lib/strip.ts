@@ -28,12 +28,13 @@ export const THEMES: Record<string, StripTheme> = {
 // Strip layout constants (px). Shared by the geometry math and the renderer.
 export const STRIP = {
   cell: 640, // size of each photo in the strip
-  gap: 43, // space between/around photos
+  gap: 64, // space between/around photos
   footer: 132, // footer band height
+  logo: 78, // horizontal BoothBop wordmark height in the footer
 } as const;
 
 /** Screen previews never need export-sized pixels. */
-export const PREVIEW_CELL = 320;
+export const PREVIEW_CELL = 316;
 
 /** Use the smallest real source dimension so exports never invent detail. */
 export function stripCellForFrames(
@@ -164,10 +165,10 @@ export function composeStrip(
     // Brand logo centered, with a soft light halo so the dark parts stay
     // legible on the dark themes (carbon) — same treatment as the watermark,
     // invisible on the light themes.
-    const logoH = 64 * scale;
+    const logoH = STRIP.logo * scale;
     const logoW = logoH * (logo.width / logo.height);
     const lx = (width - logoW) / 2;
-    const ly = footerY + 20 * scale;
+    const ly = footerY + 10 * scale;
     ctx.save();
     ctx.shadowColor = "rgba(255,255,255,0.85)";
     ctx.shadowBlur = Math.max(4, width * 0.012);
@@ -177,7 +178,7 @@ export function composeStrip(
     ctx.drawImage(logo, lx, ly, logoW, logoH); // crisp logo on top
     ctx.restore();
 
-    drawDate(ctx, width, ly + logoH + 22 * scale, theme.text, scale);
+    drawDate(ctx, width, ly + logoH + 18 * scale, theme.text, scale);
     return canvas;
   }
 

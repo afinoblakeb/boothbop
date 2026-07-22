@@ -12,6 +12,7 @@ import {
 describe("stripGeometry", () => {
   it("keeps interactive previews screen-sized", () => {
     expect(PREVIEW_CELL).toBeLessThanOrEqual(360);
+    expect(stripGeometry("4x1", PREVIEW_CELL).width).toBeLessThan(500);
   });
 
   it("uses real source pixels for exports without upscaling older photos", () => {
@@ -45,7 +46,7 @@ describe("stripGeometry", () => {
     const geometry = stripGeometry("4x1");
     const frameGap =
       geometry.cells[1].y - (geometry.cells[0].y + geometry.photoHeight);
-    expect(frameGap / geometry.photoHeight).toBeGreaterThanOrEqual(0.06);
+    expect(frameGap / geometry.photoHeight).toBeGreaterThanOrEqual(0.09);
   });
 
   it("lays a 2x2 grid out as two columns and two rows", () => {
@@ -121,8 +122,9 @@ describe("composeStrip branding", () => {
 
     composeStrip(fourFrames(), "4x1", THEMES.classic, { logo });
 
-    const drewLogo = ctx.drawImage.mock.calls.some((c) => c[0] === logo);
-    expect(drewLogo).toBe(true);
+    const logoDraw = ctx.drawImage.mock.calls.find((c) => c[0] === logo);
+    expect(logoDraw).toBeDefined();
+    expect(logoDraw?.[4]).toBe(STRIP.logo);
     // With the logo present it must NOT fall back to the text wordmark.
     expect(drewCaption(ctx)).toBe(false);
   });
