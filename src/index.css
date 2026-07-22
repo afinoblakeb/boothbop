@@ -100,22 +100,6 @@ body {
   overscroll-behavior: none;
 }
 
-/* Camera flash — a clean white pop, no blur. */
-@keyframes flash {
-  0% {
-    opacity: 0;
-  }
-  10% {
-    opacity: 0.95;
-  }
-  100% {
-    opacity: 0;
-  }
-}
-.flash {
-  animation: flash 600ms ease-out;
-}
-
 /* Big countdown pop. */
 @keyframes countpop {
   0% {

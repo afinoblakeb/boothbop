@@ -22,6 +22,7 @@ test("native launch opens one camera preview without a home-screen tap", async (
   await page.goto("/?native=1");
 
   await expect(page.locator("video")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Home" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "My Photos" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
   await expect
@@ -32,6 +33,47 @@ test("native launch opens one camera preview without a home-screen tap", async (
       ),
     )
     .toBe(1);
+
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(page.locator("video")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Home" })).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __cameraCalls?: number }).__cameraCalls,
+      ),
+    )
+    .toBe(1);
+});
+
+test("native camera failure stays on a recoverable camera surface", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async () => {
+        throw new DOMException("Denied for test", "NotAllowedError");
+      },
+    });
+  });
+
+  await page.goto("/?native=1");
+
+  await expect(page.getByText(/requires camera permission/i)).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Try Camera Again" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Home" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Take Photos" })).toHaveCount(
+    0,
+  );
 });
 
 test("camera opening is visible and duplicate-proof", async ({ page }) => {
@@ -68,6 +110,61 @@ test("camera opening is visible and duplicate-proof", async ({ page }) => {
       ),
     )
     .toBe(1);
+});
+
+test("a slow full-resolution capture freezes the photo without a white flash", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class SlowImageCapture {
+      constructor(_track: MediaStreamTrack) {}
+
+      async takePhoto(): Promise<Blob> {
+        const state = window as typeof window & { __shutterStarted?: boolean };
+        state.__shutterStarted = true;
+        await new Promise((resolve) => window.setTimeout(resolve, 700));
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        const context = canvas.getContext("2d");
+        if (!context) throw new Error("Missing test canvas context");
+        context.fillStyle = "#3e7c78";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        return await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob(
+            (blob) =>
+              blob ? resolve(blob) : reject(new Error("Test capture failed")),
+            "image/png",
+          ),
+        );
+      }
+    }
+
+    Object.defineProperty(globalThis, "ImageCapture", {
+      configurable: true,
+      value: SlowImageCapture,
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __shutterStarted?: boolean })
+            .__shutterStarted,
+      ),
+    )
+    .toBe(true);
+  await expect(page.locator(".flash")).toHaveCount(0);
+  await expect(page.getByLabel("Captured photo preview")).toBeVisible();
 });
 
 test("slow gallery persistence never delays the review screen", async ({

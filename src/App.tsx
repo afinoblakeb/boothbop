@@ -127,7 +127,9 @@ export default function App() {
   const [phase, setPhase] = useState<Phase>("idle");
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
-  const [flash, setFlash] = useState(false);
+  const [freezeFrame, setFreezeFrame] = useState<HTMLCanvasElement | null>(
+    null,
+  );
   const [layout, setLayout] = useState<Layout>("4x1");
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
@@ -498,7 +500,8 @@ export default function App() {
     void openCameraRef.current?.();
   }
 
-  // Retake failures preserve the original four frames; new-shoot failures go home.
+  // Retake failures preserve the original four frames. Native camera failures
+  // stay on a recoverable camera surface; only the web app returns home.
   const failCamera = useCallback(
     (msg: string) => {
       const preserveReview =
@@ -509,12 +512,14 @@ export default function App() {
       cameraOpeningRef.current = false;
       setOpeningCamera(false);
       setCountdown(null);
-      setFlash(false);
+      setFreezeFrame(null);
       stopActiveCamera();
       if (!preserveReview) setFrames([]);
       setRetakeIndex(null);
       retakeIndexRef.current = null;
-      setPhase(preserveReview ? "review" : "idle");
+      setPhase(
+        preserveReview ? "review" : isNativeShell() ? "preview" : "idle",
+      );
       setError(msg);
     },
     [stopActiveCamera],
@@ -677,7 +682,9 @@ export default function App() {
       setError(cameraError(e));
       setRetakeIndex(null);
       retakeIndexRef.current = null;
-      setPhase(index === null ? "idle" : "review");
+      setPhase(
+        index === null ? (isNativeShell() ? "preview" : "idle") : "review",
+      );
     } finally {
       if (request === cameraRequestRef.current) {
         cameraOpeningRef.current = false;
@@ -706,7 +713,7 @@ export default function App() {
     cameraOpeningRef.current = false;
     setOpeningCamera(false);
     setCountdown(null);
-    setFlash(false);
+    setFreezeFrame(null);
     stopActiveCamera();
     clearResults();
     setFrames([]);
@@ -721,15 +728,25 @@ export default function App() {
   function cancelCamera() {
     const returnToReview = retakeIndexRef.current !== null;
     abortRef.current = true;
-    cameraRequestRef.current += 1;
     sequenceOwnerRef.current = null;
     setCountdown(null);
-    setFlash(false);
-    stopActiveCamera();
+    setFreezeFrame(null);
     setRetakeIndex(null);
     retakeIndexRef.current = null;
-    if (!returnToReview) setFrames([]);
-    setPhase(returnToReview ? "review" : "idle");
+    if (returnToReview) {
+      cameraRequestRef.current += 1;
+      stopActiveCamera();
+      setPhase("review");
+      return;
+    }
+    setFrames([]);
+    if (isNativeShell()) {
+      setPhase("preview");
+      return;
+    }
+    cameraRequestRef.current += 1;
+    stopActiveCamera();
+    setPhase("idle");
   }
 
   async function runSequence() {
@@ -779,17 +796,17 @@ export default function App() {
 
       try {
         void tapHaptic("Medium");
-        setFlash(true);
         const replacement = await captureActiveCameraFrame(video);
         if (sequenceCancelled()) {
-          setFlash(false);
+          setFreezeFrame(null);
           return;
         }
         const updated = replaceFrame(framesRef.current, replacing, replacement);
         framesRef.current = updated;
         setFrames(updated);
-        await wait(240);
-        setFlash(false);
+        setFreezeFrame(replacement);
+        await wait(200);
+        setFreezeFrame(null);
         stopActiveCamera();
 
         setRetakeIndex(null);
@@ -821,7 +838,7 @@ export default function App() {
           }
         })();
       } catch {
-        setFlash(false);
+        setFreezeFrame(null);
         failCamera("Couldn't retake that photo. Your original is still here.");
       }
       return;
@@ -841,16 +858,16 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
-      setFlash(true);
       const frame = await captureActiveCameraFrame(video);
       if (sequenceCancelled()) {
-        setFlash(false);
+        setFreezeFrame(null);
         return;
       }
       captured.push(frame);
       setFrames([...captured]);
-      await wait(240);
-      setFlash(false);
+      setFreezeFrame(frame);
+      await wait(200);
+      setFreezeFrame(null);
       if (shot < SHOTS - 1) await wait(750); // quick "pose!" gap
     }
 
@@ -1375,7 +1392,7 @@ export default function App() {
       }`}
     >
       <TopBar
-        onHome={cancelToHome}
+        onHome={isNativeShell() ? undefined : cancelToHome}
         onCamera={() => void openCamera()}
         onAlbum={openGalleryFromTopBar}
         onSettings={openSettingsFromTopBar}
@@ -1405,7 +1422,7 @@ export default function App() {
           videoRef={videoRef}
           phase={phase}
           countdown={countdown}
-          flash={flash}
+          freezeFrame={freezeFrame}
           thumbs={thumbs}
           delay={delay}
           setDelay={setDelay}
@@ -1413,6 +1430,9 @@ export default function App() {
           onCancel={cancelCamera}
           retakeIndex={retakeIndex}
           nativePreview={nativeCameraActive}
+          nativeShell={isNativeShell()}
+          cameraError={error}
+          onRetry={() => void openCamera()}
         />
       )}
 

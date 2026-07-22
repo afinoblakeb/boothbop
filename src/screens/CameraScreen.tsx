@@ -1,6 +1,7 @@
+import { useLayoutEffect, useRef } from "react";
 import type { RefObject } from "react";
 import { Timer, X } from "lucide-react";
-import { Heading, SegmentedControl } from "../ui";
+import { Button, Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
 import type { Phase } from "../types";
 
@@ -11,12 +12,34 @@ const COUNTDOWN_COLOR: Record<number, string> = {
   1: "var(--color-orange)",
 };
 
+function CapturedPhotoPreview({ frame }: { frame: HTMLCanvasElement }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useLayoutEffect(() => {
+    const canvas = canvasRef.current;
+    const context = canvas?.getContext("2d");
+    if (!canvas || !context) return;
+    canvas.width = frame.width;
+    canvas.height = frame.height;
+    context.drawImage(frame, 0, 0);
+  }, [frame]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label="Captured photo preview"
+      className="absolute inset-0 h-full w-full object-cover"
+    />
+  );
+}
+
 /** Live camera + countdown + filling photo slots, with the shutter controls. */
 export function CameraScreen({
   videoRef,
   phase,
   countdown,
-  flash,
+  freezeFrame,
   thumbs,
   delay,
   setDelay,
@@ -24,11 +47,14 @@ export function CameraScreen({
   onCancel,
   retakeIndex,
   nativePreview,
+  nativeShell,
+  cameraError,
+  onRetry,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
   countdown: number | null;
-  flash: boolean;
+  freezeFrame: HTMLCanvasElement | null;
   thumbs: string[];
   delay: number;
   setDelay: (n: number) => void;
@@ -36,6 +62,9 @@ export function CameraScreen({
   onCancel: () => void;
   retakeIndex: number | null;
   nativePreview: boolean;
+  nativeShell: boolean;
+  cameraError: string | null;
+  onRetry: () => void;
 }) {
   return (
     <div className="camera-screen flex min-h-0 flex-1 flex-col py-3">
@@ -69,6 +98,17 @@ export function CameraScreen({
             }`}
           />
 
+          {freezeFrame && <CapturedPhotoPreview frame={freezeFrame} />}
+
+          {cameraError && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 bg-editor px-6 text-center text-text-inverse">
+              <p className="font-sans text-sm font-medium">{cameraError}</p>
+              <Button variant="primary" onClick={onRetry}>
+                Try Camera Again
+              </Button>
+            </div>
+          )}
+
           {phase === "capturing" && (
             <div className="absolute left-2 top-2 flex min-h-9 items-center gap-2 rounded-full bg-editor/80 px-3 font-sans text-xs font-semibold text-text-inverse shadow-control backdrop-blur-md">
               <span className="pulse inline-block h-2 w-2 rounded-full bg-accent" />
@@ -78,15 +118,17 @@ export function CameraScreen({
             </div>
           )}
 
-          <button
-            type="button"
-            aria-label="Cancel"
-            title="Cancel"
-            onClick={onCancel}
-            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-editor/80 text-text-inverse shadow-control outline-none backdrop-blur-md transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-editor active:bg-editor"
-          >
-            <X className="h-5 w-5" aria-hidden="true" />
-          </button>
+          {(!nativeShell || phase === "capturing" || retakeIndex !== null) && (
+            <button
+              type="button"
+              aria-label="Cancel"
+              title="Cancel"
+              onClick={onCancel}
+              className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-editor/80 text-text-inverse shadow-control outline-none backdrop-blur-md transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-editor active:bg-editor"
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          )}
 
           {countdown !== null && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -103,8 +145,6 @@ export function CameraScreen({
               </span>
             </div>
           )}
-
-          {flash && <div className="flash absolute inset-0 bg-white" />}
         </div>
 
         {/* Filling photo slots */}
@@ -138,7 +178,7 @@ export function CameraScreen({
       </section>
 
       <div className="camera-controls mt-auto pt-3 text-center">
-        {phase === "preview" ? (
+        {cameraError ? null : phase === "preview" ? (
           <>
             <div className="camera-countdown mb-2 flex items-center justify-center gap-2">
               <span className="flex items-center gap-1.5 font-sans text-sm font-medium text-text-muted">

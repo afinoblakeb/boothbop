@@ -11,7 +11,7 @@ export function TopBar({
   showActions,
   showCamera,
 }: {
-  onHome: () => void;
+  onHome?: () => void;
   onCamera: () => void;
   onAlbum: () => void;
   onSettings: () => void;
@@ -20,17 +20,25 @@ export function TopBar({
 }) {
   return (
     <header className="sticky top-0 z-30 -mx-4 flex min-h-[57px] items-center justify-between border-b border-border bg-app-canvas/95 px-3 py-1.5 backdrop-blur-md">
-      <button
-        onClick={onHome}
-        aria-label="Home"
-        className="inline-flex min-h-[44px] items-center rounded-lg px-1 outline-none transition focus-visible:bg-surface-muted active:opacity-60"
-      >
+      {onHome ? (
+        <button
+          onClick={onHome}
+          aria-label="Home"
+          className="inline-flex min-h-[44px] items-center rounded-lg px-1 outline-none transition focus-visible:bg-surface-muted active:opacity-60"
+        >
+          <img
+            src={LOGO}
+            alt="BoothBop"
+            className="h-8 w-auto max-w-[7.75rem] object-contain object-left"
+          />
+        </button>
+      ) : (
         <img
           src={LOGO}
           alt="BoothBop"
-          className="h-8 w-auto max-w-[7.75rem] object-contain object-left"
+          className="ml-1 h-8 w-auto max-w-[7.75rem] object-contain object-left"
         />
-      </button>
+      )}
       {showActions && (
         <nav aria-label="App" className="flex items-center gap-0.5">
           {showCamera && (
