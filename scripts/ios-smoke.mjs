@@ -8,6 +8,7 @@ import {
   isBlackLaunchFrame,
   isBoothBopReadyFrame,
 } from "./lib/launch-visual-contract.mjs";
+import { simulatorCameraPrivacyArgs } from "./lib/simulator-privacy.mjs";
 
 const projectRoot = process.cwd();
 const projectFile = path.join("ios", "App", "App.xcodeproj");
@@ -318,6 +319,41 @@ async function captureVisibleScreenshot(device, screenshot) {
   );
 }
 
+async function captureNonBlackScreenshot(device, screenshot) {
+  const started = Date.now();
+  const deadline = started + 30000;
+  let consecutiveBlackFrames = 0;
+
+  while (Date.now() < deadline) {
+    await run(
+      "xcrun",
+      ["simctl", "io", device.udid, "screenshot", screenshot],
+      { quiet: true, timeoutMs: 30000 },
+    );
+
+    const stats = await screenshotStats(screenshot);
+    const isBlack = isBlackLaunchFrame(stats);
+    consecutiveBlackFrames = isBlack ? consecutiveBlackFrames + 1 : 0;
+    assertNoSustainedBlackLaunch(device.name, consecutiveBlackFrames);
+    if (!isBlack && stats.brightRatio > 0.15) {
+      return { elapsedMs: Date.now() - started, stats };
+    }
+    await sleep(500);
+  }
+
+  throw new Error(
+    `${device.name} did not render a visible camera-permission error within 30 seconds.`,
+  );
+}
+
+async function setCameraPermission(device, decision) {
+  await run(
+    "xcrun",
+    simulatorCameraPrivacyArgs(device.udid, bundleId, decision),
+    { quiet: true, timeoutMs: 30000 },
+  );
+}
+
 async function recentNativeLog(device) {
   const failureEvents = [
     'eventMessage CONTAINS[c] "Unknown class"',
@@ -459,6 +495,11 @@ async function testDevice(device) {
     }
     if (installError) throw installError;
 
+    // simctl cannot interact with the first-run camera alert. Resolve that OS
+    // prerequisite explicitly so a pending TCC prompt cannot masquerade as an
+    // application launch deadlock in headless smoke runs.
+    await setCameraPermission(device, "grant");
+
     const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     const screenshot = path.join(screenshotDir, `${safeName}.png`);
     await launchApp(device);
@@ -498,6 +539,26 @@ async function testDevice(device) {
         `update visible transitionBlack=${update.blackTransitionFrames} home=${(
           update.elapsedMs / 1000
         ).toFixed(1)}s screenshot=${updateScreenshot}`,
+      );
+
+      await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
+        allowFailure: true,
+        quiet: true,
+        timeoutMs: 15000,
+        timeoutOk: true,
+      });
+      await setCameraPermission(device, "deny");
+      await launchApp(device, "launching with camera denied");
+      const deniedScreenshot = path.join(
+        screenshotDir,
+        `${safeName}-camera-denied.png`,
+      );
+      const denied = await captureNonBlackScreenshot(device, deniedScreenshot);
+      await assertNoNativeLaunchFailures(device);
+      console.log(
+        `camera-denied visible=${(denied.elapsedMs / 1000).toFixed(
+          1,
+        )}s screenshot=${deniedScreenshot}`,
       );
     }
   } finally {
