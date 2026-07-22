@@ -443,7 +443,11 @@ export default function App() {
   const galleryOpenRequestRef = useRef(0);
   const nativeLaunchStartedRef = useRef(false);
   const hideNativeSplashRef = useRef<(() => Promise<void>) | null>(null);
+  const hideNativeSplashRetryRef = useRef<number | null>(null);
+  const hideNativeSplashAttemptsRef = useRef(0);
   const nativeCameraActiveRef = useRef(false);
+  const nativeCameraStartPendingRef = useRef(false);
+  const nativeCameraStopPromiseRef = useRef<Promise<void> | null>(null);
   const resumeCameraAfterOverlayRef = useRef<number | null | undefined>(
     undefined,
   );
@@ -454,7 +458,7 @@ export default function App() {
     ((index?: number | null) => Promise<void>) | null
   >(null);
 
-  async function hideNativeSplash() {
+  const hideNativeSplash = useCallback(async function hideNativeSplash() {
     if (!isNativeShell()) return;
     hideNativeSplashRef.current ??= onceAfterSuccess(async () => {
       await afterPaint();
@@ -463,10 +467,24 @@ export default function App() {
     });
     try {
       await hideNativeSplashRef.current();
+      hideNativeSplashAttemptsRef.current = 0;
+      if (hideNativeSplashRetryRef.current !== null) {
+        window.clearTimeout(hideNativeSplashRetryRef.current);
+        hideNativeSplashRetryRef.current = null;
+      }
     } catch {
-      // A later visible camera frame or error surface retries the bridge call.
+      if (
+        hideNativeSplashRetryRef.current === null &&
+        hideNativeSplashAttemptsRef.current < 3
+      ) {
+        hideNativeSplashAttemptsRef.current += 1;
+        hideNativeSplashRetryRef.current = window.setTimeout(() => {
+          hideNativeSplashRetryRef.current = null;
+          void hideNativeSplash();
+        }, 250);
+      }
     }
-  }
+  }, []);
 
   useEffect(() => {
     framesRef.current = frames;
@@ -483,15 +501,17 @@ export default function App() {
     stopCamera(streamRef.current);
     streamRef.current = null;
     setNativePreviewVisible(false);
-    if (nativeCameraActiveRef.current) {
+    if (nativeCameraActiveRef.current || nativeCameraStartPendingRef.current) {
       nativeCameraActiveRef.current = false;
       setNativeCameraActive(false);
-      void stopNativeCamera();
+      nativeCameraStopPromiseRef.current ??= stopNativeCamera().finally(() => {
+        nativeCameraStopPromiseRef.current = null;
+      });
     }
   }, []);
 
   function suspendCameraForOverlay() {
-    if (phase !== "preview") return;
+    if (phase !== "preview" && !cameraOpeningRef.current) return;
     resumeCameraAfterOverlayRef.current = retakeIndexRef.current;
     abortRef.current = true;
     cameraRequestRef.current += 1;
@@ -507,11 +527,13 @@ export default function App() {
 
   function openGalleryFromTopBar() {
     suspendCameraForOverlay();
+    setShowSettings(false);
     setShowGallery(true);
   }
 
   function openSettingsFromTopBar() {
     suspendCameraForOverlay();
+    setShowGallery(false);
     openSettings();
   }
 
@@ -620,15 +642,19 @@ export default function App() {
         })
         .catch(() => {});
     }
-  }, [failCamera, nativeCameraActive, phase]);
+  }, [failCamera, hideNativeSplash, nativeCameraActive, phase]);
 
   useEffect(() => {
     if (error && isNativeShell()) void hideNativeSplash();
-  }, [error]);
+  }, [error, hideNativeSplash]);
 
   // Release the camera when the component goes away.
   useEffect(
     () => () => {
+      if (hideNativeSplashRetryRef.current !== null) {
+        window.clearTimeout(hideNativeSplashRetryRef.current);
+      }
+      nativeCameraStartPendingRef.current = false;
       stopCamera(streamRef.current);
       void stopNativeCamera();
     },
@@ -721,16 +747,32 @@ export default function App() {
       if (requestIsStale()) return;
       if (nativeAvailable) {
         try {
+          if (nativeCameraStopPromiseRef.current) {
+            await nativeCameraStopPromiseRef.current;
+          }
+          nativeCameraStartPendingRef.current = true;
           await startNativeCamera();
+          nativeCameraStartPendingRef.current = false;
           native = true;
         } catch (nativeError) {
-          await stopNativeCamera();
+          nativeCameraStartPendingRef.current = false;
+          if (nativeCameraStopPromiseRef.current) {
+            await nativeCameraStopPromiseRef.current;
+          } else {
+            await stopNativeCamera();
+          }
           if (requestIsStale()) return;
           throw nativeError;
         }
       }
       if (requestIsStale()) {
-        if (native) await stopNativeCamera();
+        if (native) {
+          if (nativeCameraStopPromiseRef.current) {
+            await nativeCameraStopPromiseRef.current;
+          } else {
+            await stopNativeCamera();
+          }
+        }
         return;
       }
       if (!native) stream = await startCamera();
@@ -818,7 +860,13 @@ export default function App() {
           );
           return;
         }
-        if (phase !== "preview" || showGallery || showSettings) return;
+        if (
+          (phase !== "preview" && !cameraOpeningRef.current) ||
+          showGallery ||
+          showSettings
+        ) {
+          return;
+        }
 
         resumeCameraAfterVisibilityRef.current = retakeIndexRef.current;
         abortRef.current = true;
@@ -832,12 +880,7 @@ export default function App() {
       }
 
       const index = resumeCameraAfterVisibilityRef.current;
-      if (
-        index === undefined ||
-        phase !== "preview" ||
-        showGallery ||
-        showSettings
-      ) {
+      if (index === undefined || showGallery || showSettings) {
         return;
       }
       resumeCameraAfterVisibilityRef.current = undefined;

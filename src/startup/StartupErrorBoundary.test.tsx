@@ -32,6 +32,7 @@ describe("StartupErrorBoundary", () => {
 
   it("shows a reload recovery action when app rendering fails", async () => {
     const reload = vi.fn();
+    const hideSplash = vi.fn();
     const container = document.createElement("div");
     const root = createRoot(container);
     roots.push(root);
@@ -43,7 +44,7 @@ describe("StartupErrorBoundary", () => {
 
     await act(async () => {
       root.render(
-        <StartupErrorBoundary reload={reload}>
+        <StartupErrorBoundary reload={reload} hideSplash={hideSplash}>
           <BrokenApp />
         </StartupErrorBoundary>,
       );
@@ -53,6 +54,7 @@ describe("StartupErrorBoundary", () => {
     const reloadButton = container.querySelector("button");
     expect(recovery?.textContent).toContain("BoothBop couldn't start");
     expect(reloadButton?.textContent).toBe("Try again");
+    expect(hideSplash).toHaveBeenCalledOnce();
 
     reloadButton?.click();
     expect(reload).toHaveBeenCalledOnce();

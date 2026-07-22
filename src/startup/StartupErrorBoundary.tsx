@@ -1,8 +1,10 @@
 import { Component, type CSSProperties, type ReactNode } from "react";
+import { isNativeShell } from "../lib/platform";
 
 interface StartupErrorBoundaryProps {
   children: ReactNode;
   reload?: () => void;
+  hideSplash?: () => void | Promise<void>;
 }
 
 interface StartupErrorBoundaryState {
@@ -56,6 +58,17 @@ export class StartupErrorBoundary extends Component<
 
   static getDerivedStateFromError(): StartupErrorBoundaryState {
     return { failed: true };
+  }
+
+  componentDidCatch() {
+    const hideSplash =
+      this.props.hideSplash ??
+      (async () => {
+        if (!isNativeShell()) return;
+        const { SplashScreen } = await import("@capacitor/splash-screen");
+        await SplashScreen.hide();
+      });
+    void Promise.resolve(hideSplash()).catch(() => undefined);
   }
 
   private reload = () => {

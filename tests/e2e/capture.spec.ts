@@ -2,6 +2,7 @@ import { enableFileSharing, expect, test } from "./fixtures";
 import {
   installNativeCameraMock,
   nativeCameraSnapshot,
+  resolveNativeStart,
   requestNativePreviewUpdate,
   setDocumentVisibility,
   settleNativePreview,
@@ -221,6 +222,59 @@ test("repeated background recovery keeps only the newest native preview", async 
     starts: 5,
     stops: 4,
   });
+});
+
+test("backgrounding during native startup cancels and restarts the camera", async ({
+  page,
+}) => {
+  await installNativeCameraMock(page, { deferStart: true });
+
+  await page.goto("/?native=1");
+  await waitForNativeCamera(page, { starts: 1, pendingStarts: 1 });
+
+  await setDocumentVisibility(page, "hidden");
+  await resolveNativeStart(page);
+  await waitForNativeCamera(page, { running: false, starts: 1, stops: 1 });
+
+  await setDocumentVisibility(page, "visible");
+  await waitForNativeCamera(page, { starts: 2, pendingStarts: 1 });
+  await resolveNativeStart(page);
+  await waitForNativeCamera(page, {
+    running: true,
+    starts: 2,
+    stops: 1,
+    previewCalls: [{ id: 1, status: "pending" }],
+  });
+  await settleNativePreview(page, 1, "resolve");
+  await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+});
+
+test("rapid navigation never mounts gallery and settings together", async ({
+  page,
+}) => {
+  await installNativeCameraMock(page);
+
+  await page.goto("/?native=1");
+  await waitForNativeCamera(page, {
+    running: true,
+    previewCalls: [{ id: 1, status: "pending" }],
+  });
+  await settleNativePreview(page, 1, "resolve");
+
+  await page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const photos = buttons.find(
+      (button) => button.getAttribute("aria-label") === "My Photos",
+    );
+    const settings = buttons.find(
+      (button) => button.getAttribute("aria-label") === "Settings",
+    );
+    photos?.click();
+    settings?.click();
+  });
+
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
 });
 
 test("camera opening is visible and duplicate-proof", async ({ page }) => {

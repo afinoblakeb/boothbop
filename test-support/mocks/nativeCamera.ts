@@ -7,6 +7,7 @@ export interface NativeCameraMockSnapshot {
   previewVisible: boolean;
   starts: number;
   stops: number;
+  pendingStarts: number;
   previewCalls: Array<{ id: number; status: PreviewCallStatus }>;
 }
 
@@ -14,6 +15,7 @@ interface NativeCameraMockControl {
   snapshot(): NativeCameraMockSnapshot;
   resolvePreview(id: number): void;
   rejectPreview(id: number): void;
+  resolveStart(): void;
 }
 
 declare global {
@@ -22,8 +24,11 @@ declare global {
   }
 }
 
-export async function installNativeCameraMock(page: Page): Promise<void> {
-  await page.addInitScript(() => {
+export async function installNativeCameraMock(
+  page: Page,
+  options: { deferStart?: boolean } = {},
+): Promise<void> {
+  await page.addInitScript(({ deferStart }) => {
     type PreviewCall = {
       id: number;
       status: PreviewCallStatus;
@@ -36,6 +41,7 @@ export async function installNativeCameraMock(page: Page): Promise<void> {
       previewVisible: false,
       starts: 0,
       stops: 0,
+      pendingStartResolvers: [] as Array<() => void>,
       nextPreviewId: 1,
       previewCalls: [] as PreviewCall[],
     };
@@ -55,6 +61,7 @@ export async function installNativeCameraMock(page: Page): Promise<void> {
         previewVisible: camera.previewVisible,
         starts: camera.starts,
         stops: camera.stops,
+        pendingStarts: camera.pendingStartResolvers.length,
         previewCalls: camera.previewCalls.map(({ id, status }) => ({
           id,
           status,
@@ -70,6 +77,11 @@ export async function installNativeCameraMock(page: Page): Promise<void> {
         const call = findPendingPreview(id);
         call.status = "rejected";
         call.reject(new Error(`Native preview call ${id} failed after churn`));
+      },
+      resolveStart: () => {
+        const resolve = camera.pendingStartResolvers.shift();
+        if (!resolve) throw new Error("No pending native camera start");
+        resolve();
       },
     };
 
@@ -118,6 +130,11 @@ export async function installNativeCameraMock(page: Page): Promise<void> {
         if (methodName === "isAvailable") return { available: true };
         if (methodName === "start") {
           camera.starts += 1;
+          if (deferStart) {
+            await new Promise<void>((resolve) => {
+              camera.pendingStartResolvers.push(resolve);
+            });
+          }
           camera.running = true;
           return { width: 1920, height: 1080 };
         }
@@ -157,7 +174,7 @@ export async function installNativeCameraMock(page: Page): Promise<void> {
         );
       },
     });
-  });
+  }, options);
 }
 
 export async function nativeCameraSnapshot(
@@ -192,6 +209,14 @@ export async function settleNativePreview(
     },
     { id, outcome },
   );
+}
+
+export async function resolveNativeStart(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const control = window.__nativeCameraMock;
+    if (!control) throw new Error("Native camera mock is not installed");
+    control.resolveStart();
+  });
 }
 
 export async function requestNativePreviewUpdate(page: Page): Promise<void> {
