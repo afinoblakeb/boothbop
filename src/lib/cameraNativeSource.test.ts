@@ -104,4 +104,27 @@ describe("native camera source contract", () => {
     expect(cameraSource).toContain("AVCaptureSession.runtimeErrorNotification");
     expect(cameraSource).toContain('notifyListeners("stateChanged"');
   });
+
+  it("owns background shutdown natively and settles interrupted starts", () => {
+    expect(cameraSource).toContain(
+      "UIApplication.didEnterBackgroundNotification",
+    );
+    expect(cameraSource).toContain("pendingStartID");
+    expect(cameraSource).toContain("failStart(");
+  });
+
+  it("bounds photo processing and preserves published files until release", () => {
+    const processingQueue = cameraSource
+      .split("private let photoProcessingQueue")[1]
+      .split("private let metadataQueue")[0];
+    expect(processingQueue).not.toContain("attributes: .concurrent");
+
+    const teardown = cameraSource
+      .split("private func tearDownSession(")[1]
+      .split("private func installPreviewIfNeeded")[0];
+    expect(teardown).not.toContain(
+      "removeTemporaryPhotos(Array(temporaryPhotoURLs))",
+    );
+    expect(teardown).not.toContain("temporaryPhotoURLs.removeAll()");
+  });
 });

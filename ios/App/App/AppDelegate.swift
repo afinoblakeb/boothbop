@@ -281,8 +281,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         label: "com.boothbop.camera.samples", qos: .userInitiated)
     private let photoProcessingQueue = DispatchQueue(
         label: "com.boothbop.camera.photo-processing",
-        qos: .userInitiated,
-        attributes: .concurrent)
+        qos: .userInitiated)
     private let metadataQueue = DispatchQueue(
         label: "com.boothbop.camera.metadata", qos: .userInteractive)
     private let previewImageContext = CIContext(options: [
@@ -308,6 +307,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var startupWarmupFileURL: URL?
     private var temporaryPhotoURLs = Set<URL>()
     private var sessionObservers: [NSObjectProtocol] = []
+    private var applicationObservers: [NSObjectProtocol] = []
 
     // These properties are owned by sampleQueue. Retaining one pixel buffer is
     // enough to freeze the exact visible moment without continuously encoding
@@ -326,6 +326,24 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var faceOverlayLayers: [Int: CAShapeLayer] = [:]
     private var faceLastSeen: [Int: CFTimeInterval] = [:]
     private var faceCueStartedAt: [Int: CFTimeInterval] = [:]
+
+    public override func load() {
+        super.load()
+        let center = NotificationCenter.default
+        applicationObservers = [
+            center.addObserver(
+                forName: UIApplication.didEnterBackgroundNotification,
+                object: nil,
+                queue: nil
+            ) { [weak self] _ in
+                self?.sessionQueue.async {
+                    guard let self = self,
+                          self.session != nil || self.pendingStartCall != nil else { return }
+                    self.tearDownSession(rejectPending: true)
+                }
+            },
+        ]
+    }
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         sessionQueue.async {
@@ -604,6 +622,16 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 self?.sessionQueue.async {
                     guard let self = self,
                           self.session === captureSession else { return }
+                    if let startID = self.pendingStartID {
+                        self.notifyListeners("stateChanged", data: [
+                            "state": "interrupted",
+                            "message": "The camera was interrupted. Try Camera Again.",
+                        ])
+                        return self.failStart(
+                            CameraError.configuration("The camera was interrupted"),
+                            code: "interrupted",
+                            id: startID)
+                    }
                     if self.pendingCaptureCall != nil {
                         self.failCapture(
                             "The camera was interrupted",
@@ -613,6 +641,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                         "state": "interrupted",
                         "message": "The camera was interrupted. Try Camera Again.",
                     ])
+                    self.tearDownSession(rejectPending: true)
                 }
             },
             center.addObserver(
@@ -626,6 +655,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 self?.sessionQueue.async {
                     guard let self = self,
                           self.session === captureSession else { return }
+                    if let startID = self.pendingStartID {
+                        self.notifyListeners("stateChanged", data: [
+                            "state": "failed",
+                            "message": "The camera stopped unexpectedly. Try Camera Again.",
+                        ])
+                        return self.failStart(
+                            error ?? CameraError.configuration(
+                                "The camera stopped unexpectedly"),
+                            code: "runtimeError",
+                            id: startID)
+                    }
                     if self.pendingCaptureCall != nil {
                         self.failCapture(
                             error?.localizedDescription ?? "The camera stopped unexpectedly",
@@ -635,6 +675,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                         "state": "failed",
                         "message": "The camera stopped unexpectedly. Try Camera Again.",
                     ])
+                    self.tearDownSession(rejectPending: true)
                 }
             },
         ]
@@ -845,6 +886,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         // path before the shutter is enabled, without holding the sample or
         // session queue behind image scaling and filesystem work.
         photoProcessingQueue.async {
+            let shouldWarm = self.sessionQueue.sync {
+                self.videoOutput === output && self.pendingStartCall != nil
+            }
+            guard shouldWarm else { return }
             let warmupFileURL: URL? = autoreleasepool {
                 guard let previewImage,
                       let warmupData = try? self.renderSquareJPEG(
@@ -1054,6 +1099,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
             let captureSize = self.pendingCaptureSize
             self.photoProcessingQueue.async {
+                let shouldProcess = self.sessionQueue.sync {
+                    self.pendingCaptureID == captureID
+                }
+                guard shouldProcess else { return }
                 let result: Result<CapturedPhoto, Error> = autoreleasepool {
                     Result {
                         guard let data = photo.fileDataRepresentation(),
@@ -1151,6 +1200,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         rejectPending: Bool,
         completion: (() -> Void)? = nil
     ) {
+        let unpublishedPhotoURL = pendingPhoto?.fileURL
+        let unpublishedWarmupURL = startupWarmupFileURL
         pendingStartID = nil
         if rejectPending {
             pendingStartCall?.reject("Camera stopped", "cancelled")
@@ -1167,8 +1218,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewInstalled = false
         startupWarmupFileURL = nil
 
-        removeTemporaryPhotos(Array(temporaryPhotoURLs))
-        temporaryPhotoURLs.removeAll()
+        let unpublishedURLs = [unpublishedPhotoURL, unpublishedWarmupURL].compactMap { $0 }
+        unpublishedURLs.forEach { temporaryPhotoURLs.remove($0) }
+        removeTemporaryPhotos(unpublishedURLs)
 
         removeSessionObservers()
         videoOutput?.setSampleBufferDelegate(nil, queue: nil)
@@ -1309,6 +1361,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     }
 
     deinit {
+        let center = NotificationCenter.default
+        applicationObservers.forEach(center.removeObserver)
+        sessionObservers.forEach(center.removeObserver)
         pendingStartCall?.reject("Camera released", "cancelled")
         pendingCaptureCall?.reject("Camera released", "cancelled")
         videoOutput?.setSampleBufferDelegate(nil, queue: nil)
