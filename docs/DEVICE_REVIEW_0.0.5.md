@@ -1,6 +1,6 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `472ee76`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, commit `e74e8ba`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
@@ -19,7 +19,8 @@ blocker below passes on the owner's iPhone.
    logo. The wordmark has no visible rectangular background.
 2. **Camera quality:** In ordinary indoor light, confirm the preview is sharp,
    correctly oriented, naturally colored, and adjusts focus/exposure when the
-   subject distance and lighting change.
+   subject distance and lighting change. Its rounded corners match the four
+   photo slots during live preview and the shutter freeze.
 3. **Shutter:** Take four photos with the 1-second countdown. The camera freezes
    at the exact shutter moment for about 200ms with no backward/forward jump or
    white screen, returns live for about 50ms, then gives the complete 1-second
