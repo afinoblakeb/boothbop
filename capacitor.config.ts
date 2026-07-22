@@ -10,9 +10,9 @@ const config: CapacitorConfig = {
   // the web view at a remote website. This is core to passing App Store
   // Guideline 4.2 (it is a real app, not a wrapped website).
   webDir: "dist",
-  backgroundColor: "#f6f6f4",
+  backgroundColor: "#f6e7cf",
   ios: {
-    backgroundColor: "#f6f6f4",
+    backgroundColor: "#f6e7cf",
     // The web app already handles safe areas via env(safe-area-inset-*), so let
     // it go edge-to-edge rather than double-insetting.
     contentInset: "never",

@@ -70,6 +70,10 @@ test.describe("compact camera", () => {
       page.getByRole("button", { name: "Take Photos" }),
     );
     await expectFullyInViewport(page.getByRole("button", { name: "Cancel" }));
+    await expectFullyInViewport(
+      page.getByRole("button", { name: "My Photos" }),
+    );
+    await expectFullyInViewport(page.getByRole("button", { name: "Settings" }));
     await expectNoHorizontalOverflow(page);
   });
 });

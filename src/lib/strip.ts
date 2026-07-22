@@ -78,24 +78,29 @@ export function stripGeometry(
   // keeps the same proportions. `cell === STRIP.cell` reproduces the base layout.
   const scale = cell / STRIP.cell;
   const gap = Math.round(STRIP.gap * scale);
-  const footer = Math.round(STRIP.footer * scale);
+  const scaledFooter = Math.round(STRIP.footer * scale);
   const cols = layout === "2x2" ? 2 : 1;
   const rows = layout === "2x2" ? 2 : 4;
-
-  const width = gap + cols * (cell + gap);
-  const height =
-    layout === "4x1" ? width * 3 : gap + rows * (cell + gap) + footer;
-  const photoWidth = cell;
-  const photoHeight =
+  const classicContentHeight = gap + rows * (cell + gap) + scaledFooter;
+  const width =
     layout === "4x1"
-      ? Math.floor((height - footer - gap * (rows + 1)) / rows)
-      : cell;
+      ? Math.ceil(classicContentHeight / 3)
+      : gap + cols * (cell + gap);
+  const height =
+    layout === "4x1" ? width * 3 : gap + rows * (cell + gap) + scaledFooter;
+  const photoWidth = cell;
+  const photoHeight = cell;
+  // Rounding the 2:6 canvas up can add at most two pixels. Keep that harmless
+  // remainder in the footer instead of changing or cropping a square photo.
+  const footer =
+    layout === "4x1" ? height - (gap + rows * (cell + gap)) : scaledFooter;
+  const classicSide = Math.round((width - photoWidth) / 2);
 
   const cells = Array.from({ length: 4 }, (_, i) => {
     const col = layout === "2x2" ? i % 2 : 0;
     const row = layout === "2x2" ? Math.floor(i / 2) : i;
     return {
-      x: gap + col * (photoWidth + gap),
+      x: layout === "4x1" ? classicSide : gap + col * (photoWidth + gap),
       y: gap + row * (photoHeight + gap),
     };
   });

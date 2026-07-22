@@ -13,6 +13,15 @@
  * `display-mode: standalone`.
  */
 export function isNativeShell(): boolean {
+  // Production browser journeys can exercise native-only launch behavior
+  // without weakening the real build. VITE_DEMO is absent from App Store and
+  // web releases, so Vite removes this branch there.
+  if (
+    import.meta.env.VITE_DEMO === "1" &&
+    new URLSearchParams(window.location.search).get("native") === "1"
+  ) {
+    return true;
+  }
   const w = window as Window & {
     Capacitor?: { isNativePlatform?: () => boolean };
   };

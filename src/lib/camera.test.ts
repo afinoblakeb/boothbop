@@ -4,6 +4,7 @@ import {
   CAPTURE_SIZE,
   MAX_CAPTURE_SIZE,
   cameraError,
+  captureBestSquareFrame,
   captureSizeForSource,
   captureSquareFrame,
   startCamera,
@@ -56,7 +57,7 @@ describe("startCamera", () => {
     });
   });
 
-  it("retries with basic video when ideal constraints fail", async () => {
+  it("preserves the front-camera preference when ideal constraints fail", async () => {
     const stream = {} as MediaStream;
     const getUserMedia = vi
       .fn()
@@ -67,8 +68,34 @@ describe("startCamera", () => {
     await expect(startCamera()).resolves.toBe(stream);
     expect(getUserMedia).toHaveBeenCalledTimes(2);
     expect(getUserMedia).toHaveBeenLastCalledWith({
-      video: true,
+      video: { facingMode: { ideal: "user" } },
       audio: false,
+    });
+  });
+
+  it("requests continuous focus, exposure, and white balance when supported", async () => {
+    const applyConstraints = vi.fn().mockResolvedValue(undefined);
+    const track = {
+      getCapabilities: () => ({
+        focusMode: ["manual", "continuous"],
+        exposureMode: ["continuous"],
+        whiteBalanceMode: ["continuous"],
+      }),
+      applyConstraints,
+    };
+    const stream = { getVideoTracks: () => [track] } as unknown as MediaStream;
+    const getUserMedia = vi.fn().mockResolvedValue(stream);
+    vi.stubGlobal("navigator", { mediaDevices: { getUserMedia } });
+
+    await expect(startCamera()).resolves.toBe(stream);
+    expect(applyConstraints).toHaveBeenCalledWith({
+      advanced: [
+        {
+          focusMode: "continuous",
+          exposureMode: "continuous",
+          whiteBalanceMode: "continuous",
+        },
+      ],
     });
   });
 
@@ -136,6 +163,55 @@ describe("captureSquareFrame", () => {
 
     expect(canvas.width).toBe(480);
     expect(canvas.height).toBe(480);
+  });
+});
+
+describe("captureBestSquareFrame", () => {
+  it("uses a high-resolution still photo when ImageCapture is available", async () => {
+    const video = document.createElement("video");
+    const track = {} as MediaStreamTrack;
+    Object.defineProperty(video, "srcObject", {
+      value: { getVideoTracks: () => [track] },
+    });
+    const close = vi.fn();
+    const bitmap = {
+      width: 4032,
+      height: 3024,
+      close,
+    } as unknown as ImageBitmap;
+    const takePhoto = vi.fn().mockResolvedValue(new Blob(["still"]));
+    const createImageBitmap = vi.fn().mockResolvedValue(bitmap);
+    class FakeImageCapture {
+      takePhoto = takePhoto;
+    }
+    vi.stubGlobal("ImageCapture", FakeImageCapture);
+    vi.stubGlobal("createImageBitmap", createImageBitmap);
+    const context = {
+      translate: vi.fn(),
+      scale: vi.fn(),
+      drawImage: vi.fn(),
+    };
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(
+      context as unknown as CanvasRenderingContext2D,
+    );
+
+    const canvas = await captureBestSquareFrame(video);
+
+    expect(takePhoto).toHaveBeenCalledOnce();
+    expect(canvas.width).toBe(MAX_CAPTURE_SIZE);
+    expect(canvas.height).toBe(MAX_CAPTURE_SIZE);
+    expect(context.drawImage).toHaveBeenCalledWith(
+      bitmap,
+      504,
+      0,
+      3024,
+      3024,
+      0,
+      0,
+      MAX_CAPTURE_SIZE,
+      MAX_CAPTURE_SIZE,
+    );
+    expect(close).toHaveBeenCalledOnce();
   });
 });
 

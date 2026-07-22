@@ -2,6 +2,38 @@ import { enableFileSharing, expect, test } from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
+test("native launch opens one camera preview without a home-screen tap", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async (...args: Parameters<typeof original>) => {
+        const state = window as typeof window & { __cameraCalls?: number };
+        state.__cameraCalls = (state.__cameraCalls ?? 0) + 1;
+        return original(...args);
+      },
+    });
+  });
+
+  await page.goto("/?native=1");
+
+  await expect(page.locator("video")).toBeVisible();
+  await expect(page.getByRole("button", { name: "My Photos" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Settings" })).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __cameraCalls?: number }).__cameraCalls,
+      ),
+    )
+    .toBe(1);
+});
+
 test("camera opening is visible and duplicate-proof", async ({ page }) => {
   await page.addInitScript(() => {
     const original = navigator.mediaDevices.getUserMedia.bind(
@@ -81,7 +113,17 @@ test("two synchronous shutter taps create one photo session", async ({
     timeout: 20_000,
   });
   await page.getByRole("button", { name: "My Photos" }).click();
-  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Open photo set" }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await page.getByRole("button", { name: "Select" }).click();
+  await page.getByRole("button", { name: "Select photo set" }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page
+    .getByRole("button", { name: "Delete 1 selected photo set" })
+    .click();
+  await expect(page.getByText("No photos yet")).toBeVisible();
 });
 
 test("closing My Photos cancels an in-flight session open", async ({
@@ -98,7 +140,9 @@ test("closing My Photos cancels an in-flight session open", async ({
     timeout: 20_000,
   });
   await page.getByRole("button", { name: "My Photos" }).click();
-  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Open photo set" }),
+  ).toHaveCount(1);
   await page.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Home" }).click();
   await page.getByRole("button", { name: "My Photos" }).click();
@@ -193,5 +237,7 @@ test("captures four camera frames and reaches Share Photo", async ({
   });
 
   await page.getByRole("button", { name: "My Photos" }).click();
-  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
+  await expect(
+    page.getByRole("button", { name: "Open photo set" }),
+  ).toHaveCount(1);
 });

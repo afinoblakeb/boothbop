@@ -6,10 +6,12 @@ import { useModalFocus } from "../hooks/useModalFocus";
 export function OverlayScreen({
   title,
   onClose,
+  action,
   children,
 }: {
   title: string;
   onClose: () => void;
+  action?: ReactNode;
   children: ReactNode;
 }) {
   const modalRef = useModalFocus<HTMLDivElement>(onClose);
@@ -26,14 +28,17 @@ export function OverlayScreen({
           <Heading as="h2" size="xl" variant="page">
             {title}
           </Heading>
-          <IconButton
-            data-autofocus
-            aria-label="Close"
-            onClick={onClose}
-            className="text-text-muted"
-          >
-            ✕
-          </IconButton>
+          <div className="flex items-center gap-1">
+            {action}
+            <IconButton
+              data-autofocus
+              aria-label="Close"
+              onClick={onClose}
+              className="text-text-muted"
+            >
+              ✕
+            </IconButton>
+          </div>
         </div>
         {children}
       </div>

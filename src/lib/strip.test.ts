@@ -25,17 +25,19 @@ describe("stripGeometry", () => {
     const g = stripGeometry("4x1");
     expect(g.cols).toBe(1);
     expect(g.rows).toBe(4);
-    // gap + 1*(cell+gap)
-    expect(g.width).toBe(STRIP.gap + STRIP.cell + STRIP.gap);
+    expect(g.width * 3).toBe(4 * STRIP.cell + 5 * STRIP.gap + STRIP.footer);
     expect(g.height).toBe(g.width * 3);
     expect(g.photoWidth).toBe(STRIP.cell);
-    expect(g.photoHeight).toBeLessThan(g.photoWidth);
+    expect(g.photoHeight).toBe(g.photoWidth);
+    expect(g.cells[0].x).toBeGreaterThan(STRIP.gap);
   });
 
   it("makes the complete classic strip exactly 2 by 6 at every quality", () => {
     for (const cell of [PREVIEW_CELL, STRIP.cell, 900, 1440]) {
       const geometry = stripGeometry("4x1", cell);
       expect(geometry.height).toBe(geometry.width * 3);
+      expect(geometry.photoWidth).toBe(cell);
+      expect(geometry.photoHeight).toBe(cell);
     }
   });
 

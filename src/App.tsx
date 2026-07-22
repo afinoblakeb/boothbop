@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMERA_MSG,
   cameraError,
-  captureSquareFrame,
+  captureBestSquareFrame,
   startCamera,
   stopCamera,
   videoReady,
@@ -350,28 +350,6 @@ export default function App() {
     loadWatermark().then(setBrandLogo);
   }, []);
 
-  // Native app: hide the launch splash as soon as React has mounted, rather
-  // than letting it auto-hide on a timeout (which logs a warning).
-  useEffect(() => {
-    if (!isNativeShell()) return;
-    let cancelled = false;
-    let firstFrame = 0;
-    let secondFrame = 0;
-    import("@capacitor/splash-screen").then(({ SplashScreen }) => {
-      if (cancelled) return;
-      firstFrame = requestAnimationFrame(() => {
-        secondFrame = requestAnimationFrame(() => {
-          SplashScreen.hide().catch(() => {});
-        });
-      });
-    });
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(firstFrame);
-      cancelAnimationFrame(secondFrame);
-    };
-  }, []);
-
   // Detect arrival from the retired PhotoBlast app — its migration page links to
   // boothbop.com/?from=photoblast. Persist it so the welcome-back guidance
   // survives reloads until they've installed BoothBop.
@@ -436,6 +414,23 @@ export default function App() {
   const cameraOpeningRef = useRef(false);
   const sequenceOwnerRef = useRef<symbol | null>(null);
   const galleryOpenRequestRef = useRef(0);
+  const nativeLaunchStartedRef = useRef(false);
+  const nativeSplashHiddenRef = useRef(false);
+  const openCameraRef = useRef<
+    ((index?: number | null) => Promise<void>) | null
+  >(null);
+
+  async function hideNativeSplash() {
+    if (!isNativeShell() || nativeSplashHiddenRef.current) return;
+    nativeSplashHiddenRef.current = true;
+    await afterPaint();
+    try {
+      const { SplashScreen } = await import("@capacitor/splash-screen");
+      await SplashScreen.hide();
+    } catch {
+      // The web test shell has no native splash implementation.
+    }
+  }
 
   useEffect(() => {
     framesRef.current = frames;
@@ -454,9 +449,18 @@ export default function App() {
     const video = videoRef.current;
     if (video && streamRef.current) {
       video.srcObject = streamRef.current;
-      video.play().catch(() => {});
+      void video
+        .play()
+        .then(async () => {
+          if (await videoReady(video)) await hideNativeSplash();
+        })
+        .catch(() => {});
     }
   }, [phase]);
+
+  useEffect(() => {
+    if (error && isNativeShell()) void hideNativeSplash();
+  }, [error]);
 
   // Release the camera when the component goes away.
   useEffect(() => () => stopCamera(streamRef.current), []);
@@ -582,6 +586,18 @@ export default function App() {
       }
     }
   }
+  useEffect(() => {
+    openCameraRef.current = openCamera;
+  });
+
+  // Native launches proceed directly into a single camera request. The iOS
+  // launch view remains in place until the video element has real pixels, so
+  // a cold WebKit startup can never expose a black or empty frame.
+  useEffect(() => {
+    if (!isNativeShell() || nativeLaunchStartedRef.current) return;
+    nativeLaunchStartedRef.current = true;
+    void openCameraRef.current?.();
+  }, []);
 
   // Stop everything and go back to the start screen.
   function cancelToHome() {
@@ -665,7 +681,11 @@ export default function App() {
       try {
         void tapHaptic("Medium");
         setFlash(true);
-        const replacement = captureSquareFrame(video);
+        const replacement = await captureBestSquareFrame(video);
+        if (sequenceCancelled()) {
+          setFlash(false);
+          return;
+        }
         const updated = replaceFrame(framesRef.current, replacing, replacement);
         framesRef.current = updated;
         setFrames(updated);
@@ -724,7 +744,11 @@ export default function App() {
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
-      const frame = captureSquareFrame(video);
+      const frame = await captureBestSquareFrame(video);
+      if (sequenceCancelled()) {
+        setFlash(false);
+        return;
+      }
       captured.push(frame);
       setFrames([...captured]);
       await wait(240);
@@ -1253,7 +1277,7 @@ export default function App() {
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}
         onSettings={openSettings}
-        showActions={(phase === "idle" || phase === "review") && !showMigration}
+        showActions={phase !== "capturing" && !showMigration}
       />
 
       {phase === "idle" &&
