@@ -113,6 +113,24 @@ describe("native share cache files", () => {
     expect(native.deleteFile).toHaveBeenCalledOnce();
   });
 
+  it("times out stalled file conversion so a later retry can complete", async () => {
+    class StalledFileReader extends ImmediateFileReader {
+      override readAsDataURL() {}
+    }
+    vi.stubGlobal("FileReader", StalledFileReader);
+    const firstShare = nativeShareFile(new Blob(["first"]), "first.png");
+    const getFirstOutcome = await outcomeOf(firstShare);
+
+    await vi.advanceTimersByTimeAsync(WRITE_TIMEOUT_MS);
+
+    expect(getFirstOutcome()).toBe("rejected");
+    expect(native.writeFile).not.toHaveBeenCalled();
+    vi.stubGlobal("FileReader", ImmediateFileReader);
+    await expect(
+      nativeShareFile(new Blob(["second"]), "second.png"),
+    ).resolves.toBe(true);
+  });
+
   it("attempts cleanup when the native cache write fails", async () => {
     const writeError = new Error("write failed");
     native.writeFile.mockRejectedValue(writeError);

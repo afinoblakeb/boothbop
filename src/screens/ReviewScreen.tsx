@@ -140,7 +140,7 @@ export function ReviewScreen({
         ? "Save GIF"
         : "Save Photo";
   const isBusy = generating !== null;
-  const mediaGenerating = generating === "gif" || generating === "video";
+  const mediaGenerating = generating === format;
   const socialPreparing = format === "gif" && socialPreparation === "preparing";
   const sharePreparing = generating === "share" || socialPreparing;
 

@@ -775,6 +775,8 @@ export default function App() {
       return;
     }
 
+    if (index === null) clearResults();
+
     const request = ++cameraRequestRef.current;
     pendingCameraOpenRef.current = { request, index };
     abortRef.current = false;
@@ -1140,6 +1142,16 @@ export default function App() {
     setFormat(f);
     setError(null);
     setNote(null);
+    if (generating === "gif" && f !== "gif") {
+      gifJob.current.invalidate();
+      generatingOwner.current = null;
+      setGenerating(null);
+    }
+    if (generating === "video" && f !== "video") {
+      videoJob.current.invalidate();
+      generatingOwner.current = null;
+      setGenerating(null);
+    }
     if (f !== "gif" && socialPreparation === "preparing") {
       if (prewarmTimer.current !== null) {
         window.clearTimeout(prewarmTimer.current);

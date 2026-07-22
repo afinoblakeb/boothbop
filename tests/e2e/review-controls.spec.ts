@@ -132,8 +132,17 @@ test("format tabs support arrow keys and background prep stays scoped", async ({
   await expect(gif).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("switch", { name: "Boom" })).toBeVisible();
   await page.getByRole("tab", { name: "Strip" }).click();
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible();
+  await expect(page.getByRole("status")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Share Photo" })).toBeEnabled();
   await expect(page.getByRole("tab", { name: "Video" })).toBeEnabled();
+
+  await gif.click();
+  await page.getByRole("button", { name: "Camera" }).click();
+  await expect(page.locator("video")).toBeVisible();
+  await expect(
+    page.getByRole("status").filter({ hasText: /Making|Recording/ }),
+  ).toHaveCount(0);
 });
 
 test("high-quality masters keep the editor responsive", async ({ page }) => {

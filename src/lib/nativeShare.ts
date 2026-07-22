@@ -10,6 +10,7 @@
 import { isNativeShell } from "./platform";
 
 const NATIVE_BRIDGE_TIMEOUT_MS = {
+  read: 15_000,
   write: 15_000,
   share: 10 * 60_000,
   cleanup: 5_000,
@@ -70,7 +71,11 @@ export async function nativeShareFile(
   ]);
   const path = uniqueShareFilename(filename);
   try {
-    const data = await blobToBase64(blob);
+    const data = await boundedNativePhase(
+      "file conversion",
+      () => blobToBase64(blob),
+      NATIVE_BRIDGE_TIMEOUT_MS.read,
+    );
     const { uri } = await boundedNativePhase(
       "cache write",
       () =>
