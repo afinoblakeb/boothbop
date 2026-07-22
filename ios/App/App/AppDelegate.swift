@@ -236,13 +236,83 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "BoothBopVideo"
     public let jsName = "BoothBopVideo"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "make", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "make", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
     ]
 
-    private enum VideoError: Error { case decode, writer, append }
+    private enum VideoError: Error { case decode, writer, append, cancelled }
 
-    // make({ images: [base64 png], width, height, bitrate, frameMs, loops, fps }) -> { base64 }
+    private final class VideoJob {
+        private let lock = NSLock()
+        private var cancelled = false
+        private var writer: AVAssetWriter?
+        private var outputURL: URL?
+
+        var isCancelled: Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            return cancelled
+        }
+
+        func attach(writer: AVAssetWriter, outputURL: URL) -> Bool {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !cancelled else { return false }
+            self.writer = writer
+            self.outputURL = outputURL
+            return true
+        }
+
+        func cancel() {
+            lock.lock()
+            cancelled = true
+            let activeWriter = writer
+            let activeOutputURL = outputURL
+            lock.unlock()
+
+            activeWriter?.cancelWriting()
+            if let activeOutputURL {
+                try? FileManager.default.removeItem(at: activeOutputURL)
+            }
+        }
+
+        func clear() {
+            lock.lock()
+            writer = nil
+            outputURL = nil
+            lock.unlock()
+        }
+    }
+
+    private let jobsLock = NSLock()
+    private var jobs: [String: VideoJob] = [:]
+
+    private func register(job: VideoJob, id: String) -> Bool {
+        jobsLock.lock()
+        defer { jobsLock.unlock() }
+        guard jobs[id] == nil else { return false }
+        jobs[id] = job
+        return true
+    }
+
+    private func job(id: String) -> VideoJob? {
+        jobsLock.lock()
+        defer { jobsLock.unlock() }
+        return jobs[id]
+    }
+
+    private func unregisterJob(id: String) {
+        jobsLock.lock()
+        let removed = jobs.removeValue(forKey: id)
+        jobsLock.unlock()
+        removed?.clear()
+    }
+
+    // make({ jobId, images: [base64 png], width, height, bitrate, frameMs, loops, fps }) -> { base64 }
     @objc func make(_ call: CAPPluginCall) {
+        guard let jobId = call.getString("jobId"), !jobId.isEmpty else {
+            return call.reject("jobId required", "argumentError")
+        }
         let images = call.getArray("images", String.self) ?? []
         guard !images.isEmpty else {
             return call.reject("No frames provided", "argumentError")
@@ -257,28 +327,56 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         let frameMs = call.getInt("frameMs") ?? 600
         let loops = max(1, call.getInt("loops") ?? 2)
         let fps = max(1, call.getInt("fps") ?? 30)
+        let videoJob = VideoJob()
+        guard register(job: videoJob, id: jobId) else {
+            return call.reject("Duplicate jobId", "argumentError")
+        }
 
         DispatchQueue.global(qos: .userInitiated).async {
+            defer { self.unregisterJob(id: jobId) }
             do {
                 let data = try self.renderMP4(
                     images: images, width: width, height: height, bitrate: bitrate,
-                    frameMs: frameMs, loops: loops, fps: fps)
+                    frameMs: frameMs, loops: loops, fps: fps, job: videoJob)
+                guard !videoJob.isCancelled else {
+                    return call.reject("Video render cancelled", "cancelled")
+                }
                 call.resolve(["base64": data.base64EncodedString()])
             } catch {
+                if videoJob.isCancelled {
+                    return call.reject("Video render cancelled", "cancelled")
+                }
                 call.reject("Video render failed: \(error.localizedDescription)", "renderError")
             }
         }
     }
 
+    @objc func cancel(_ call: CAPPluginCall) {
+        guard let jobId = call.getString("jobId"), !jobId.isEmpty else {
+            return call.reject("jobId required", "argumentError")
+        }
+        guard let videoJob = job(id: jobId) else {
+            return call.resolve(["cancelled": false])
+        }
+        videoJob.cancel()
+        call.resolve(["cancelled": true])
+    }
+
     private func renderMP4(
         images: [String], width: Int, height: Int, bitrate: Int,
-        frameMs: Int, loops: Int, fps: Int
+        frameMs: Int, loops: Int, fps: Int, job: VideoJob
     ) throws -> Data {
+        guard !job.isCancelled else { throw VideoError.cancelled }
         let outURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("boothbop-\(UUID().uuidString).mp4")
         try? FileManager.default.removeItem(at: outURL)
+        defer { try? FileManager.default.removeItem(at: outURL) }
 
         let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+        guard job.attach(writer: writer, outputURL: outURL) else {
+            writer.cancelWriting()
+            throw VideoError.cancelled
+        }
         writer.shouldOptimizeForNetworkUse = true
         let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
         let compression: [String: Any] = [
@@ -325,6 +423,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 
         for _ in 0..<loops {
             for image in images {
+                guard !job.isCancelled else { throw VideoError.cancelled }
                 // Keep only the current decoded pixel buffer resident. The
                 // encoded PNG strings are cheap to retain, while four 1080p
                 // BGRA buffers would consume roughly 33 MB before AVFoundation
@@ -334,7 +433,9 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
                         fromBase64: image, width: width, height: height,
                         pool: pixelBufferPool)
                     for _ in 0..<framesPerPhoto {
+                        guard !job.isCancelled else { throw VideoError.cancelled }
                         while !input.isReadyForMoreMediaData {
+                            if job.isCancelled { throw VideoError.cancelled }
                             if writer.status == .failed || writer.status == .cancelled
                                 || Date() >= appendDeadline {
                                 writer.cancelWriting()
@@ -352,17 +453,25 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             }
         }
 
+        guard !job.isCancelled else { throw VideoError.cancelled }
         input.markAsFinished()
         let sem = DispatchSemaphore(value: 0)
         writer.finishWriting { sem.signal() }
-        if sem.wait(timeout: .now() + 15) == .timedOut {
-            writer.cancelWriting()
-            throw VideoError.writer
+        let finishDeadline = Date().addingTimeInterval(15)
+        while sem.wait(timeout: .now() + 0.05) == .timedOut {
+            if job.isCancelled {
+                writer.cancelWriting()
+                throw VideoError.cancelled
+            }
+            if Date() >= finishDeadline {
+                writer.cancelWriting()
+                throw VideoError.writer
+            }
         }
+        guard !job.isCancelled else { throw VideoError.cancelled }
         guard writer.status == .completed else { throw writer.error ?? VideoError.writer }
 
         let data = try Data(contentsOf: outURL)
-        try? FileManager.default.removeItem(at: outURL)
         return data
     }
 

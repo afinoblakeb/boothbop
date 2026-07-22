@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { make, encodeVideo } = vi.hoisted(() => ({
+const { make, cancel, encodeVideo } = vi.hoisted(() => ({
   make: vi.fn(),
+  cancel: vi.fn(),
   encodeVideo: vi.fn(),
 }));
 
 vi.mock("./boothBopVideoPlugin", () => ({
-  BoothBopVideo: { make },
+  BoothBopVideo: { make, cancel },
 }));
 
 vi.mock("./video", async (importOriginal) => {
@@ -31,6 +32,7 @@ describe("encodeVideoNative", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     make.mockReset();
+    cancel.mockReset();
     encodeVideo.mockReset();
 
     vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
@@ -109,6 +111,45 @@ describe("encodeVideoNative", () => {
         bitrate: 16_000_000,
       }),
     );
+  });
+
+  it("assigns a unique job ID to every native render", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
+      (callback) => callback(new Blob(["frame"], { type: "image/png" })),
+    );
+    make.mockResolvedValue({ base64: "bXA0" });
+
+    await encodeVideoNative([sourceFrame()]);
+    await encodeVideoNative([sourceFrame()]);
+
+    const firstJobId = make.mock.calls[0]?.[0]?.jobId;
+    const secondJobId = make.mock.calls[1]?.[0]?.jobId;
+    expect(firstJobId).toEqual(expect.any(String));
+    expect(firstJobId).not.toBe("");
+    expect(secondJobId).toEqual(expect.any(String));
+    expect(secondJobId).not.toBe(firstJobId);
+  });
+
+  it("cancels the matching native render and never falls back after abort", async () => {
+    vi.spyOn(HTMLCanvasElement.prototype, "toBlob").mockImplementation(
+      (callback) => callback(new Blob(["frame"], { type: "image/png" })),
+    );
+    make.mockImplementation(() => new Promise(() => undefined));
+    cancel.mockResolvedValue({});
+    const controller = new AbortController();
+
+    const result = encodeVideoNative([sourceFrame()], {
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(make).toHaveBeenCalledOnce());
+    const jobId = make.mock.calls[0]?.[0]?.jobId;
+
+    controller.abort();
+
+    await expect(result).rejects.toMatchObject({ name: "AbortError" });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(cancel).toHaveBeenCalledWith({ jobId });
+    expect(encodeVideo).not.toHaveBeenCalled();
   });
 
   it("falls back to the web encoder when PNG generation fails", async () => {

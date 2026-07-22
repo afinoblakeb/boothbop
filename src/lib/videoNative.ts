@@ -19,16 +19,32 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
-function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+function withNativeCancellation<T>(
+  promise: Promise<T>,
+  jobId: string,
+  cancel: (jobId: string) => Promise<unknown>,
+  signal?: AbortSignal,
+): Promise<T> {
   if (!signal) return promise;
   signal.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+    const onAbort = () => {
+      void cancel(jobId).catch(() => undefined);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
     signal.addEventListener("abort", onAbort, { once: true });
     void promise.then(resolve, reject).finally(() => {
       signal.removeEventListener("abort", onAbort);
     });
   });
+}
+
+function newJobId(): string {
+  const bytes = new Uint32Array(4);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (value) => value.toString(16).padStart(8, "0")).join(
+    "-",
+  );
 }
 
 function base64ToBlob(base64: string, mime: string): Blob {
@@ -157,9 +173,12 @@ export async function encodeVideoNative(
       signal?.throwIfAborted();
     }
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
-    const { base64 } = await withAbort(
+    signal?.throwIfAborted();
+    const jobId = newJobId();
+    const { base64 } = await withNativeCancellation(
       withTimeout(
         BoothBopVideo.make({
+          jobId,
           images,
           size,
           width,
@@ -172,6 +191,8 @@ export async function encodeVideoNative(
         NATIVE_TIMEOUT_MS,
         "native video",
       ),
+      jobId,
+      async (id) => BoothBopVideo.cancel({ jobId: id }),
       signal,
     );
     return { blob: base64ToBlob(base64, "video/mp4"), extension: "mp4" };
