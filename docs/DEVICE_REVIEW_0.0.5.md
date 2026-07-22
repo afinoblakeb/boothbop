@@ -1,6 +1,6 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `e74e8ba`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, commit `6336c50`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
@@ -21,10 +21,11 @@ blocker below passes on the owner's iPhone.
    correctly oriented, naturally colored, and adjusts focus/exposure when the
    subject distance and lighting change. Its rounded corners match the four
    photo slots during live preview and the shutter freeze.
-3. **Shutter:** Take four photos with the 1-second countdown. The camera freezes
-   at the exact shutter moment for about 200ms with no backward/forward jump or
-   white screen, returns live for about 50ms, then gives the complete 1-second
-   countdown before the next shot.
+3. **Shutter:** Select the 1-second delay and take four photos. The first photo
+   always receives a complete 3-2-1. The camera freezes at the exact shutter
+   moment for about 400ms with no backward/forward jump or white screen, returns
+   live for about 50ms, then gives the complete selected 1-second countdown
+   before the next shot.
 4. **Retake One:** Replace one photo. The other three remain unchanged and the
    replacement is sharp and correctly oriented.
 5. **Edit:** Apply Warm, Cool, B&W, Sepia, and Inverse. Each is visibly distinct,
