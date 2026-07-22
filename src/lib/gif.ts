@@ -18,20 +18,26 @@ export const GIF_DEFAULT_DELAY_MS = 450;
 const yieldToBrowser = () =>
   new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function pixelsForFrames(
+async function pixelsForFrames(
   frames: HTMLCanvasElement[],
   size: number,
-): Uint8ClampedArray[] {
+  signal?: AbortSignal,
+): Promise<Uint8ClampedArray[]> {
   const scratch = document.createElement("canvas");
   scratch.width = size;
   scratch.height = size;
   const ctx = scratch.getContext("2d", { willReadFrequently: true })!;
   configureHighQualityScaling(ctx);
-  return frames.map((frame) => {
+  const pixels: Uint8ClampedArray[] = [];
+  for (const frame of frames) {
+    signal?.throwIfAborted();
     ctx.clearRect(0, 0, size, size);
     ctx.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
-    return ctx.getImageData(0, 0, size, size).data;
-  });
+    pixels.push(ctx.getImageData(0, 0, size, size).data);
+    await yieldToBrowser();
+  }
+  signal?.throwIfAborted();
+  return pixels;
 }
 
 function watermarkPixels(
@@ -195,7 +201,7 @@ export async function encodeGif(
       signal,
     );
   } else {
-    const pixels = pixelsForFrames(frames, size);
+    const pixels = await pixelsForFrames(frames, size, signal);
     bytes =
       typeof Worker === "undefined"
         ? encodeGifPixels({

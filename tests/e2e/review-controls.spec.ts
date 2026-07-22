@@ -164,6 +164,57 @@ test("high-quality masters keep the editor responsive", async ({ page }) => {
   expect(longestTask).toBeLessThanOrEqual(100);
 });
 
+test("GIF fallback yields between high-quality frame reads", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(window, "OffscreenCanvas", {
+      configurable: true,
+      value: undefined,
+    });
+    const original = CanvasRenderingContext2D.prototype.getImageData;
+    CanvasRenderingContext2D.prototype.getImageData = function (...args) {
+      if (args[2] >= 1_000 || args[3] >= 1_000) {
+        const until = performance.now() + 60;
+        while (performance.now() < until) {
+          // Simulate a slow high-resolution read on older WebKit.
+        }
+      }
+      return original.apply(this, args);
+    };
+
+    const state = window as typeof window & { __longTasks?: number[] };
+    state.__longTasks = [];
+    if (!PerformanceObserver.supportedEntryTypes.includes("longtask")) return;
+    new PerformanceObserver((list) => {
+      state.__longTasks?.push(
+        ...list.getEntries().map((entry) => entry.duration),
+      );
+    }).observe({ entryTypes: ["longtask"] });
+  });
+
+  await openDemoReview(page);
+  await page.evaluate(() => {
+    (window as typeof window & { __longTasks?: number[] }).__longTasks = [];
+  });
+  await page.getByRole("tab", { name: "GIF" }).click();
+  await expect(page.getByRole("status", { name: "" })).toContainText(
+    "Making your GIF",
+  );
+  await expect(page.getByRole("img", { name: "Your gif" })).toBeVisible({
+    timeout: 20_000,
+  });
+
+  const longestTask = await page.evaluate(() =>
+    Math.max(
+      0,
+      ...((window as typeof window & { __longTasks?: number[] }).__longTasks ??
+        []),
+    ),
+  );
+  expect(longestTask).toBeLessThanOrEqual(100);
+});
+
 test("GIF Boom toggle updates and persists", async ({ page }) => {
   await openDemoReview(page);
   await expect(
