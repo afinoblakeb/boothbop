@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { MouseEvent } from "react";
+import { createPortal } from "react-dom";
+import { X } from "lucide-react";
 import { IconButton } from "../ui";
 import { useModalFocus } from "../hooks/useModalFocus";
 
+interface FocalPoint {
+  x: number;
+  y: number;
+}
+
+const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
+
 /**
- * An inline image that opens a full-screen viewer for a closer look. The inline
- * view is unchanged (the default "fit" preview); tapping it opens an overlay
- * where tapping again toggles between fit and a width-filling zoom that the user
- * pans by scrolling. We drive zoom with layout size (not a CSS transform) so the
- * scroll container actually grows — pinch-zoom is unavailable under the app's
- * fixed PWA viewport, so scroll-to-pan is the reliable gesture on iOS.
+ * An inline image that opens a full-screen, scrollable detail viewer. The
+ * tapped point becomes the center of the zoom so a tall strip never jumps back
+ * to its first photo. Tapping the enlarged image toggles back to fit.
  */
 export function ZoomableImage({
   src,
@@ -19,23 +26,43 @@ export function ZoomableImage({
   alt: string;
   className?: string;
 }) {
-  const [open, setOpen] = useState(false);
+  const [openAt, setOpenAt] = useState<FocalPoint | null>(null);
+  const previewRef = useRef<HTMLImageElement>(null);
+
+  function openZoom(event: MouseEvent<HTMLButtonElement>) {
+    const bounds = previewRef.current?.getBoundingClientRect();
+    setOpenAt(
+      bounds
+        ? {
+            x: clampUnit((event.clientX - bounds.left) / bounds.width),
+            y: clampUnit((event.clientY - bounds.top) / bounds.height),
+          }
+        : { x: 0.5, y: 0.5 },
+    );
+  }
+
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={openZoom}
         aria-label="Zoom in for a closer look"
         className="relative block h-full min-h-0 w-full overflow-hidden"
       >
         <img
+          ref={previewRef}
           src={src}
           alt={alt}
           className={`absolute inset-0 m-auto max-w-full ${className} cursor-zoom-in`}
         />
       </button>
-      {open && (
-        <ZoomOverlay src={src} alt={alt} onClose={() => setOpen(false)} />
+      {openAt && (
+        <ZoomOverlay
+          src={src}
+          alt={alt}
+          initialPoint={openAt}
+          onClose={() => setOpenAt(null)}
+        />
       )}
     </>
   );
@@ -44,34 +71,70 @@ export function ZoomableImage({
 function ZoomOverlay({
   src,
   alt,
+  initialPoint,
   onClose,
 }: {
   src: string;
   alt: string;
+  initialPoint: FocalPoint;
   onClose: () => void;
 }) {
-  const [zoomed, setZoomed] = useState(false);
+  const [zoomed, setZoomed] = useState(true);
+  const [focalPoint, setFocalPoint] = useState(initialPoint);
   const modalRef = useModalFocus<HTMLDivElement>(onClose);
-  return (
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const centerFocalPoint = useCallback(() => {
+    const scroller = scrollRef.current;
+    if (!scroller || !zoomed) return;
+    scroller.scrollLeft =
+      scroller.scrollWidth * focalPoint.x - scroller.clientWidth / 2;
+    scroller.scrollTop =
+      scroller.scrollHeight * focalPoint.y - scroller.clientHeight / 2;
+  }, [focalPoint, zoomed]);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(centerFocalPoint);
+    return () => cancelAnimationFrame(frame);
+  }, [centerFocalPoint]);
+
+  function toggleZoom(event: MouseEvent<HTMLImageElement>) {
+    if (zoomed) {
+      setZoomed(false);
+      return;
+    }
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    setFocalPoint({
+      x: clampUnit((event.clientX - bounds.left) / bounds.width),
+      y: clampUnit((event.clientY - bounds.top) / bounds.height),
+    });
+    setZoomed(true);
+  }
+
+  return createPortal(
     <div
       ref={modalRef}
       role="dialog"
       aria-modal="true"
       aria-label="Photo preview"
-      className="fixed inset-0 z-50 flex flex-col bg-ink/95 pt-[calc(env(safe-area-inset-top)+0.5rem)]"
+      className="fixed inset-0 z-[100] flex flex-col bg-editor pt-[calc(env(safe-area-inset-top)+0.5rem)]"
     >
-      <div className="flex justify-end px-3">
+      <div className="relative z-10 flex shrink-0 justify-end px-3">
         <IconButton
           data-autofocus
           aria-label="Close zoom"
+          variant="surface"
           onClick={onClose}
-          className="text-3xl text-cream"
+          className="border-white !bg-white !text-ink shadow-overlay"
         >
-          ✕
+          <X aria-hidden="true" size={24} strokeWidth={2.5} />
         </IconButton>
       </div>
       <div
-        className={`flex-1 px-3 ${
+        ref={scrollRef}
+        data-testid="zoom-scroll"
+        className={`min-h-0 flex-1 px-3 ${
           zoomed
             ? "overflow-auto"
             : "flex items-center justify-center overflow-hidden"
@@ -80,20 +143,22 @@ function ZoomOverlay({
         <img
           src={src}
           alt={alt}
-          onClick={() => setZoomed((z) => !z)}
+          onLoad={centerFocalPoint}
+          onClick={toggleZoom}
           className={
             zoomed
-              ? "h-auto cursor-zoom-out"
+              ? "mx-auto block h-auto max-w-none cursor-zoom-out"
               : "max-h-full max-w-full cursor-zoom-in object-contain"
           }
-          style={zoomed ? { width: "95vw", maxWidth: "none" } : undefined}
+          style={zoomed ? { width: "95vw" } : undefined}
         />
       </div>
-      <p className="pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 text-center font-sans text-xs text-cream/70">
+      <p className="shrink-0 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-2 text-center font-sans text-xs text-white/70">
         {zoomed
           ? "Tap image to fit · scroll to pan"
           : "Tap image for a closer look"}
       </p>
-    </div>
+    </div>,
+    document.body,
   );
 }

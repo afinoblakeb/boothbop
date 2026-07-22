@@ -19,7 +19,7 @@ export function TopBar({
   showCamera: boolean;
 }) {
   return (
-    <header className="sticky top-0 z-30 -mx-4 flex min-h-[57px] items-center justify-between border-b border-border bg-app-canvas/95 px-3 py-1.5 backdrop-blur-md">
+    <header className="sticky top-0 z-30 -mx-4 flex min-h-[57px] items-center justify-between bg-app-canvas px-3 py-1.5">
       {onHome ? (
         <button
           onClick={onHome}

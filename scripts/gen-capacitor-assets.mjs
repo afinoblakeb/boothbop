@@ -3,12 +3,14 @@
 //
 // Output (assets/): icon-only.png (1024, opaque, padded so iOS corner-rounding
 // never clips the wordmark), splash.png + splash-dark.png (2732, logo centered
-// on cream). After this, `npx @capacitor/assets generate --ios` makes the rest.
+// on the neutral app canvas). After this, copy the splash sources into Xcode.
 import sharp from "sharp";
 import { mkdir } from "node:fs/promises";
 
 const CREAM = "#f6e7cf";
+const APP_CANVAS = "#f4f5f5";
 const SQUARE = "brand/logo-square.png";
+const WIDE = "brand/logo-wide.png";
 const OUT = "assets";
 
 await mkdir(OUT, { recursive: true });
@@ -33,19 +35,23 @@ async function icon() {
   console.log("wrote assets/icon-only.png 1024x1024");
 }
 
-// Splash: logo centered small on a large cream canvas.
+// Splash: transparent horizontal wordmark on the same neutral canvas the app
+// renders before React and while the native camera starts.
 async function splash(name) {
   const size = 2732;
+  // Capacitor scales this square source by viewport height on portrait phones.
+  // A 34% mark remains comfortably inside even the narrowest supported screen.
   const inner = Math.round(size * 0.34);
-  const logo = await squareArt()
-    .resize(inner, inner, { fit: "contain", background: CREAM })
+  const logo = await sharp(WIDE)
+    .trim()
+    .resize({ width: inner, fit: "inside" })
     .png()
     .toBuffer();
   await sharp({
-    create: { width: size, height: size, channels: 3, background: CREAM },
+    create: { width: size, height: size, channels: 3, background: APP_CANVAS },
   })
     .composite([{ input: logo, gravity: "center" }])
-    .flatten({ background: CREAM })
+    .flatten({ background: APP_CANVAS })
     .png()
     .toFile(`${OUT}/${name}`);
   console.log(`wrote assets/${name} 2732x2732`);
@@ -53,6 +59,6 @@ async function splash(name) {
 
 await icon();
 await splash("splash.png");
-// Brand is light; reuse the same cream splash for dark mode.
+// Use one intentional light launch surface in both appearances.
 await splash("splash-dark.png");
 console.log("done");

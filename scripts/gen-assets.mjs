@@ -2,7 +2,8 @@
 // Run with: npm run gen:assets
 import sharp from "sharp";
 
-const CREAM = "#f6e7cf"; // sampled from the logo artboard
+const CREAM = "#f6e7cf"; // retained for the existing square app icon
+const APP_CANVAS = "#f4f5f5";
 const SQUARE = "brand/logo-square.png";
 const WIDE = "brand/logo-wide.png";
 const OUT = "public";
@@ -58,7 +59,7 @@ async function maskable() {
 async function wideLogo() {
   await wideArt()
     .resize({ width: 700 }) // displays ~320px wide; 700 covers 2x screens
-    .png(PNG)
+    .png({ compressionLevel: 9 })
     .toFile(`${OUT}/logo-wide.png`);
   console.log("wrote logo-wide.png w=700");
 }
@@ -68,7 +69,7 @@ async function ogImage() {
     h = 630;
   const logo = await wideArt().resize({ width: 980 }).png(PNG).toBuffer();
   await sharp({
-    create: { width: w, height: h, channels: 3, background: CREAM },
+    create: { width: w, height: h, channels: 3, background: APP_CANVAS },
   })
     .composite([{ input: logo, gravity: "center" }])
     .png(PNG)
@@ -106,37 +107,10 @@ async function uiIcon(name, size = 256) {
   console.log("wrote", `ic-${name}.png`, `${size}x${size}`);
 }
 
-// Transparent horizontal wordmark for GIF/video. The source is anti-aliased
-// against a cream gradient, so a hard chroma key leaves a dirty cream fringe.
-// Reconstruct clean ink/orange pixels with alpha derived from their contrast.
+// Transparent horizontal wordmark for GIF/video. The source now carries clean
+// alpha, so preserve it directly rather than reconstructing it with a chroma key.
 async function watermark() {
-  const { data, info } = await sharp(WIDE)
-    .ensureAlpha()
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-  const ch = info.channels;
-  for (let i = 0; i < data.length; i += ch) {
-    const r = data[i];
-    const g = data[i + 1];
-    const b = data[i + 2];
-    const luminance = r * 0.2126 + g * 0.7152 + b * 0.0722;
-    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-    const orange = r > g * 1.35 && r > b * 1.8;
-    const rawAlpha = orange ? (chroma - 28) / 170 : (218 - luminance) / 180;
-    const alpha = Math.max(0, Math.min(1, rawAlpha));
-
-    data[i] = orange ? 238 : 17;
-    data[i + 1] = orange ? 78 : 17;
-    data[i + 2] = orange ? 12 : 17;
-    data[i + 3] = Math.round(alpha * 255);
-  }
-  await sharp(data, {
-    raw: { width: info.width, height: info.height, channels: ch },
-  })
-    .trim()
-    // Full-colour (NOT palette) so the logo's anti-aliased edges stay crisp when
-    // composited onto the strip / GIF / video. Higher res gives headroom for the
-    // larger draws. (Palette quantization here was softening the strip + GIF.)
+  await wideArt()
     .resize({ width: 1440 })
     .png({ compressionLevel: 9 })
     .toFile(`${OUT}/watermark.png`);

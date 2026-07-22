@@ -41,6 +41,13 @@ describe("stripGeometry", () => {
     }
   });
 
+  it("leaves breathing room between classic photo frames", () => {
+    const geometry = stripGeometry("4x1");
+    const frameGap =
+      geometry.cells[1].y - (geometry.cells[0].y + geometry.photoHeight);
+    expect(frameGap / geometry.photoHeight).toBeGreaterThanOrEqual(0.06);
+  });
+
   it("lays a 2x2 grid out as two columns and two rows", () => {
     const g = stripGeometry("2x2");
     expect(g.cols).toBe(2);

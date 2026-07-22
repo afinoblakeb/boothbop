@@ -5,10 +5,10 @@ import AVFoundation
 import CoreImage
 
 private extension UIColor {
-    static let boothBopCream = UIColor(
-        red: 246.0 / 255.0,
-        green: 231.0 / 255.0,
-        blue: 207.0 / 255.0,
+    static let boothBopCanvas = UIColor(
+        red: 244.0 / 255.0,
+        green: 245.0 / 255.0,
+        blue: 245.0 / 255.0,
         alpha: 1.0)
 }
 
@@ -41,11 +41,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         let sceneWindow = UIWindow(windowScene: windowScene)
-        sceneWindow.backgroundColor = .boothBopCream
+        sceneWindow.backgroundColor = .boothBopCanvas
         let launchViewController = UIStoryboard(
             name: "LaunchScreen", bundle: nil
         ).instantiateInitialViewController() ?? UIViewController()
-        launchViewController.view.backgroundColor = .boothBopCream
+        launchViewController.view.backgroundColor = .boothBopCanvas
         sceneWindow.rootViewController = launchViewController
         window = sceneWindow
         sceneWindow.makeKeyAndVisible()
@@ -742,7 +742,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
               let webView = bridge?.webView,
               let previewHost = webView.superview else { return }
 
-        rootView.backgroundColor = .boothBopCream
+        rootView.backgroundColor = .boothBopCanvas
         webView.isOpaque = false
         webView.backgroundColor = .clear
         webView.scrollView.backgroundColor = .clear
@@ -829,10 +829,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewView = nil
         requestedPreviewFrame = .zero
 
-        bridge?.viewController?.view.backgroundColor = .boothBopCream
+        bridge?.viewController?.view.backgroundColor = .boothBopCanvas
         bridge?.webView?.isOpaque = false
-        bridge?.webView?.backgroundColor = .boothBopCream
-        bridge?.webView?.scrollView.backgroundColor = .boothBopCream
+        bridge?.webView?.backgroundColor = .boothBopCanvas
+        bridge?.webView?.scrollView.backgroundColor = .boothBopCanvas
     }
 
     deinit {
@@ -853,10 +853,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             nativePreviewLayer?.session = nil
             nativePreviewLayer?.removeFromSuperlayer()
             nativePreview?.removeFromSuperview()
-            rootView?.backgroundColor = .boothBopCream
+            rootView?.backgroundColor = .boothBopCanvas
             webView?.isOpaque = false
-            webView?.backgroundColor = .boothBopCream
-            webView?.scrollView.backgroundColor = .boothBopCream
+            webView?.backgroundColor = .boothBopCanvas
+            webView?.scrollView.backgroundColor = .boothBopCanvas
         }
     }
 }
@@ -1160,10 +1160,10 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 class BridgeViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .boothBopCream
+        view.backgroundColor = .boothBopCanvas
         webView?.isOpaque = false
-        webView?.backgroundColor = .boothBopCream
-        webView?.scrollView.backgroundColor = .boothBopCream
+        webView?.backgroundColor = .boothBopCanvas
+        webView?.scrollView.backgroundColor = .boothBopCanvas
     }
 
     override func capacitorDidLoad() {

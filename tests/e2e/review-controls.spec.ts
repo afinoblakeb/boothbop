@@ -94,11 +94,26 @@ test("preview zoom behaves as an isolated, dismissible dialog", async ({
   const zoomTrigger = page.getByRole("button", {
     name: "Zoom in for a closer look",
   });
-  await zoomTrigger.click();
+  const stripPreview = page.getByAltText("Your strip");
+  const previewBounds = await stripPreview.boundingBox();
+  expect(previewBounds).not.toBeNull();
+  await stripPreview.click({
+    position: {
+      x: previewBounds!.width / 2,
+      y: previewBounds!.height * 0.8,
+    },
+  });
 
   const zoom = page.getByRole("dialog", { name: "Photo preview" });
   await expect(zoom).toBeVisible();
-  await expect(zoom.getByRole("button", { name: "Close zoom" })).toBeFocused();
+  const close = zoom.getByRole("button", { name: "Close zoom" });
+  await expect(close).toBeFocused();
+  await expect(close).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect
+    .poll(() =>
+      zoom.getByTestId("zoom-scroll").evaluate((element) => element.scrollTop),
+    )
+    .toBeGreaterThan(100);
   await page.keyboard.press("Escape");
   await expect(zoom).toHaveCount(0);
   await expect(zoomTrigger).toBeFocused();

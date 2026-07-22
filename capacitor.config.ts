@@ -10,9 +10,9 @@ const config: CapacitorConfig = {
   // the web view at a remote website. This is core to passing App Store
   // Guideline 4.2 (it is a real app, not a wrapped website).
   webDir: "dist",
-  backgroundColor: "#f6e7cf",
+  backgroundColor: "#f4f5f5",
   ios: {
-    backgroundColor: "#f6e7cf",
+    backgroundColor: "#f4f5f5",
     // The web app already handles safe areas via env(safe-area-inset-*), so let
     // it go edge-to-edge rather than double-insetting.
     contentInset: "never",
@@ -20,7 +20,7 @@ const config: CapacitorConfig = {
   plugins: {
     SplashScreen: {
       launchAutoHide: false,
-      backgroundColor: "#f6e7cf",
+      backgroundColor: "#f4f5f5",
       showSpinner: false,
     },
   },

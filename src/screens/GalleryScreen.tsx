@@ -187,7 +187,7 @@ export function GalleryScreen({
             ))}
           </div>
           {selecting && (
-            <div className="sticky bottom-0 -mx-4 mt-4 flex items-center justify-between border-t border-border bg-app-canvas/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-md">
+            <div className="sticky bottom-0 -mx-4 mt-4 flex items-center justify-between border-t border-border bg-surface/95 px-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-3 backdrop-blur-md">
               <Button
                 variant="quiet"
                 size="sm"

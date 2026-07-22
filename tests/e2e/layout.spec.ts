@@ -13,6 +13,31 @@ const phones = [
   { name: "large", width: 430, height: 932 },
 ] as const;
 
+test("the modern app canvas uses a genuinely transparent wordmark", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await expect(page.locator("body")).toHaveCSS(
+    "background-color",
+    "rgb(244, 245, 245)",
+  );
+  const navigation = page.locator("header").first();
+  await expect(navigation).toHaveCSS("background-color", "rgb(244, 245, 245)");
+  await expect(navigation).toHaveCSS("border-bottom-width", "0px");
+  const cornerAlpha = await page.getByAltText("BoothBop").evaluate((image) => {
+    const logo = image as HTMLImageElement;
+    const canvas = document.createElement("canvas");
+    canvas.width = logo.naturalWidth;
+    canvas.height = logo.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Missing logo canvas context");
+    context.drawImage(logo, 0, 0);
+    return context.getImageData(0, 0, 1, 1).data[3];
+  });
+  expect(cornerAlpha).toBe(0);
+});
+
 for (const phone of phones) {
   test.describe(`${phone.name} phone`, () => {
     test.use({ viewport: { width: phone.width, height: phone.height } });

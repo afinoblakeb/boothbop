@@ -4,7 +4,7 @@
 
 /* Modern product shell. Retro colors remain available to exported media. */
 @theme {
-  --color-app-canvas: #f6e7cf;
+  --color-app-canvas: #f4f5f5;
   --color-surface: #ffffff;
   --color-surface-muted: #ececea;
   --color-surface-inverse: #121313;
@@ -25,7 +25,7 @@
   --color-editor-muted: #a8aaa6;
 
   /* Compatibility aliases while screens migrate to semantic tokens. */
-  --color-cream: #f6e7cf;
+  --color-cream: #f4f5f5;
   --color-paper: #ffffff;
   --color-ink: #1b1b1a;
   --color-orange: #f25522;

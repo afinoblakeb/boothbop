@@ -28,7 +28,7 @@ export const THEMES: Record<string, StripTheme> = {
 // Strip layout constants (px). Shared by the geometry math and the renderer.
 export const STRIP = {
   cell: 640, // size of each photo in the strip
-  gap: 28, // space between/around photos
+  gap: 43, // space between/around photos
   footer: 132, // footer band height
 } as const;
 
