@@ -1,11 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  encodeVideo,
   isSocialVideoSupported,
   isVideoSupported,
   pickMimeType,
 } from "./video";
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
   vi.unstubAllGlobals();
   // jsdom has no captureStream; remove any we added for a test.
   delete (HTMLCanvasElement.prototype as { captureStream?: unknown })
@@ -18,6 +21,48 @@ function stubMediaRecorder(supported: string[]) {
   (MR as { isTypeSupported: (t: string) => boolean }).isTypeSupported = (t) =>
     supported.includes(t);
   vi.stubGlobal("MediaRecorder", MR);
+}
+
+function stubEncoder({ emitStop }: { emitStop: boolean }) {
+  const trackStops = [vi.fn(), vi.fn()];
+  const stream = {
+    getTracks: () => trackStops.map((stop) => ({ stop })),
+  } as unknown as MediaStream;
+  const context = {
+    drawImage: vi.fn(),
+    fillRect: vi.fn(),
+    fillStyle: "",
+    imageSmoothingEnabled: false,
+    imageSmoothingQuality: "low",
+  } as unknown as CanvasRenderingContext2D;
+
+  vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(context);
+  (
+    HTMLCanvasElement.prototype as {
+      captureStream?: () => MediaStream;
+    }
+  ).captureStream = () => stream;
+
+  class FakeMediaRecorder {
+    static isTypeSupported = () => true;
+
+    state: RecordingState = "inactive";
+    ondataavailable: ((event: { data: Blob }) => void) | null = null;
+    onerror: (() => void) | null = null;
+    onstop: (() => void) | null = null;
+
+    start() {
+      this.state = "recording";
+    }
+
+    stop() {
+      this.state = "inactive";
+      if (emitStop) this.onstop?.();
+    }
+  }
+
+  vi.stubGlobal("MediaRecorder", FakeMediaRecorder);
+  return { trackStops };
 }
 
 describe("pickMimeType", () => {
@@ -72,5 +117,46 @@ describe("isSocialVideoSupported", () => {
       HTMLCanvasElement.prototype as { captureStream?: () => MediaStream }
     ).captureStream = () => ({}) as MediaStream;
     expect(isSocialVideoSupported()).toBe(true);
+  });
+});
+
+describe("encodeVideo", () => {
+  it("rejects and stops capture tracks when MediaRecorder never emits stop", async () => {
+    vi.useFakeTimers();
+    const { trackStops } = stubEncoder({ emitStop: false });
+    const frame = document.createElement("canvas");
+    let outcome: "pending" | "resolved" | "rejected" = "pending";
+
+    void encodeVideo([frame], {
+      frameMs: 10,
+      loops: 1,
+      watermark: false,
+    }).then(
+      () => {
+        outcome = "resolved";
+      },
+      () => {
+        outcome = "rejected";
+      },
+    );
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(outcome).toBe("rejected");
+    for (const trackStop of trackStops) {
+      expect(trackStop).toHaveBeenCalledOnce();
+    }
+  });
+
+  it("rejects zero-byte recorder output", async () => {
+    const { trackStops } = stubEncoder({ emitStop: true });
+    const frame = document.createElement("canvas");
+
+    await expect(
+      encodeVideo([frame], { frameMs: 0, loops: 1, watermark: false }),
+    ).rejects.toThrow("no data");
+    for (const trackStop of trackStops) {
+      expect(trackStop).toHaveBeenCalledOnce();
+    }
   });
 });

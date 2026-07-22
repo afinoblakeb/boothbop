@@ -23,6 +23,8 @@ export interface VideoResult {
   extension: string; // "mp4" or "webm"
 }
 
+const RECORDER_STOP_TIMEOUT_MS = 1000;
+
 /** Pick the best video container/codec the browser will actually record. */
 export function pickMimeType(): { mimeType: string; extension: string } | null {
   const candidates: { mimeType: string; extension: string }[] = [
@@ -121,19 +123,35 @@ export async function encodeVideo(
 
   let terminalError: Error | null = null;
   let stopped = false;
+  let stopDeadline: ReturnType<typeof setTimeout> | undefined;
+  let rejectDone: (error: Error) => void = () => undefined;
   const stop = () => {
     if (stopped) return;
     stopped = true;
+    stopDeadline = setTimeout(() => {
+      rejectDone(
+        terminalError ?? new Error("Video recorder did not stop cleanly."),
+      );
+    }, RECORDER_STOP_TIMEOUT_MS);
     if (recorder.state !== "inactive") recorder.stop();
   };
   const done = new Promise<VideoResult>((resolve, reject) => {
+    rejectDone = reject;
     recorder.onstop = () => {
-      if (terminalError) reject(terminalError);
-      else
+      clearTimeout(stopDeadline);
+      if (terminalError) {
+        reject(terminalError);
+      } else {
+        const blob = new Blob(chunks, { type: picked.mimeType });
+        if (blob.size === 0) {
+          reject(new Error("Video recorder produced no data."));
+          return;
+        }
         resolve({
-          blob: new Blob(chunks, { type: picked.mimeType }),
+          blob,
           extension: picked.extension,
         });
+      }
     };
     recorder.onerror = () => {
       terminalError = new Error("Video recorder failed.");
@@ -181,6 +199,7 @@ export async function encodeVideo(
     return await done;
   } finally {
     clearTimeout(deadline);
+    clearTimeout(stopDeadline);
     document.removeEventListener("visibilitychange", onHidden);
     signal?.removeEventListener("abort", onAbort);
     stop();
