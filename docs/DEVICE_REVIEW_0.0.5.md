@@ -1,6 +1,6 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `0f9ecde`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, commit `7228bb9`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
@@ -19,8 +19,10 @@ blocker below passes on the owner's iPhone.
    logo. The wordmark has no visible rectangular background.
 2. **Camera quality:** In ordinary indoor light, confirm the preview is sharp,
    correctly oriented, naturally colored, and adjusts focus/exposure when the
-   subject distance and lighting change. Its rounded corners match the four
-   photo slots during live preview and the shutter freeze.
+   subject distance and lighting change. A stable orange frame should follow a
+   detected face, disappear shortly after the face leaves, remain clipped to
+   the preview, and stay hidden behind the shutter freeze. Its rounded corners
+   match the four photo slots during live preview and the shutter freeze.
 3. **Shutter:** Select the 1-second delay and take four photos. The first photo
    always receives a complete 3-2-1. The camera freezes at the exact shutter
    moment for about 400ms with no backward/forward jump or white screen, returns
@@ -31,9 +33,10 @@ blocker below passes on the owner's iPhone.
 5. **Edit:** Apply Warm, Cool, B&W, Sepia, and Inverse. Each is visibly distinct,
    the preview responds promptly, and Done returns to the full review screen.
 6. **Strip:** Save/share the classic strip. It has four square photos with
-   comfortable spacing, the cream brand footer, and an exact 2x6 proportion
-   without distorted faces. Tap near the lower photos: zoom opens on that
-   region and presents a clearly visible white close control above the content.
+   comfortable spacing, the cream brand footer, a clearly legible enlarged
+   transparent BoothBop wordmark, and an exact 2x6 proportion without distorted
+   faces. Tap near the lower photos: zoom opens on that region and presents a
+   clearly visible white close control above the content.
 7. **Animation:** Review GIF, enable Boom, change speed, and review Video. Motion
    is smooth and output quality is visibly suitable for sharing.
 8. **Instagram:** Share the animation to Post, Reel, and Story. All three accept
