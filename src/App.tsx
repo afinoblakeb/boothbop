@@ -259,6 +259,7 @@ export default function App() {
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
     revision = renderRevision.current,
+    owner?: symbol,
   ): Promise<Blob> {
     return gifJob.current.get(
       renderKey("gif", choices, "", revision),
@@ -274,12 +275,14 @@ export default function App() {
           signal,
         });
       },
+      owner,
     );
   }
   async function getVideoResult(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
     revision = renderRevision.current,
+    owner?: symbol,
   ): Promise<VideoResult> {
     return videoJob.current.get(
       renderKey("video", choices, "", revision),
@@ -296,6 +299,7 @@ export default function App() {
           ? encodeVideoNative(src, opts)
           : encodeVideo(src, opts);
       },
+      owner,
     );
   }
 
@@ -691,10 +695,10 @@ export default function App() {
     () => () => {
       if (prewarmTimer.current !== null)
         window.clearTimeout(prewarmTimer.current);
-      gifJob.current.invalidate();
-      videoJob.current.invalidate();
-      socialVideoJob.current.invalidate();
-      stripJob.current.invalidate();
+      gifJob.current.invalidateAll();
+      videoJob.current.invalidateAll();
+      socialVideoJob.current.invalidateAll();
+      stripJob.current.invalidateAll();
       for (const url of mediaUrls.current) URL.revokeObjectURL(url);
       mediaUrls.current.clear();
     },
@@ -1271,6 +1275,7 @@ export default function App() {
     theme: StripTheme,
     choices: RenderChoices = currentChoices(),
     revision = renderRevision.current,
+    owner?: symbol,
   ): Promise<Blob> {
     const extra = JSON.stringify([selectedLayout, theme]);
     return stripJob.current.get(
@@ -1285,6 +1290,7 @@ export default function App() {
         signal.throwIfAborted();
         return blob;
       },
+      owner,
     );
   }
 
@@ -1308,11 +1314,12 @@ export default function App() {
     theme: StripTheme,
     choices: RenderChoices,
     revision: number,
+    owner: symbol,
   ): Promise<Blob> {
     if (task.layout)
-      return getStripBlob(src, task.layout, theme, choices, revision);
-    if (task.format === "gif") return getGifBlob(src, choices, revision);
-    return (await getVideoResult(src, choices, revision)).blob;
+      return getStripBlob(src, task.layout, theme, choices, revision, owner);
+    if (task.format === "gif") return getGifBlob(src, choices, revision, owner);
+    return (await getVideoResult(src, choices, revision, owner)).blob;
   }
 
   // Fire-and-forget after a capture: save the enabled formats to Photos. Best-
@@ -1330,41 +1337,48 @@ export default function App() {
       videoSupported: runtimeFeatures.video,
     });
     if (!tasks.length) return;
-    // Access was granted when the toggle was enabled; re-check WITHOUT prompting
-    // (the user may have revoked it in iOS Settings since).
-    let status: PermissionResult;
+    const owner = Symbol("photos-autosave");
     try {
-      status = await ensurePhotosPermission(settings.dest, false);
-    } catch {
-      status = "denied";
-    }
-    if (!canSaveWithPermission(settings.dest, status)) return;
-    if (revision !== renderRevision.current) return;
-
-    // Snapshot the theme so a set saved over a few seconds stays consistent even
-    // if the user changes the color on the review screen mid-save.
-    let savedAny = false;
-    for (const task of tasks) {
-      if (revision !== renderRevision.current) return;
+      // Access was granted when the toggle was enabled; re-check WITHOUT
+      // prompting because the user may have revoked it in iOS Settings.
+      let status: PermissionResult;
       try {
-        const blob = await renderForAutosave(
-          captured,
-          task,
-          theme,
-          choices,
-          revision,
-        );
-        if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
+        status = await ensurePhotosPermission(settings.dest, false);
       } catch {
-        /* per-task best-effort */
+        status = "denied";
       }
-    }
-    if (savedAny && revision === renderRevision.current) {
-      setNote(
-        settings.dest === "album"
-          ? "Saved to your BoothBop album"
-          : "Saved to Photos",
-      );
+      if (!canSaveWithPermission(settings.dest, status)) return;
+
+      // Theme, choices, frames, and revision are immutable snapshots. Review
+      // edits may release their render ownership without cancelling this save.
+      let savedAny = false;
+      for (const task of tasks) {
+        try {
+          const blob = await renderForAutosave(
+            captured,
+            task,
+            theme,
+            choices,
+            revision,
+            owner,
+          );
+          if (await saveToPhotos(blob, task.kind, settings.dest))
+            savedAny = true;
+        } catch {
+          /* per-task best-effort */
+        }
+      }
+      if (savedAny && revision === renderRevision.current) {
+        setNote(
+          settings.dest === "album"
+            ? "Saved to your BoothBop album"
+            : "Saved to Photos",
+        );
+      }
+    } finally {
+      gifJob.current.invalidate(owner);
+      videoJob.current.invalidate(owner);
+      stripJob.current.invalidate(owner);
     }
   }
 

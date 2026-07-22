@@ -67,4 +67,85 @@ describe("RenderJob", () => {
     job.invalidate();
     expect(signals[1].aborted).toBe(true);
   });
+
+  it("keeps shared autosave work alive across interactive edits", async () => {
+    const job = new RenderJob<number>();
+    const autosaveOwner = Symbol("photos-autosave");
+    const signals: AbortSignal[] = [];
+    let resolveAutosave!: (value: number) => void;
+    const producer = vi.fn(
+      (signal: AbortSignal) =>
+        new Promise<number>((resolve) => {
+          signals.push(signal);
+          resolveAutosave = resolve;
+        }),
+    );
+
+    const interactive = job.get("captured", producer);
+    const autosave = job.get("captured", producer, autosaveOwner);
+
+    expect(autosave).toBe(interactive);
+    expect(producer).toHaveBeenCalledOnce();
+
+    job.invalidate();
+    expect(signals[0].aborted).toBe(false);
+
+    const edited = job.get("edited", async (signal) => {
+      signals.push(signal);
+      return 2;
+    });
+    expect(signals[0].aborted).toBe(false);
+    expect(signals[1].aborted).toBe(false);
+
+    resolveAutosave(1);
+    await expect(autosave).resolves.toBe(1);
+    await expect(edited).resolves.toBe(2);
+
+    job.invalidate(autosaveOwner);
+    expect(signals[0].aborted).toBe(true);
+    expect(job.peek("edited")).toBe(2);
+  });
+
+  it("does not let delayed autosave displace a newer interactive render", () => {
+    const job = new RenderJob<number>();
+    const autosaveOwner = Symbol("photos-autosave");
+    const signals: AbortSignal[] = [];
+
+    void job.get("edited", async (signal) => {
+      signals.push(signal);
+      return new Promise<number>(() => {});
+    });
+    void job.get(
+      "captured",
+      async (signal) => {
+        signals.push(signal);
+        return new Promise<number>(() => {});
+      },
+      autosaveOwner,
+    );
+
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => !signal.aborted)).toBe(true);
+  });
+
+  it("keeps autosaves for consecutive shoots independently owned", () => {
+    const job = new RenderJob<number>();
+    const firstAutosave = Symbol("first-photos-autosave");
+    const secondAutosave = Symbol("second-photos-autosave");
+    const signals: AbortSignal[] = [];
+    const pending = (signal: AbortSignal) => {
+      signals.push(signal);
+      return new Promise<number>(() => {});
+    };
+
+    void job.get("shoot-1", pending, firstAutosave);
+    void job.get("shoot-2", pending, secondAutosave);
+
+    expect(signals).toHaveLength(2);
+    expect(signals.every((signal) => !signal.aborted)).toBe(true);
+
+    job.invalidate(secondAutosave);
+    expect(signals[0].aborted).toBe(false);
+    expect(signals[1].aborted).toBe(true);
+  });
 });

@@ -1,49 +1,64 @@
 /**
- * One keyed, single-flight render slot.
+ * Keyed, single-flight render work with owner-scoped cancellation.
  *
- * Callers that request the same key share the exact same promise. Invalidating
- * the slot prevents late work from becoming the current cached value without
- * pretending JavaScript can stop native encoders that are already running.
+ * Callers that request the same key share the exact same promise, even when
+ * they have different owners. Releasing one owner only aborts work when no
+ * other owner still needs it. Calls without an owner use the default
+ * interactive owner, preserving the single-slot API for ordinary UI renders.
  */
 export class RenderJob<T> {
-  private generation = 0;
-  private key: string | null = null;
-  private promise: Promise<T> | null = null;
-  private value: T | undefined;
-  private controller: AbortController | null = null;
+  private readonly defaultOwner = Symbol("render-job-default-owner");
+  private readonly ownerKeys = new Map<symbol, string>();
+  private readonly entries = new Map<
+    string,
+    {
+      controller: AbortController;
+      owners: Set<symbol>;
+      promise: Promise<T>;
+      value: T | undefined;
+    }
+  >();
 
-  get(key: string, produce: (signal: AbortSignal) => Promise<T>): Promise<T> {
-    if (this.key === key && this.promise) return this.promise;
+  get(
+    key: string,
+    produce: (signal: AbortSignal) => Promise<T>,
+    owner = this.defaultOwner,
+  ): Promise<T> {
+    if (this.ownerKeys.get(owner) === key) {
+      const owned = this.entries.get(key);
+      if (owned) return owned.promise;
+    }
 
-    this.controller?.abort();
+    this.release(owner);
+
+    const shared = this.entries.get(key);
+    if (shared) {
+      shared.owners.add(owner);
+      this.ownerKeys.set(owner, key);
+      return shared.promise;
+    }
+
     const controller = new AbortController();
-    const generation = this.generation;
     const promise = produce(controller.signal);
-    this.key = key;
-    this.promise = promise;
-    this.value = undefined;
-    this.controller = controller;
+    const entry = {
+      controller,
+      owners: new Set([owner]),
+      promise,
+      value: undefined as T | undefined,
+    };
+    this.entries.set(key, entry);
+    this.ownerKeys.set(owner, key);
 
     void promise.then(
       (value) => {
-        if (
-          this.generation === generation &&
-          this.key === key &&
-          this.promise === promise
-        ) {
-          this.value = value;
-        }
+        if (this.entries.get(key) === entry) entry.value = value;
       },
       () => {
-        if (
-          this.generation === generation &&
-          this.key === key &&
-          this.promise === promise
-        ) {
-          this.key = null;
-          this.promise = null;
-          this.value = undefined;
-          this.controller = null;
+        if (this.entries.get(key) !== entry) return;
+        this.entries.delete(key);
+        for (const entryOwner of entry.owners) {
+          if (this.ownerKeys.get(entryOwner) === key)
+            this.ownerKeys.delete(entryOwner);
         }
       },
     );
@@ -51,16 +66,32 @@ export class RenderJob<T> {
     return promise;
   }
 
-  peek(key: string): T | undefined {
-    return this.key === key ? this.value : undefined;
+  peek(key: string, owner = this.defaultOwner): T | undefined {
+    if (this.ownerKeys.get(owner) !== key) return undefined;
+    return this.entries.get(key)?.value;
   }
 
-  invalidate(): void {
-    this.controller?.abort();
-    this.generation += 1;
-    this.key = null;
-    this.promise = null;
-    this.value = undefined;
-    this.controller = null;
+  invalidate(owner = this.defaultOwner): void {
+    this.release(owner);
+  }
+
+  invalidateAll(): void {
+    for (const entry of this.entries.values()) entry.controller.abort();
+    this.entries.clear();
+    this.ownerKeys.clear();
+  }
+
+  private release(owner: symbol): void {
+    const key = this.ownerKeys.get(owner);
+    if (key === undefined) return;
+    this.ownerKeys.delete(owner);
+
+    const entry = this.entries.get(key);
+    if (!entry) return;
+    entry.owners.delete(owner);
+    if (entry.owners.size > 0) return;
+
+    this.entries.delete(key);
+    entry.controller.abort();
   }
 }
