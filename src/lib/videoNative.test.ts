@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { make, cancel, encodeVideo } = vi.hoisted(() => ({
   make: vi.fn(),
@@ -44,6 +44,10 @@ describe("encodeVideoNative", () => {
         throw new Error("synchronous data URL encoding must not be used");
       },
     );
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("encodes lossless PNG frames asynchronously and preserves their order", async () => {
@@ -150,6 +154,107 @@ describe("encodeVideoNative", () => {
     expect(cancel).toHaveBeenCalledOnce();
     expect(cancel).toHaveBeenCalledWith({ jobId });
     expect(encodeVideo).not.toHaveBeenCalled();
+  });
+
+  it("waits for the matching native render to cancel before timeout fallback", async () => {
+    vi.useFakeTimers();
+    make.mockImplementation(() => new Promise(() => undefined));
+    let finishCancellation!: () => void;
+    cancel.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishCancellation = () => resolve({ cancelled: true });
+        }),
+    );
+    const fallback = {
+      blob: new Blob(["fallback"], { type: "video/mp4" }),
+      extension: "mp4",
+    };
+    encodeVideo.mockResolvedValue(fallback);
+
+    const result = encodeVideoNative([]);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(make).toHaveBeenCalledOnce();
+    const jobId = make.mock.calls[0]?.[0]?.jobId;
+
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(cancel).toHaveBeenCalledWith({ jobId });
+    expect(encodeVideo).not.toHaveBeenCalled();
+
+    finishCancellation();
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(result).resolves.toBe(fallback);
+    expect(encodeVideo).toHaveBeenCalledOnce();
+  });
+
+  it("waits for native cancellation before settling an abort", async () => {
+    make.mockImplementation(() => new Promise(() => undefined));
+    let finishCancellation!: () => void;
+    cancel.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishCancellation = () => resolve({ cancelled: true });
+        }),
+    );
+    const controller = new AbortController();
+
+    const result = encodeVideoNative([], { signal: controller.signal });
+    await vi.waitFor(() => expect(make).toHaveBeenCalledOnce());
+    const jobId = make.mock.calls[0]?.[0]?.jobId;
+    let settled = false;
+    void result.catch(() => {
+      settled = true;
+    });
+
+    controller.abort();
+    const stateAfterOneTurn = await Promise.race([
+      result.then(
+        () => "resolved",
+        () => "rejected",
+      ),
+      new Promise<string>((resolve) => setTimeout(() => resolve("pending"), 0)),
+    ]);
+
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(cancel).toHaveBeenCalledWith({ jobId });
+    expect(stateAfterOneTurn).toBe("pending");
+    expect(settled).toBe(false);
+    expect(encodeVideo).not.toHaveBeenCalled();
+
+    finishCancellation();
+
+    await expect(result).rejects.toMatchObject({ name: "AbortError" });
+    expect(encodeVideo).not.toHaveBeenCalled();
+  });
+
+  it("does not overlap fallback when native cancellation fails", async () => {
+    vi.useFakeTimers();
+    make.mockImplementation(() => new Promise(() => undefined));
+    cancel.mockRejectedValue(new Error("cancel failed"));
+
+    const result = encodeVideoNative([]);
+    const rejection = result.catch((caught: unknown) => caught);
+    await vi.advanceTimersByTimeAsync(20_000);
+
+    await expect(rejection).resolves.toMatchObject({
+      message: expect.stringContaining("cancel failed"),
+    });
+    expect(cancel).toHaveBeenCalledOnce();
+    expect(encodeVideo).not.toHaveBeenCalled();
+  });
+
+  it("clears the native timeout after the render settles", async () => {
+    vi.useFakeTimers();
+    make.mockResolvedValue({ base64: "bXA0" });
+
+    const result = encodeVideoNative([]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await expect(result).resolves.toMatchObject({ extension: "mp4" });
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it("falls back to the web encoder when PNG generation fails", async () => {

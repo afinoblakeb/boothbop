@@ -8,34 +8,102 @@ import { drawFilteredFrame, type FilterId } from "./filter";
 
 const NATIVE_TIMEOUT_MS = 20_000;
 
-// Guard against the Capacitor 8 + SPM hazard where an unregistered plugin call
-// never resolves: race the native call so we can fall back instead of hanging.
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  return Promise.race([
-    p,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out`)), ms),
-    ),
-  ]);
+class NativeCancellationError extends Error {
+  constructor(jobId: string, cause: unknown) {
+    const detail = cause instanceof Error ? `: ${cause.message}` : "";
+    super(`Native video job ${jobId} cancellation failed${detail}`);
+    this.name = "NativeCancellationError";
+  }
 }
 
-function withNativeCancellation<T>(
-  promise: Promise<T>,
+// Own the native job's complete lifecycle so timeout/abort cannot leave an
+// encoder running while the caller starts a fallback or replacement render.
+function runNativeJob<T>(
+  start: () => Promise<T>,
   jobId: string,
   cancel: (jobId: string) => Promise<unknown>,
   signal?: AbortSignal,
+  timeoutMs = NATIVE_TIMEOUT_MS,
 ): Promise<T> {
-  if (!signal) return promise;
-  signal.throwIfAborted();
   return new Promise<T>((resolve, reject) => {
-    const onAbort = () => {
-      void cancel(jobId).catch(() => undefined);
-      reject(new DOMException("Aborted", "AbortError"));
+    let settled = false;
+    let started = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+
+    const cleanup = () => {
+      if (timeout !== undefined) {
+        clearTimeout(timeout);
+        timeout = undefined;
+      }
+      signal?.removeEventListener("abort", onAbort);
     };
-    signal.addEventListener("abort", onAbort, { once: true });
-    void promise.then(resolve, reject).finally(() => {
-      signal.removeEventListener("abort", onAbort);
-    });
+
+    const rejectAfterCancellationFailure = (reason: Error, cause: unknown) => {
+      if (reason.name === "AbortError") reject(reason);
+      else reject(new NativeCancellationError(jobId, cause));
+    };
+
+    const cancelBeforeReject = (reason: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (!started) {
+        reject(reason);
+        return;
+      }
+
+      let cancellation: Promise<unknown>;
+      try {
+        cancellation = cancel(jobId);
+      } catch (cause) {
+        rejectAfterCancellationFailure(reason, cause);
+        return;
+      }
+      void cancellation.then(
+        () => reject(reason),
+        (cause: unknown) => rejectAfterCancellationFailure(reason, cause),
+      );
+    };
+
+    const onAbort = () =>
+      cancelBeforeReject(new DOMException("Aborted", "AbortError"));
+
+    signal?.addEventListener("abort", onAbort, { once: true });
+    if (signal?.aborted) {
+      onAbort();
+      return;
+    }
+
+    timeout = setTimeout(
+      () => cancelBeforeReject(new Error("native video timed out")),
+      timeoutMs,
+    );
+
+    let promise: Promise<T>;
+    try {
+      started = true;
+      promise = start();
+    } catch (caught) {
+      settled = true;
+      cleanup();
+      reject(caught);
+      return;
+    }
+
+    void promise.then(
+      (value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        resolve(value);
+      },
+      (caught: unknown) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        reject(caught);
+      },
+    );
   });
 }
 
@@ -175,8 +243,8 @@ export async function encodeVideoNative(
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     signal?.throwIfAborted();
     const jobId = newJobId();
-    const { base64 } = await withNativeCancellation(
-      withTimeout(
+    const { base64 } = await runNativeJob(
+      () =>
         BoothBopVideo.make({
           jobId,
           images,
@@ -188,16 +256,17 @@ export async function encodeVideoNative(
           loops,
           fps: 30,
         }),
-        NATIVE_TIMEOUT_MS,
-        "native video",
-      ),
       jobId,
       async (id) => BoothBopVideo.cancel({ jobId: id }),
       signal,
     );
     return { blob: base64ToBlob(base64, "video/mp4"), extension: "mp4" };
   } catch (caught) {
-    if ((caught as Error).name === "AbortError") throw caught;
+    if (
+      (caught as Error).name === "AbortError" ||
+      caught instanceof NativeCancellationError
+    )
+      throw caught;
     // Plugin missing (older build) or render failed — fall back to the web
     // recorder so the Video tab still produces something.
     return encodeVideo(frames, {
