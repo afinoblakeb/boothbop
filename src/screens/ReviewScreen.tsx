@@ -41,6 +41,7 @@ export function ReviewScreen({
   onSelectFormat,
   previewUrl,
   generating,
+  socialPreparation,
   layout,
   setLayout,
   themeKey,
@@ -70,6 +71,7 @@ export function ReviewScreen({
   onSelectFormat: (f: Format) => void;
   previewUrl: string | null;
   generating: null | "gif" | "video" | "share";
+  socialPreparation: "idle" | "preparing" | "ready" | "error";
   layout: Layout;
   setLayout: (l: Layout) => void;
   themeKey: keyof typeof THEMES;
@@ -148,6 +150,7 @@ export function ReviewScreen({
   const isBusy = generating !== null;
   const mediaGenerating = generating === "gif" || generating === "video";
   const sharePreparing = generating === "share";
+  const socialPreparing = socialPreparation === "preparing";
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center py-4">
@@ -162,7 +165,7 @@ export function ReviewScreen({
       />
 
       {/* Live preview of the selected output */}
-      <div className="mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
+      <div className="relative mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
         {mediaGenerating ? (
           <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
@@ -185,6 +188,16 @@ export function ReviewScreen({
             className="max-h-full w-auto border-2 border-ink"
           />
         ) : null}
+        {socialPreparing && !mediaGenerating && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap border border-cream/30 bg-ink/95 px-3 py-2 font-sans text-xs font-semibold text-cream shadow-lg"
+          >
+            <span className="h-4 w-4 animate-spin rounded-full border-2 border-cream/30 border-t-orange" />
+            Preparing high-quality share…
+          </div>
+        )}
       </div>
 
       {format === "gif" && features.boom && (
@@ -305,11 +318,6 @@ export function ReviewScreen({
           </ReviewAction>
         )}
       </div>
-      {sharePreparing && (
-        <p role="status" aria-live="polite" className="sr-only">
-          Preparing a social video to share
-        </p>
-      )}
       {showRetakePicker && features.retakeOne && (
         <div
           className="mt-2 grid w-full grid-cols-4 gap-2"

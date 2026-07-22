@@ -1,6 +1,37 @@
 // Camera access + frame capture helpers.
 
 export const CAPTURE_SIZE = 720; // square capture resolution (px)
+export const MAX_CAPTURE_SIZE = 1920;
+
+/**
+ * Choose a square capture size from the camera's real pixel dimensions.
+ * `requestedSize` is a ceiling, never a target that may upscale the source.
+ */
+export function captureSizeForSource(
+  sourceWidth: number,
+  sourceHeight: number,
+  requestedSize = MAX_CAPTURE_SIZE,
+): number {
+  const width = Math.floor(sourceWidth);
+  const height = Math.floor(sourceHeight);
+  const ceiling = Math.floor(requestedSize);
+  const fallback = ceiling > 0 ? Math.min(ceiling, CAPTURE_SIZE) : CAPTURE_SIZE;
+
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return fallback;
+  }
+
+  if (!Number.isFinite(ceiling) || ceiling <= 0) {
+    return Math.min(width, height);
+  }
+
+  return Math.min(width, height, ceiling);
+}
 
 /** Request the front ("selfie") camera. Falls back to any camera. */
 export async function startCamera(): Promise<MediaStream> {
@@ -15,8 +46,9 @@ export async function startCamera(): Promise<MediaStream> {
     return await tryGet({
       video: {
         facingMode: { ideal: "user" },
-        width: { ideal: 1280 },
-        height: { ideal: 1280 },
+        width: { ideal: 1920 },
+        height: { ideal: 1440 },
+        aspectRatio: { ideal: 4 / 3 },
       },
       audio: false,
     });
@@ -39,8 +71,13 @@ export function stopCamera(stream: MediaStream | null) {
  */
 export function captureSquareFrame(
   video: HTMLVideoElement,
-  size = CAPTURE_SIZE,
+  requestedSize = MAX_CAPTURE_SIZE,
 ): HTMLCanvasElement {
+  const size = captureSizeForSource(
+    video.videoWidth,
+    video.videoHeight,
+    requestedSize,
+  );
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;

@@ -129,11 +129,11 @@ export async function clearSessions(): Promise<void> {
   }
 }
 
-/** Encode a canvas frame to a Blob (defaults to compact JPEG for storage). */
+/** Encode a source frame losslessly so My Photos remains a true master copy. */
 export function canvasToBlob(
   canvas: HTMLCanvasElement,
-  type = "image/jpeg",
-  quality = 0.85,
+  type = "image/png",
+  quality?: number,
 ): Promise<Blob> {
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -144,19 +144,40 @@ export function canvasToBlob(
   });
 }
 
-/** Load a stored photo blob back into a square canvas (for re-compositing). */
+export function galleryCanvasSize(
+  sourceWidth: number,
+  sourceHeight: number,
+  requestedSize?: number,
+): { width: number; height: number } {
+  if (requestedSize !== undefined) {
+    return { width: requestedSize, height: requestedSize };
+  }
+  return {
+    width: Math.max(1, sourceWidth),
+    height: Math.max(1, sourceHeight),
+  };
+}
+
+/** Load a stored photo blob without silently reducing its source resolution. */
 export function blobToCanvas(
   blob: Blob,
-  size = 720,
+  size?: number,
 ): Promise<HTMLCanvasElement> {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(blob);
     const img = new Image();
     img.onload = () => {
       const canvas = document.createElement("canvas");
-      canvas.width = size;
-      canvas.height = size;
-      canvas.getContext("2d")!.drawImage(img, 0, 0, size, size);
+      const dimensions = galleryCanvasSize(
+        img.naturalWidth || img.width,
+        img.naturalHeight || img.height,
+        size,
+      );
+      canvas.width = dimensions.width;
+      canvas.height = dimensions.height;
+      canvas
+        .getContext("2d")!
+        .drawImage(img, 0, 0, dimensions.width, dimensions.height);
       URL.revokeObjectURL(url);
       resolve(canvas);
     };

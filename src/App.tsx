@@ -9,7 +9,9 @@ import {
 } from "./lib/camera";
 import {
   composeStrip,
+  PREVIEW_CELL,
   stripBlob,
+  stripCellForFrames,
   THEMES,
   type Layout,
   type StripTheme,
@@ -35,16 +37,11 @@ import {
   GIF_SIZE,
   PHOTO_CAPTURE,
   VIDEO_PROFILE,
-  loadQuality,
   loadBranding,
   planAutosaveTasks,
-  saveQuality,
   saveBranding,
   type AutosaveSettings,
   type AutosaveTask,
-  type Quality,
-  type QualityMedia,
-  type QualitySettings,
 } from "./lib/settings";
 import {
   ensurePhotosPermission,
@@ -83,6 +80,7 @@ import {
   dismissReleaseAnnouncement,
   loadReleaseAnnouncement,
 } from "./lib/whatsNew";
+import { RenderJob } from "./lib/renderJob";
 
 interface MediaResult {
   url: string;
@@ -91,6 +89,20 @@ interface MediaResult {
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const afterPaint = () =>
+  new Promise<void>((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+
+function thumbnailUrl(frame: HTMLCanvasElement, size = 160): string {
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  canvas
+    .getContext("2d")!
+    .drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
 
 // Screenshot mode: a flag-gated sample loader (see lib/demo.ts) for producing
 // App Store screenshots without a camera. Off in the submission build.
@@ -118,6 +130,9 @@ export default function App() {
   const [videoResult, setVideoResult] = useState<MediaResult | null>(null);
   const [socialVideoResult, setSocialVideoResult] =
     useState<MediaResult | null>(null);
+  const [socialPreparation, setSocialPreparation] = useState<
+    "idle" | "preparing" | "ready" | "error"
+  >("idle");
   const [filter, setFilter] = useState<FilterId>(() => {
     const stored = localStorage.getItem("bb.filter");
     return stored === "warm" ||
@@ -143,8 +158,6 @@ export default function App() {
     loadReleaseAnnouncement,
   );
 
-  // Export quality per media type (photo strip / GIF / video), persisted.
-  const [quality, setQuality] = useState<QualitySettings>(loadQuality);
   // The horizontal BoothBop logo drawn in the strip footer (same mark as the
   // GIF/video watermark). Loaded once; the strip shows the text wordmark until
   // it's ready, then re-renders with the logo.
@@ -178,77 +191,93 @@ export default function App() {
     branding: boolean;
   }
   const renderRevision = useRef(0);
+  const gifJob = useRef(new RenderJob<Blob>());
+  const videoJob = useRef(new RenderJob<VideoResult>());
+  const socialVideoJob = useRef(new RenderJob<VideoResult>());
+  const stripJob = useRef(new RenderJob<Blob>());
+  const socialMediaRef = useRef<MediaResult | null>(null);
   const currentChoices = (): RenderChoices => ({
     filter,
     boom: runtimeFeatures.boom && boom,
     boomSpeed,
     branding,
   });
+  const renderKey = (kind: string, choices: RenderChoices, extra = "") =>
+    JSON.stringify([renderRevision.current, kind, choices, extra]);
 
   async function getGifBlob(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
   ): Promise<Blob> {
-    const watermarkImg = choices.branding ? await loadWatermark() : null;
-    return encodeGif(src, {
-      watermark: choices.branding,
-      watermarkImg,
-      filter: choices.filter,
-      boom: choices.boom,
-      delay: choices.boom ? boomFrameDelay(choices.boomSpeed) : undefined,
-      size: GIF_SIZE[quality.gif],
+    return gifJob.current.get(renderKey("gif", choices), async () => {
+      const watermarkImg = choices.branding ? await loadWatermark() : null;
+      return encodeGif(src, {
+        watermark: choices.branding,
+        watermarkImg,
+        filter: choices.filter,
+        boom: choices.boom,
+        delay: choices.boom ? boomFrameDelay(choices.boomSpeed) : undefined,
+        size: GIF_SIZE.high,
+      });
     });
   }
   async function getVideoResult(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
   ): Promise<VideoResult> {
-    const watermarkImg = choices.branding ? await loadWatermark() : null;
-    const opts = {
-      watermark: choices.branding,
-      watermarkImg,
-      filter: choices.filter,
-      ...VIDEO_PROFILE[quality.video],
-    };
-    return isNativeShell()
-      ? encodeVideoNative(src, opts)
-      : encodeVideo(src, opts);
+    return videoJob.current.get(renderKey("video", choices), async () => {
+      const watermarkImg = choices.branding ? await loadWatermark() : null;
+      const opts = {
+        watermark: choices.branding,
+        watermarkImg,
+        filter: choices.filter,
+        ...VIDEO_PROFILE.high,
+      };
+      return isNativeShell()
+        ? encodeVideoNative(src, opts)
+        : encodeVideo(src, opts);
+    });
   }
 
   async function getSocialVideoResult(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
   ): Promise<VideoResult> {
-    const profile = VIDEO_PROFILE[quality.video];
-    const plan = planSocialVideo({
-      frameCount: src.length,
-      boom: choices.boom,
-      boomSpeed: choices.boomSpeed,
-    });
-    const orderedFrames = plan.frameIndexes.map((index) => src[index]);
-    const watermarkImg = choices.branding ? await loadWatermark() : null;
-    const options = {
-      watermark: choices.branding,
-      watermarkImg,
-      filter: choices.filter,
-      width: plan.width,
-      height: plan.height,
-      backgroundColor: SOCIAL_VIDEO_BACKGROUND,
-      bitrate: profile.bitrate,
-      frameMs: plan.frameMs,
-      loops: plan.loops,
-    };
-    const result = isNativeShell()
-      ? await encodeVideoNative(orderedFrames, options)
-      : await encodeVideo(orderedFrames, options);
+    return socialVideoJob.current.get(
+      renderKey("social", choices),
+      async () => {
+        const profile = VIDEO_PROFILE.high;
+        const plan = planSocialVideo({
+          frameCount: src.length,
+          boom: choices.boom,
+          boomSpeed: choices.boomSpeed,
+        });
+        const orderedFrames = plan.frameIndexes.map((index) => src[index]);
+        const watermarkImg = choices.branding ? await loadWatermark() : null;
+        const options = {
+          watermark: choices.branding,
+          watermarkImg,
+          filter: choices.filter,
+          width: plan.width,
+          height: plan.height,
+          backgroundColor: SOCIAL_VIDEO_BACKGROUND,
+          bitrate: profile.bitrate,
+          frameMs: plan.frameMs,
+          loops: plan.loops,
+        };
+        const result = isNativeShell()
+          ? await encodeVideoNative(orderedFrames, options)
+          : await encodeVideo(orderedFrames, options);
 
-    if (
-      result.extension !== "mp4" ||
-      !result.blob.type.startsWith("video/mp4")
-    ) {
-      throw new Error("This device did not produce a compatible MP4.");
-    }
-    return result;
+        if (
+          result.extension !== "mp4" ||
+          !result.blob.type.startsWith("video/mp4")
+        ) {
+          throw new Error("This device did not produce a compatible MP4.");
+        }
+        return result;
+      },
+    );
   }
 
   // Shutter delay (seconds counted down before each shot), persisted.
@@ -416,20 +445,19 @@ export default function App() {
 
   function clearResults() {
     renderRevision.current += 1;
+    gifJob.current.invalidate();
+    videoJob.current.invalidate();
+    socialVideoJob.current.invalidate();
+    stripJob.current.invalidate();
     setGenerating(null);
+    setSocialPreparation("idle");
+    socialMediaRef.current = null;
     setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
     setSocialVideoResult((r) => {
       if (r?.url) URL.revokeObjectURL(r.url);
       return null;
     });
-  }
-
-  function changeQuality(media: QualityMedia, q: Quality) {
-    saveQuality(media, q);
-    setQuality((prev) => ({ ...prev, [media]: q }));
-    clearResults();
-    setFormat("strip");
   }
 
   async function openCamera(index: number | null = null) {
@@ -519,10 +547,7 @@ export default function App() {
       try {
         void tapHaptic("Medium");
         setFlash(true);
-        const replacement = captureSquareFrame(
-          video,
-          PHOTO_CAPTURE[quality.photo],
-        );
+        const replacement = captureSquareFrame(video);
         const updated = replaceFrame(framesRef.current, replacing, replacement);
         framesRef.current = updated;
         setFrames(updated);
@@ -568,7 +593,7 @@ export default function App() {
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
-      const frame = captureSquareFrame(video, PHOTO_CAPTURE[quality.photo]);
+      const frame = captureSquareFrame(video);
       captured.push(frame);
       setFrames([...captured]);
       await wait(240);
@@ -608,10 +633,7 @@ export default function App() {
     setError(null);
     try {
       const { loadSampleFrames } = await import("./lib/demo");
-      const canvases = await loadSampleFrames(
-        setNum,
-        PHOTO_CAPTURE[quality.photo],
-      );
+      const canvases = await loadSampleFrames(setNum, PHOTO_CAPTURE.high);
       clearResults();
       setFrames(canvases);
       setActiveSessionId(null);
@@ -643,14 +665,14 @@ export default function App() {
     if (frames.length < SHOTS) return null;
     return composeStrip(frames, layout, THEMES[themeKey], {
       logo: brandLogo,
-      cell: PHOTO_CAPTURE[quality.photo],
+      cell: PREVIEW_CELL,
       branding,
       filter,
     }).toDataURL("image/png");
-  }, [frames, layout, themeKey, brandLogo, quality.photo, branding, filter]);
+  }, [frames, layout, themeKey, brandLogo, branding, filter]);
 
   const thumbs = useMemo(
-    () => frames.map((f) => f.toDataURL("image/jpeg", 0.7)),
+    () => frames.map((frame) => thumbnailUrl(frame)),
     [frames],
   );
 
@@ -672,15 +694,17 @@ export default function App() {
       await wait(30); // let the spinner paint before the (sync) encode
       const blob = await getGifBlob(framesRef.current, choices);
       if (revision !== renderRevision.current) return;
-      setGifResult((r) =>
-        r
-          ? r
-          : {
-              url: URL.createObjectURL(blob),
-              blob,
-              filename: `boothbop-${stamp()}.gif`,
-            },
-      );
+      setGifResult((r) => {
+        if (r) return r;
+        return {
+          url: URL.createObjectURL(blob),
+          blob,
+          filename: `boothbop-${stamp()}.gif`,
+        };
+      });
+      if (isSocialVideoSupported()) {
+        window.setTimeout(() => void prepareSocialVideo(false), 100);
+      }
     } catch {
       if (revision === renderRevision.current)
         setError("Couldn't create the GIF.");
@@ -752,21 +776,33 @@ export default function App() {
     if (format === "video") void ensureVideo(choices);
   }
 
+  function getStripBlob(
+    src: HTMLCanvasElement[],
+    selectedLayout: Layout,
+    theme: StripTheme,
+    choices: RenderChoices = currentChoices(),
+  ): Promise<Blob> {
+    const extra = JSON.stringify([selectedLayout, theme]);
+    return stripJob.current.get(renderKey("strip", choices, extra), async () =>
+      stripBlob(src, selectedLayout, theme, {
+        cell: stripCellForFrames(src, PHOTO_CAPTURE.high),
+        branding: choices.branding,
+        filter: choices.filter,
+      }),
+    );
+  }
+
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
   // are never encoded twice (the review tabs draw from the same cache).
   async function renderForAutosave(
     src: HTMLCanvasElement[],
     task: AutosaveTask,
     theme: StripTheme,
+    choices: RenderChoices,
   ): Promise<Blob> {
-    if (task.layout)
-      return stripBlob(src, task.layout, theme, {
-        cell: PHOTO_CAPTURE[quality.photo],
-        branding,
-        filter,
-      });
-    if (task.format === "gif") return getGifBlob(src);
-    return (await getVideoResult(src)).blob;
+    if (task.layout) return getStripBlob(src, task.layout, theme, choices);
+    if (task.format === "gif") return getGifBlob(src, choices);
+    return (await getVideoResult(src, choices)).blob;
   }
 
   // Fire-and-forget after a capture: save the enabled formats to Photos. Best-
@@ -795,10 +831,11 @@ export default function App() {
     // Snapshot the theme so a set saved over a few seconds stays consistent even
     // if the user changes the color on the review screen mid-save.
     const theme = THEMES[themeKey];
+    const choices = currentChoices();
     let savedAny = false;
     for (const task of tasks) {
       try {
-        const blob = await renderForAutosave(captured, task, theme);
+        const blob = await renderForAutosave(captured, task, theme, choices);
         if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
       } catch {
         /* per-task best-effort */
@@ -817,11 +854,12 @@ export default function App() {
   async function currentMedia(): Promise<MediaResult | null> {
     if (format === "gif") return gifResult;
     if (format === "video") return videoResult;
-    const blob = await stripBlob(frames, layout, THEMES[themeKey], {
-      cell: PHOTO_CAPTURE[quality.photo],
-      branding,
-      filter,
-    });
+    const blob = await getStripBlob(
+      frames,
+      layout,
+      THEMES[themeKey],
+      currentChoices(),
+    );
     return { url: "", blob, filename: `boothbop-${stamp()}.png` };
   }
 
@@ -895,36 +933,49 @@ export default function App() {
     if (media) await shareMedia(media.blob, media.filename);
   }
 
-  async function shareSocialAnimation() {
-    if (socialVideoResult) {
-      await shareMedia(socialVideoResult.blob, socialVideoResult.filename);
-      return;
-    }
-
+  async function prepareSocialVideo(
+    userInitiated: boolean,
+  ): Promise<MediaResult | null> {
+    if (socialMediaRef.current) return socialMediaRef.current;
     const revision = renderRevision.current;
-    setError(null);
-    setNote(null);
-    setGenerating("share");
+    setSocialPreparation("preparing");
+    if (userInitiated) {
+      setError(null);
+      setNote(null);
+      setGenerating("share");
+    }
     try {
-      await wait(30);
-      const { blob } = await getSocialVideoResult(framesRef.current);
-      if (revision !== renderRevision.current) return;
+      await afterPaint();
+      const result = await getSocialVideoResult(framesRef.current);
+      if (revision !== renderRevision.current) return null;
       const media = {
         url: "",
-        blob: new Blob([blob], { type: SOCIAL_VIDEO_MIME }),
+        blob: new Blob([result.blob], { type: SOCIAL_VIDEO_MIME }),
         filename: `boothbop-animation-${stamp()}.mp4`,
       };
+      socialMediaRef.current = media;
       setSocialVideoResult(media);
-      await shareMedia(media.blob, media.filename);
+      setSocialPreparation("ready");
+      return media;
     } catch {
       if (revision === renderRevision.current) {
-        setError(
-          "Couldn't prepare a social video. You can still share the original GIF.",
-        );
+        setSocialPreparation("error");
+        if (userInitiated) {
+          setError(
+            "Couldn't prepare a social video. You can still share the original GIF.",
+          );
+        }
       }
+      return null;
     } finally {
-      if (revision === renderRevision.current) setGenerating(null);
+      if (userInitiated && revision === renderRevision.current)
+        setGenerating(null);
     }
+  }
+
+  async function shareSocialAnimation() {
+    const media = socialVideoResult ?? (await prepareSocialVideo(true));
+    if (media) await shareMedia(media.blob, media.filename);
   }
 
   async function shareOriginalGif() {
@@ -994,6 +1045,7 @@ export default function App() {
           onSelectFormat={selectFormat}
           previewUrl={previewUrl}
           generating={generating}
+          socialPreparation={socialPreparation}
           layout={layout}
           setLayout={setLayout}
           themeKey={themeKey}
@@ -1031,13 +1083,11 @@ export default function App() {
       {showSettings && (
         <SettingsScreen
           settings={autosave}
-          quality={quality}
           native={isNativeShell()}
           videoSupported={runtimeFeatures.video}
           error={autosaveError}
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
-          onQuality={changeQuality}
           onOpenIosSettings={() => void openIosSettings()}
           onClose={() => setShowSettings(false)}
           branding={branding}

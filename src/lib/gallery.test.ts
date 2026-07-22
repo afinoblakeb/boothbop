@@ -4,6 +4,7 @@ import { IDBFactory } from "fake-indexeddb";
 import {
   clearSessions,
   deleteSession,
+  galleryCanvasSize,
   listSessions,
   saveSession,
   updateSessionPhotos,
@@ -21,6 +22,16 @@ afterEach(async () => {
 });
 
 describe("gallery sessions", () => {
+  it("preserves decoded source dimensions unless an explicit size is requested", () => {
+    expect(galleryCanvasSize(1440, 1440)).toEqual({
+      width: 1440,
+      height: 1440,
+    });
+    expect(galleryCanvasSize(1440, 1440, 320)).toEqual({
+      width: 320,
+      height: 320,
+    });
+  });
   it("saves a session with a generated id, timestamp, and its photos", async () => {
     const session = await saveSession(fourPhotos());
     expect(session.id).toBeTruthy();

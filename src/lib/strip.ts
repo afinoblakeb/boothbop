@@ -32,6 +32,21 @@ export const STRIP = {
   footer: 132, // footer band height
 } as const;
 
+/** Screen previews never need export-sized pixels. */
+export const PREVIEW_CELL = 320;
+
+/** Use the smallest real source dimension so exports never invent detail. */
+export function stripCellForFrames(
+  frames: Pick<HTMLCanvasElement, "width" | "height">[],
+  ceiling: number,
+): number {
+  if (!frames.length) return ceiling;
+  return Math.min(
+    ceiling,
+    ...frames.map((frame) => Math.min(frame.width, frame.height)),
+  );
+}
+
 export interface StripGeometry {
   width: number;
   height: number;

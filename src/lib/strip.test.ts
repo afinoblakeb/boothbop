@@ -1,13 +1,26 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   composeStrip,
+  PREVIEW_CELL,
   STRIP,
+  stripCellForFrames,
   stripGeometry,
   THEMES,
   type Layout,
 } from "./strip";
 
 describe("stripGeometry", () => {
+  it("keeps interactive previews screen-sized", () => {
+    expect(PREVIEW_CELL).toBeLessThanOrEqual(360);
+  });
+
+  it("uses real source pixels for exports without upscaling older photos", () => {
+    const frames = [1440, 900, 1200, 1080].map(
+      (size) => ({ width: size, height: size }) as HTMLCanvasElement,
+    );
+    expect(stripCellForFrames(frames, 1440)).toBe(900);
+    expect(stripCellForFrames([], 1440)).toBe(1440);
+  });
   it("lays a 4x1 strip out as one tall column", () => {
     const g = stripGeometry("4x1");
     expect(g.cols).toBe(1);

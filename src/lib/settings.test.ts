@@ -9,7 +9,6 @@ import {
   planAutosaveTasks,
   saveAutosaveDest,
   saveAutosaveFormat,
-  saveQuality,
   loadBranding,
   saveBranding,
   type AutosaveSettings,
@@ -95,16 +94,18 @@ describe("export quality persistence", () => {
       gif: "high",
       video: "high",
     });
-    expect(GIF_SIZE.high).toBeGreaterThanOrEqual(900);
+    expect(GIF_SIZE.high).toBeGreaterThanOrEqual(1080);
   });
 
-  it("round-trips a per-media quality tier", () => {
-    saveQuality("photo", "high");
-    saveQuality("gif", "low");
-    const q = loadQuality();
-    expect(q.photo).toBe("high");
-    expect(q.gif).toBe("low");
-    expect(q.video).toBe("high");
+  it("migrates every legacy tier to the best-quality profile", () => {
+    localStorage.setItem("bb.quality.photo", "low");
+    localStorage.setItem("bb.quality.gif", "standard");
+    localStorage.setItem("bb.quality.video", "low");
+
+    expect(loadQuality()).toEqual(QUALITY_DEFAULTS);
+    expect(localStorage.getItem("bb.quality.photo")).toBe("high");
+    expect(localStorage.getItem("bb.quality.gif")).toBe("high");
+    expect(localStorage.getItem("bb.quality.video")).toBe("high");
   });
 
   it("treats an unknown stored tier as the high-quality default", () => {
