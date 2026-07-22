@@ -84,6 +84,57 @@ test("two synchronous shutter taps create one photo session", async ({
   await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
 });
 
+test("closing My Photos cancels an in-flight session open", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "My Photos" }).click();
+  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Home" }).click();
+  await page.getByRole("button", { name: "My Photos" }).click();
+  await expect(
+    page.getByRole("button", { name: "Open photo set" }),
+  ).toBeVisible();
+
+  await page.evaluate(() => {
+    const descriptor = Object.getOwnPropertyDescriptor(
+      IDBRequest.prototype,
+      "onsuccess",
+    );
+    const originalGet = descriptor?.get;
+    const originalSet = descriptor?.set;
+    Object.defineProperty(IDBRequest.prototype, "onsuccess", {
+      configurable: true,
+      get: originalGet,
+      set(handler: ((this: IDBRequest, event: Event) => unknown) | null) {
+        if (!originalSet || !handler) {
+          originalSet?.call(this, handler);
+          return;
+        }
+        originalSet.call(this, function (event: Event) {
+          window.setTimeout(() => handler.call(this, event), 600);
+        });
+      },
+    });
+  });
+
+  await page.getByRole("button", { name: "Open photo set" }).click();
+  await page.getByRole("button", { name: "Close" }).click();
+  await page.waitForTimeout(2_000);
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await expect(page.getByRole("img", { name: "Your strip" })).toHaveCount(0);
+});
+
 test("captures four camera frames and reaches Share Photo", async ({
   page,
 }) => {

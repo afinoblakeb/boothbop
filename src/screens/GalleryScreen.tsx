@@ -21,20 +21,35 @@ export function GalleryScreen({
   const [sessions, setSessions] = useState<SessionSummary[] | null>(null);
   const [opening, setOpening] = useState<string | null>(null);
   const openingRef = useRef(false);
+  const activeRef = useRef(true);
+  const openRequestRef = useRef(0);
   const [error, setError] = useState<string | null>(null);
 
   const reload = async () => {
     setError(null);
     try {
-      setSessions(await listSessionSummaries());
+      const summaries = await listSessionSummaries();
+      if (activeRef.current) setSessions(summaries);
     } catch {
-      setSessions([]);
-      setError("Couldn't load My Photos.");
+      if (activeRef.current) {
+        setSessions([]);
+        setError("Couldn't load My Photos.");
+      }
     }
   };
   useEffect(() => {
     void reload();
+    return () => {
+      activeRef.current = false;
+      openRequestRef.current += 1;
+    };
   }, []);
+
+  function close() {
+    activeRef.current = false;
+    openRequestRef.current += 1;
+    onClose();
+  }
 
   async function remove(id: string) {
     if (!window.confirm("Delete this photo set from this device?")) return;
@@ -51,20 +66,28 @@ export function GalleryScreen({
   async function open(summary: SessionSummary) {
     if (openingRef.current) return;
     openingRef.current = true;
+    const request = ++openRequestRef.current;
     setOpening(summary.id);
     setError(null);
     try {
-      onOpen(await loadSession(summary.id));
+      const session = await loadSession(summary.id);
+      if (!activeRef.current || request !== openRequestRef.current) return;
+      activeRef.current = false;
+      onOpen(session);
     } catch {
-      setError("Couldn't load that photo set. Try again.");
+      if (activeRef.current && request === openRequestRef.current) {
+        setError("Couldn't load that photo set. Try again.");
+      }
     } finally {
       openingRef.current = false;
-      setOpening(null);
+      if (activeRef.current && request === openRequestRef.current) {
+        setOpening(null);
+      }
     }
   }
 
   return (
-    <OverlayScreen title="My Photos" onClose={onClose}>
+    <OverlayScreen title="My Photos" onClose={close}>
       <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
         Tap a set to get its strip, GIF, or video. Saved on this device only.
       </p>
