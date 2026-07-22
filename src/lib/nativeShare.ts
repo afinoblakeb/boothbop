@@ -9,6 +9,31 @@
 // are dynamically imported so they stay out of the web path.
 import { isNativeShell } from "./platform";
 
+const NATIVE_BRIDGE_TIMEOUT_MS = {
+  write: 15_000,
+  share: 10 * 60_000,
+  cleanup: 5_000,
+} as const;
+
+function boundedNativePhase<T>(
+  phase: string,
+  operation: () => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const deadline = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`Native ${phase} timed out.`));
+    }, timeoutMs);
+  });
+
+  return Promise.race([Promise.resolve().then(operation), deadline]).finally(
+    () => {
+      if (timeout !== undefined) clearTimeout(timeout);
+    },
+  );
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -43,19 +68,30 @@ export async function nativeShareFile(
     import("@capacitor/filesystem"),
     import("@capacitor/share"),
   ]);
-  const data = await blobToBase64(blob);
   const path = uniqueShareFilename(filename);
-  const { uri } = await Filesystem.writeFile({
-    path,
-    data,
-    directory: Directory.Cache,
-  });
   try {
-    await Share.share({ title: "BoothBop", files: [uri] });
+    const data = await blobToBase64(blob);
+    const { uri } = await boundedNativePhase(
+      "cache write",
+      () =>
+        Filesystem.writeFile({
+          path,
+          data,
+          directory: Directory.Cache,
+        }),
+      NATIVE_BRIDGE_TIMEOUT_MS.write,
+    );
+    await boundedNativePhase(
+      "share",
+      () => Share.share({ title: "BoothBop", files: [uri] }),
+      NATIVE_BRIDGE_TIMEOUT_MS.share,
+    );
     return true;
   } finally {
-    await Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(
-      () => {},
-    );
+    await boundedNativePhase(
+      "cache cleanup",
+      () => Filesystem.deleteFile({ path, directory: Directory.Cache }),
+      NATIVE_BRIDGE_TIMEOUT_MS.cleanup,
+    ).catch(() => {});
   }
 }
