@@ -6,6 +6,10 @@ BoothBop is developed entirely by AI agents (Claude + Codex). This file and
 the verification loop below are the contract that keeps that safe: make a
 change, then prove it with `npm run check` before considering the work done.
 
+Before changing native iOS, camera, launch, lifecycle, permissions, sharing,
+media export, or distribution behavior, read `docs/IOS_AGENT_CONTEXT.md` and
+preserve every invariant defined there.
+
 ## Product reset contract
 
 Read `docs/PRODUCT_RESET.md` and `ROADMAP.md` before product work.
