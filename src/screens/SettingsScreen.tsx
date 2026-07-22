@@ -4,7 +4,13 @@ import {
   type AutosaveSettings,
 } from "../lib/settings";
 import type { RuntimeFeatureFlags } from "../lib/remoteConfig";
-import { Button, Callout, Heading, OverlayScreen, Toggle } from "../ui";
+import {
+  Button,
+  Callout,
+  OverlayScreen,
+  SegmentedControl,
+  Toggle,
+} from "../ui";
 import { LegalFooter } from "../components/LegalFooter";
 
 /** Full-screen Settings overlay: the auto-save-to-Photos controls. */
@@ -51,16 +57,19 @@ export function SettingsScreen({
   return (
     <OverlayScreen title="Settings" onClose={onClose}>
       {features.brandingControl && (
-        <>
-          <Heading as="h3" size="lg" className="mt-6">
+        <section className="mt-6" aria-labelledby="exports-heading">
+          <h3
+            id="exports-heading"
+            className="font-sans text-sm font-semibold text-text"
+          >
             Exports
-          </Heading>
-          <div className="mt-3 flex items-center justify-between border-2 border-ink bg-paper px-4 py-3">
+          </h3>
+          <div className="mt-2 flex min-h-16 items-center justify-between rounded-lg border border-border bg-surface px-4 py-2 shadow-control">
             <div className="pr-4">
-              <Heading as="span" size="md">
+              <p className="font-sans text-[15px] font-medium text-text">
                 BoothBop branding
-              </Heading>
-              <p className="font-sans text-xs text-warmgray">
+              </p>
+              <p className="mt-0.5 font-sans text-xs leading-4 text-text-muted">
                 Show the logo on saved photos and animations.
               </p>
             </div>
@@ -70,102 +79,107 @@ export function SettingsScreen({
               onChange={onBranding}
             />
           </div>
-        </>
+        </section>
       )}
 
-      <Heading as="h3" size="lg" className="mt-6">
-        Auto-save to Photos
-      </Heading>
-      <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
-        Save your booth creations to the iOS Photos app automatically.
-      </p>
-
-      {!native ? (
-        <Callout
-          as="p"
-          tone="neutral"
-          className="mt-4 px-4 py-3 font-sans text-sm text-brown"
+      <section className="mt-7" aria-labelledby="autosave-heading">
+        <h3
+          id="autosave-heading"
+          className="font-sans text-sm font-semibold text-text"
         >
-          Available in the BoothBop iOS app.
-        </Callout>
-      ) : (
-        <>
-          <div className="mt-4">
-            <Heading as="p" size="sm" className="text-brown">
-              Save to
-            </Heading>
-            <div className="mt-2 grid grid-cols-2 gap-2">
-              {(["album", "cameraRoll"] as AutosaveDest[]).map((d) => (
-                <button
-                  key={d}
-                  onClick={() => onDest(d)}
-                  aria-pressed={settings.dest === d}
-                  className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
-                    settings.dest === d
-                      ? "bg-orange text-ink"
-                      : "bg-paper text-ink"
+          Auto-save to Photos
+        </h3>
+        <p className="mt-1 font-sans text-sm leading-5 text-text-muted">
+          Save your booth creations to the iOS Photos app automatically.
+        </p>
+
+        {!native ? (
+          <Callout
+            as="p"
+            tone="neutral"
+            className="mt-4 px-4 py-3 font-sans text-sm text-text-muted"
+          >
+            Available in the BoothBop iOS app.
+          </Callout>
+        ) : (
+          <>
+            <div className="mt-5">
+              <p className="font-sans text-xs font-semibold text-text-muted">
+                Save to
+              </p>
+              <SegmentedControl
+                label="Save to"
+                options={[
+                  { value: "album", label: "BoothBop album" },
+                  { value: "cameraRoll", label: "Camera roll" },
+                ]}
+                value={settings.dest}
+                onChange={(value: AutosaveDest) => onDest(value)}
+                fullWidth
+                itemClassName="min-h-11 text-sm"
+                className="mt-2"
+              />
+              <p className="mt-2 font-sans text-xs leading-4 text-text-muted">
+                {settings.dest === "album"
+                  ? "Creates a dedicated “BoothBop” album. Needs full Photos access — we only ever add to that album."
+                  : "Saves into your main camera roll."}
+              </p>
+            </div>
+
+            <ul className="mt-5 overflow-hidden rounded-lg border border-border bg-surface shadow-control">
+              {formats.map((f, index) => (
+                <li
+                  key={f.key}
+                  className={`flex min-h-14 items-center justify-between px-4 py-1 ${
+                    index > 0 ? "border-t border-border" : ""
                   }`}
                 >
-                  {d === "album" ? "BoothBop album" : "Camera roll"}
-                </button>
+                  <span
+                    className={`font-sans text-[15px] font-medium ${
+                      f.disabled ? "text-text-muted" : "text-text"
+                    }`}
+                  >
+                    {f.label}
+                  </span>
+                  <Toggle
+                    aria-label={`Auto-save ${f.label}`}
+                    on={settings[f.key]}
+                    disabled={f.disabled}
+                    onChange={(v) => onToggle(f.key, v)}
+                  />
+                </li>
               ))}
-            </div>
-            <p className="mt-1 font-sans text-xs text-warmgray">
-              {settings.dest === "album"
-                ? "Creates a dedicated “BoothBop” album. Needs full Photos access — we only ever add to that album."
-                : "Saves into your main camera roll."}
+            </ul>
+            <p className="mt-3 font-sans text-xs leading-4 text-text-muted">
+              BoothBop only adds your own creations — it never reads or uploads
+              your library.
             </p>
-          </div>
 
-          <ul className="mt-5 divide-y-2 divide-ink/10 border-2 border-ink bg-paper">
-            {formats.map((f) => (
-              <li
-                key={f.key}
-                className="flex items-center justify-between px-4 py-3"
-              >
-                <Heading
-                  as="span"
-                  size="md"
-                  className={f.disabled ? "text-warmgray" : "text-ink"}
+            <button
+              onClick={onOpenIosSettings}
+              className="mt-2 min-h-11 rounded-md font-sans text-xs font-medium text-text-muted underline decoration-border-strong underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+            >
+              Manage Photos permissions in iOS Settings →
+            </button>
+
+            {error && (
+              <Callout tone="error" className="mt-3 px-3 py-3">
+                <p className="font-sans text-xs leading-4 text-critical">
+                  {error}
+                </p>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={onOpenIosSettings}
+                  className="mt-2"
                 >
-                  {f.label}
-                </Heading>
-                <Toggle
-                  aria-label={`Auto-save ${f.label}`}
-                  on={settings[f.key]}
-                  disabled={f.disabled}
-                  onChange={(v) => onToggle(f.key, v)}
-                />
-              </li>
-            ))}
-          </ul>
-          <p className="mt-3 font-sans text-xs text-warmgray">
-            BoothBop only adds your own creations — it never reads or uploads
-            your library.
-          </p>
-
-          <button
-            onClick={onOpenIosSettings}
-            className="mt-3 font-sans text-xs text-warmgray underline"
-          >
-            Manage Photos permissions in iOS Settings →
-          </button>
-
-          {error && (
-            <Callout tone="error" className="mt-3 px-3 py-2">
-              <p className="font-sans text-xs text-orange-dark">{error}</p>
-              <Button
-                variant="danger"
-                size="sm"
-                onClick={onOpenIosSettings}
-                className="mt-2"
-              >
-                Open iOS Settings
-              </Button>
-            </Callout>
-          )}
-        </>
-      )}
+                  Open iOS Settings
+                </Button>
+              </Callout>
+            )}
+          </>
+        )}
+      </section>
 
       <LegalFooter className="mt-10 text-center" />
     </OverlayScreen>

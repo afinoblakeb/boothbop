@@ -88,29 +88,32 @@ export function GalleryScreen({
 
   return (
     <OverlayScreen title="My Photos" onClose={close}>
-      <p className="mt-1 font-sans text-xs uppercase tracking-wide text-warmgray">
+      <p className="mt-2 max-w-sm font-sans text-sm leading-5 text-text-muted">
         Tap a set to get its strip, GIF, or video. Saved on this device only.
       </p>
       {error && (
-        <div role="alert" className="mt-3 font-sans text-sm text-orange-dark">
+        <div role="alert" className="mt-3 font-sans text-sm text-critical">
           {error}{" "}
-          <button onClick={() => void reload()} className="min-h-11 underline">
+          <button
+            onClick={() => void reload()}
+            className="min-h-11 rounded-md font-semibold underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          >
             Retry
           </button>
         </div>
       )}
 
       {sessions === null ? (
-        <p className="mt-16 text-center font-display text-xl uppercase text-brown">
+        <p className="mt-16 text-center font-sans text-sm font-medium text-text-muted">
           Loading…
         </p>
       ) : sessions.length === 0 ? (
-        <div className="mt-16 flex flex-col items-center text-center text-brown">
-          <BrandIcon name="gallery" className="h-16 w-16" />
-          <Heading as="p" size="lg" className="mt-3">
+        <div className="mt-16 flex flex-col items-center text-center text-text">
+          <BrandIcon name="gallery" className="h-12 w-12 opacity-80" />
+          <Heading as="p" size="md" className="mt-4">
             No photos yet
           </Heading>
-          <p className="font-sans text-sm text-warmgray">
+          <p className="mt-1 max-w-xs font-sans text-sm leading-5 text-text-muted">
             Your booth sessions are saved here automatically.
           </p>
         </div>
@@ -129,12 +132,11 @@ export function GalleryScreen({
           </div>
           <Button
             variant="danger"
-            size="md"
-            fullWidth
+            size="sm"
             onClick={clearAll}
-            className="mt-6"
+            className="mx-auto mt-5 flex border-transparent bg-transparent shadow-none"
           >
-            <TrashIcon className="h-5 w-5" />
+            <TrashIcon className="h-4 w-4" />
             Clear all
           </Button>
         </>
@@ -167,23 +169,22 @@ function Cover({
         onClick={onOpen}
         disabled={opening}
         aria-label={opening ? "Opening photo set" : "Open photo set"}
-        className="block aspect-square w-full overflow-hidden border-2 border-ink bg-paper transition active:translate-y-px"
+        className="block aspect-square w-full overflow-hidden rounded-md border border-border bg-surface shadow-control outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 active:scale-[0.98]"
       >
         {url && <img src={url} alt="" className="h-full w-full object-cover" />}
         {opening && (
-          <span className="absolute inset-0 flex items-center justify-center bg-ink/50">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-cream/30 border-t-orange" />
+          <span className="absolute inset-0 flex items-center justify-center rounded-md bg-surface-inverse/55">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-text-inverse/30 border-t-accent" />
           </span>
         )}
       </button>
       <IconButton
         aria-label="Delete"
         onClick={onDelete}
-        className="absolute right-0 top-0"
+        variant="surface"
+        className="absolute right-1 top-1 text-critical"
       >
-        <span className="flex h-7 w-7 items-center justify-center border-2 border-ink bg-cream text-ink">
-          <TrashIcon className="h-4 w-4" />
-        </span>
+        <TrashIcon className="h-4 w-4" />
       </IconButton>
     </div>
   );
