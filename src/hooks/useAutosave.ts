@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isNativeShell } from "../lib/platform";
 import {
   anyAutosaveOn,
@@ -41,6 +41,7 @@ export function useAutosave() {
   const [autosave, setAutosave] = useState<AutosaveSettings>(loadAutosave);
   const [showSettings, setShowSettings] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const applyGenerationRef = useRef(0);
   const [tipSeen, setTipSeen] = useState(
     () => localStorage.getItem("bb.autosave.tipSeen") === "1",
   );
@@ -49,9 +50,13 @@ export function useAutosave() {
   // granted WITHOUT prompting; if it was revoked, switch auto-save off.
   useEffect(() => {
     if (isNativeShell()) void applyAutosave(loadAutosave(), false);
+    return () => {
+      applyGenerationRef.current += 1;
+    };
   }, []);
 
   async function applyAutosave(next: AutosaveSettings, prompt: boolean) {
+    const generation = ++applyGenerationRef.current;
     setAutosave(next);
     if (!isNativeShell() || !anyAutosaveOn(next)) {
       setError(null);
@@ -63,6 +68,7 @@ export function useAutosave() {
     } catch {
       status = "denied";
     }
+    if (generation !== applyGenerationRef.current) return;
     // The album needs FULL access; the camera roll is fine with add-only, where
     // "limited" (Select Photos) still allows adding.
     const ok = canSaveWithPermission(next.dest, status);
