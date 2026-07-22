@@ -368,7 +368,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
 
             if let connection = output.connection(with: .video) {
-                self.configurePortrait(connection, mirrored: false)
+                self.configurePortrait(
+                    connection,
+                    device: self.activeDevice,
+                    previewLayer: nil,
+                    mirrored: false)
             }
 
             self.pendingCaptureCall = call
@@ -493,10 +497,18 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         captureSession.addOutput(readinessOutput)
 
         if let connection = readinessOutput.connection(with: .video) {
-            configurePortrait(connection, mirrored: true)
+            configurePortrait(
+                connection,
+                device: device,
+                previewLayer: nil,
+                mirrored: true)
         }
         if let connection = stillOutput.connection(with: .video) {
-            configurePortrait(connection, mirrored: false)
+            configurePortrait(
+                connection,
+                device: device,
+                previewLayer: nil,
+                mirrored: false)
         }
         return (captureSession, readinessOutput, stillOutput, device)
     }
@@ -540,11 +552,19 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func configurePortrait(
         _ connection: AVCaptureConnection,
+        device: AVCaptureDevice?,
+        previewLayer: AVCaptureVideoPreviewLayer?,
         mirrored: Bool
     ) {
-        if #available(iOS 17.0, *) {
-            if connection.isVideoRotationAngleSupported(90) {
-                connection.videoRotationAngle = 90
+        if #available(iOS 17.0, *), let device = device {
+            let coordinator = AVCaptureDevice.RotationCoordinator(
+                device: device,
+                previewLayer: previewLayer)
+            let angle = previewLayer == nil
+                ? coordinator.videoRotationAngleForHorizonLevelCapture
+                : coordinator.videoRotationAngleForHorizonLevelPreview
+            if connection.isVideoRotationAngleSupported(angle) {
+                connection.videoRotationAngle = angle
             }
         } else if connection.isVideoOrientationSupported {
             connection.videoOrientation = .portrait
@@ -703,7 +723,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
 
         if let connection = previewLayer?.connection {
-            configurePortrait(connection, mirrored: true)
+            configurePortrait(
+                connection,
+                device: activeDevice,
+                previewLayer: previewLayer,
+                mirrored: true)
         }
         applyPreviewFrame(requestedPreviewFrame)
     }

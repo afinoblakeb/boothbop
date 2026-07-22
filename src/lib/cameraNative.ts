@@ -29,17 +29,8 @@ function withTimeout<T>(
   });
 }
 
-function pluginRegistered(): boolean {
-  const capacitor = (
-    window as Window & {
-      Capacitor?: { isPluginAvailable?: (name: string) => boolean };
-    }
-  ).Capacitor;
-  return capacitor?.isPluginAvailable?.("BoothBopCamera") === true;
-}
-
 export async function canUseNativeCamera(): Promise<boolean> {
-  if (!isNativeShell() || !pluginRegistered()) return false;
+  if (!isNativeShell()) return false;
   try {
     return (await BoothBopCamera.isAvailable()).available;
   } catch {

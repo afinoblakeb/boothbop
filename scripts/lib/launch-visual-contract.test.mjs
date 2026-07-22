@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertNoSustainedBlackLaunch,
   isBlackLaunchFrame,
-  isBoothBopHomeFrame,
+  isBoothBopReadyFrame,
 } from "./launch-visual-contract.mjs";
 
 describe("native launch visual contract", () => {
@@ -30,7 +30,7 @@ describe("native launch visual contract", () => {
 
   it("recognizes the loaded BoothBop home screen, not just the splash", () => {
     expect(
-      isBoothBopHomeFrame({
+      isBoothBopReadyFrame({
         average: 210,
         standardDeviation: 52,
         brandOrangeRatio: 0.07,
@@ -39,7 +39,7 @@ describe("native launch visual contract", () => {
       }),
     ).toBe(true);
     expect(
-      isBoothBopHomeFrame({
+      isBoothBopReadyFrame({
         average: 205,
         standardDeviation: 44,
         brandOrangeRatio: 0.02,
@@ -47,5 +47,18 @@ describe("native launch visual contract", () => {
         maxOrangeRowRatio: 0.18,
       }),
     ).toBe(false);
+  });
+
+  it("recognizes the native direct-to-camera surface as launch-ready", () => {
+    expect(
+      isBoothBopReadyFrame({
+        average: 82,
+        standardDeviation: 104,
+        brandOrangeRatio: 0.008,
+        lightSurfaceRatio: 0.31,
+        darkSurfaceRatio: 0.55,
+        maxOrangeRowRatio: 0.13,
+      }),
+    ).toBe(true);
   });
 });

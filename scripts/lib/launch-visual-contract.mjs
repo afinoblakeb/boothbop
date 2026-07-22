@@ -10,12 +10,19 @@ export function assertNoSustainedBlackLaunch(deviceName, blackFrameCount) {
   }
 }
 
-export function isBoothBopHomeFrame(stats) {
-  return (
+export function isBoothBopReadyFrame(stats) {
+  const homeReady =
     stats.average >= 150 &&
     stats.standardDeviation >= 6 &&
     stats.brandOrangeRatio >= 0.003 &&
     stats.lightSurfaceRatio >= 0.35 &&
-    stats.maxOrangeRowRatio >= 0.45
-  );
+    stats.maxOrangeRowRatio >= 0.45;
+  const cameraReady =
+    stats.average >= 60 &&
+    stats.standardDeviation >= 60 &&
+    stats.brandOrangeRatio >= 0.004 &&
+    stats.lightSurfaceRatio >= 0.2 &&
+    stats.darkSurfaceRatio >= 0.25 &&
+    stats.maxOrangeRowRatio >= 0.08;
+  return homeReady || cameraReady;
 }

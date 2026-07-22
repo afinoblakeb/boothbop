@@ -35,13 +35,23 @@ function installNativePlugin(available = true) {
 }
 
 describe("native camera bridge", () => {
-  it("uses the bridge only when the native plugin is registered and available", async () => {
+  it("uses the bridge only in the native shell with an available camera", async () => {
     installNativePlugin();
     cameraPlugin.isAvailable.mockResolvedValue({ available: true });
     await expect(canUseNativeCamera()).resolves.toBe(true);
 
-    installNativePlugin(false);
+    vi.stubGlobal("window", {
+      Capacitor: { isNativePlatform: () => false },
+    });
     await expect(canUseNativeCamera()).resolves.toBe(false);
+  });
+
+  it("probes runtime-registered local plugins even when Capacitor does not advertise them", async () => {
+    installNativePlugin(false);
+    cameraPlugin.isAvailable.mockResolvedValue({ available: true });
+
+    await expect(canUseNativeCamera()).resolves.toBe(true);
+    expect(cameraPlugin.isAvailable).toHaveBeenCalledOnce();
   });
 
   it("starts, positions, and stops the native preview", async () => {

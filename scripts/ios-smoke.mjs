@@ -6,7 +6,7 @@ import sharp from "sharp";
 import {
   assertNoSustainedBlackLaunch,
   isBlackLaunchFrame,
-  isBoothBopHomeFrame,
+  isBoothBopReadyFrame,
 } from "./lib/launch-visual-contract.mjs";
 
 const projectRoot = process.cwd();
@@ -225,6 +225,7 @@ async function screenshotStats(filePath) {
   let sum = 0;
   let sumSquares = 0;
   let brightPixels = 0;
+  let darkPixels = 0;
   let brandOrangePixels = 0;
   let lightSurfacePixels = 0;
   let maxOrangeRowRatio = 0;
@@ -242,6 +243,7 @@ async function screenshotStats(filePath) {
       sum += luminance;
       sumSquares += luminance * luminance;
       if (luminance > 20) brightPixels += 1;
+      if (luminance < 25) darkPixels += 1;
       if (
         data[index] > 180 &&
         data[index + 1] >= 30 &&
@@ -271,6 +273,7 @@ async function screenshotStats(filePath) {
     average,
     brandOrangeRatio: brandOrangePixels / count,
     brightRatio,
+    darkSurfaceRatio: darkPixels / count,
     lightSurfaceRatio: lightSurfacePixels / count,
     maxOrangeRowRatio,
     standardDeviation,
@@ -304,14 +307,14 @@ async function captureVisibleScreenshot(device, screenshot) {
     consecutiveBlackFrames = isBlack ? consecutiveBlackFrames + 1 : 0;
     if (isBlack) blackTransitionFrames += 1;
     assertNoSustainedBlackLaunch(device.name, consecutiveBlackFrames);
-    if (isBoothBopHomeFrame(stats)) {
+    if (isBoothBopReadyFrame(stats)) {
       return { blackTransitionFrames, elapsedMs: Date.now() - started, stats };
     }
     await sleep(500);
   }
 
   throw new Error(
-    `${device.name} did not render the BoothBop home surface within 90 seconds.`,
+    `${device.name} did not render a ready BoothBop surface within 90 seconds.`,
   );
 }
 
