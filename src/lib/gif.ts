@@ -67,6 +67,7 @@ function runGifWorker(
   payload: GifWorkerPayload,
   transfer: Transferable[],
   signal?: AbortSignal,
+  onTransferred?: () => void,
 ): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
     const worker = new Worker(
@@ -105,7 +106,17 @@ function runGifWorker(
       onAbort();
       return;
     }
-    worker.postMessage(payload, transfer);
+    try {
+      worker.postMessage(payload, transfer);
+    } catch (error) {
+      settle(
+        error instanceof Error
+          ? error
+          : new Error("GIF worker request could not be sent"),
+      );
+      return;
+    }
+    onTransferred?.();
   });
 }
 
@@ -118,25 +129,53 @@ async function encodeBitmapsInWorker(
   watermark: Uint8ClampedArray | null,
   signal?: AbortSignal,
 ): Promise<Uint8Array> {
-  const bitmaps = await Promise.all(
-    frames.map((frame) => createImageBitmap(frame)),
-  );
-  signal?.throwIfAborted();
-  const watermarkBuffer = watermark?.buffer as ArrayBuffer | undefined;
-  const transfer: Transferable[] = [...bitmaps];
-  if (watermarkBuffer) transfer.push(watermarkBuffer);
-  return runGifWorker(
-    {
-      bitmaps,
-      frameIndexes: indexes,
-      size,
-      delay,
-      filter,
-      watermark: watermarkBuffer ?? null,
-    },
-    transfer,
-    signal,
-  );
+  const owned = new Set<ImageBitmap>();
+  let acceptingBitmaps = true;
+  let transferred = false;
+  const closeOwned = () => {
+    for (const bitmap of owned) bitmap.close();
+    owned.clear();
+  };
+  const onAbort = () => {
+    acceptingBitmaps = false;
+    closeOwned();
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+
+  try {
+    const bitmaps = await Promise.all(
+      frames.map(async (frame) => {
+        const bitmap = await createImageBitmap(frame);
+        if (acceptingBitmaps) owned.add(bitmap);
+        else bitmap.close();
+        return bitmap;
+      }),
+    );
+    signal?.throwIfAborted();
+    const watermarkBuffer = watermark?.buffer as ArrayBuffer | undefined;
+    const transfer: Transferable[] = [...bitmaps];
+    if (watermarkBuffer) transfer.push(watermarkBuffer);
+    return await runGifWorker(
+      {
+        bitmaps,
+        frameIndexes: indexes,
+        size,
+        delay,
+        filter,
+        watermark: watermarkBuffer ?? null,
+      },
+      transfer,
+      signal,
+      () => {
+        transferred = true;
+        owned.clear();
+      },
+    );
+  } finally {
+    acceptingBitmaps = false;
+    signal?.removeEventListener("abort", onAbort);
+    if (!transferred) closeOwned();
+  }
 }
 
 function encodePixelsInWorker(
