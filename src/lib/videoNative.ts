@@ -26,9 +26,46 @@ function base64ToBlob(base64: string, mime: string): Blob {
   return new Blob([bytes], { type: mime });
 }
 
-// One frame at the output size with the watermark, as base64 JPEG (no data:
-// prefix) — exactly what the native plugin expects.
-function frameToBase64(
+function yieldForPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => resolve());
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
+}
+
+function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => {
+      if (blob) resolve(blob);
+      else reject(new Error("PNG frame encoding failed"));
+    }, "image/png");
+  });
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Frame read failed"));
+    reader.onload = () => {
+      const result = reader.result;
+      if (typeof result !== "string") {
+        reject(new Error("Frame read returned an invalid result"));
+        return;
+      }
+      resolve(result.slice(result.indexOf(",") + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Render one lossless frame at the output size. Yielding before each frame and
+// using toBlob/FileReader keeps PNG encoding and base64 conversion off the
+// synchronous interaction path.
+async function frameToBase64(
   frame: HTMLCanvasElement,
   width: number,
   height: number,
@@ -36,7 +73,8 @@ function frameToBase64(
   watermark: boolean,
   watermarkImg: HTMLImageElement | null,
   filter: FilterId,
-): string {
+): Promise<string> {
+  await yieldForPaint();
   const canvas = document.createElement("canvas");
   canvas.width = width;
   canvas.height = height;
@@ -65,7 +103,7 @@ function frameToBase64(
       contentX,
       contentY,
     );
-  return canvas.toDataURL("image/jpeg", 0.92).split(",")[1];
+  return blobToBase64(await canvasToPng(canvas));
 }
 
 export async function encodeVideoNative(
@@ -84,17 +122,20 @@ export async function encodeVideoNative(
   }: VideoOptions = {},
 ): Promise<VideoResult> {
   try {
-    const images = frames.map((f) =>
-      frameToBase64(
-        f,
-        width,
-        height,
-        backgroundColor,
-        watermark,
-        watermarkImg,
-        filter,
-      ),
-    );
+    const images: string[] = [];
+    for (const frame of frames) {
+      images.push(
+        await frameToBase64(
+          frame,
+          width,
+          height,
+          backgroundColor,
+          watermark,
+          watermarkImg,
+          filter,
+        ),
+      );
+    }
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
     const { base64 } = await withTimeout(
       BoothBopVideo.make({

@@ -241,7 +241,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 
     private enum VideoError: Error { case decode, writer, append }
 
-    // make({ images: [base64 jpeg], width, height, bitrate, frameMs, loops, fps }) -> { base64 }
+    // make({ images: [base64 png], width, height, bitrate, frameMs, loops, fps }) -> { base64 }
     @objc func make(_ call: CAPPluginCall) {
         let images = call.getArray("images", String.self) ?? []
         guard !images.isEmpty else {
@@ -279,14 +279,24 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         try? FileManager.default.removeItem(at: outURL)
 
         let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+        let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
+        let compression: [String: Any] = [
+            AVVideoAverageBitRateKey: bitrate,
+            AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel,
+            AVVideoH264EntropyModeKey: AVVideoH264EntropyModeCABAC,
+            AVVideoExpectedSourceFrameRateKey: fps,
+            AVVideoMaxKeyFrameIntervalKey: framesPerPhoto,
+            AVVideoAllowFrameReorderingKey: false
+        ]
         let settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
-            AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: bitrate]
+            AVVideoCompressionPropertiesKey: compression
         ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = false
+        input.mediaTimeScale = CMTimeScale(fps)
         let attrs: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
             kCVPixelBufferWidthKey as String: width,
@@ -303,7 +313,6 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         let buffers = try images.map {
             try self.pixelBuffer(fromBase64: $0, width: width, height: height)
         }
-        let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
         let timescale = CMTimeScale(fps)
         var frameIndex: Int64 = 0
         let appendDeadline = Date().addingTimeInterval(15)
