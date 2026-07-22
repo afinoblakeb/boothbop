@@ -1,6 +1,18 @@
 import { enableFileSharing, expect, test } from "./fixtures";
+import {
+  installNativeCameraMock,
+  nativeCameraSnapshot,
+  requestNativePreviewUpdate,
+  setDocumentVisibility,
+  settleNativePreview,
+  waitForNativeCamera,
+} from "../../test-support/mocks/nativeCamera";
 
 test.use({ viewport: { width: 390, height: 844 } });
+
+const REQUIRED_SHUTTER_FREEZE_MS = 600;
+const LIVE_PREVIEW_RECOVERY_MS = 50;
+const SELECTED_COUNTDOWN_MS = 1_000;
 
 test("native launch opens one camera preview without a home-screen tap", async ({
   page,
@@ -94,207 +106,121 @@ test("native launch survives unavailable preference storage", async ({
   await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
 });
 
-test("rapid settings transitions cannot strand the native camera black", async ({
+test("repeated settings churn ignores stale native preview completions", async ({
   page,
 }) => {
-  await page.addInitScript(() => {
-    const state = window as typeof window & {
-      __nativeCamera?: {
-        running: boolean;
-        starting: boolean;
-        previewVisible: boolean;
-        starts: number;
-        stops: number;
-      };
-      Capacitor?: Record<string, unknown>;
-      webkit?: unknown;
-    };
-    state.__nativeCamera = {
-      running: false,
-      starting: false,
-      previewVisible: false,
-      starts: 0,
-      stops: 0,
-    };
-    Object.defineProperty(window, "webkit", {
-      configurable: true,
-      value: { messageHandlers: { bridge: {} } },
-    });
-    state.Capacitor = {
-      PluginHeaders: [
-        {
-          name: "BoothBopCamera",
-          methods: [
-            ...[
-              "isAvailable",
-              "start",
-              "setPreviewFrame",
-              "capture",
-              "release",
-              "stop",
-              "removeListener",
-            ].map((name) => ({ name, rtype: "promise" })),
-            { name: "addListener", rtype: "callback" },
-          ],
-        },
-      ],
-      nativeCallback: async (
-        pluginName: string,
-        methodName: string,
-        _options: Record<string, unknown>,
-        _callback: (result: Record<string, unknown>) => void,
-      ) => {
-        if (pluginName !== "BoothBopCamera" || methodName !== "addListener") {
-          throw new Error(
-            `Unexpected native callback: ${pluginName}.${methodName}`,
-          );
-        }
-        return "camera-state-listener";
-      },
-      nativePromise: async (
-        pluginName: string,
-        methodName: string,
-      ): Promise<Record<string, unknown>> => {
-        if (pluginName !== "BoothBopCamera") {
-          throw new Error(`Unexpected native plugin: ${pluginName}`);
-        }
-        const camera = state.__nativeCamera!;
-        if (methodName === "isAvailable") return { available: true };
-        if (methodName === "start") {
-          camera.starts += 1;
-          if (camera.running) return { width: 1920, height: 1080 };
-          if (camera.starting) throw new Error("Camera start is already busy");
-          camera.starting = true;
-          await new Promise((resolve) => setTimeout(resolve, 180));
-          camera.starting = false;
-          camera.running = true;
-          return { width: 1920, height: 1080 };
-        }
-        if (methodName === "stop") {
-          camera.stops += 1;
-          await new Promise((resolve) => setTimeout(resolve, 40));
-          camera.running = false;
-          camera.previewVisible = false;
-          return { stopped: true };
-        }
-        if (methodName === "setPreviewFrame") {
-          if (!camera.running) throw new Error("Camera is not running");
-          camera.previewVisible = true;
-          return { visible: true };
-        }
-        if (methodName === "removeListener") return { removed: true };
-        if (methodName === "release") return { released: true };
-        throw new Error(`Unexpected camera method: ${methodName}`);
-      },
-    };
-    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
-      configurable: true,
-      value: async () => {
-        throw new DOMException(
-          "Native camera owns the device",
-          "NotReadableError",
-        );
-      },
-    });
-  });
+  await installNativeCameraMock(page);
 
   await page.goto("/?native=1");
   await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await waitForNativeCamera(page, {
+    running: true,
+    starts: 1,
+    previewCalls: [{ id: 1, status: "pending" }],
+  });
+  await settleNativePreview(page, 1, "resolve");
+  await expect(page.locator("html")).toHaveClass(/native-camera-active/);
 
   const settings = page.getByRole("button", { name: "Settings" });
-  await settings.click();
-  await page.getByRole("button", { name: "Close" }).click();
-  await settings.click();
-  await page.getByRole("button", { name: "Close" }).click();
+  const dialog = page.getByRole("dialog", { name: "Settings" });
+  for (let transition = 1; transition <= 5; transition += 1) {
+    await requestNativePreviewUpdate(page);
+    await expect
+      .poll(async () => (await nativeCameraSnapshot(page)).previewCalls.length)
+      .toBe(transition * 2);
+    const stale = (await nativeCameraSnapshot(page)).previewCalls.at(-1)!;
 
-  await expect
-    .poll(
-      () =>
-        page.evaluate(() => {
-          const camera = (
-            window as typeof window & {
-              __nativeCamera?: {
-                running: boolean;
-                previewVisible: boolean;
-              };
-            }
-          ).__nativeCamera;
-          return Boolean(camera?.running && camera.previewVisible);
-        }),
-      { timeout: 5_000 },
-    )
-    .toBe(true);
-  await expect(page.getByRole("button", { name: "Take Photos" })).toBeEnabled();
-
-  const startsBeforeBackground = await page.evaluate(
-    () =>
-      (
-        window as typeof window & {
-          __nativeCamera?: { starts: number };
-        }
-      ).__nativeCamera?.starts ?? 0,
-  );
-  await page.evaluate(() => {
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      value: "hidden",
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
-  await expect
-    .poll(() =>
-      page.evaluate(
-        () =>
-          !(
-            window as typeof window & {
-              __nativeCamera?: { running: boolean };
-            }
-          ).__nativeCamera?.running,
-      ),
-    )
-    .toBe(true);
-
-  await page.evaluate(() => {
-    Object.defineProperty(document, "visibilityState", {
-      configurable: true,
-      value: "visible",
-    });
-    document.dispatchEvent(new Event("visibilitychange"));
-  });
-  await expect
-    .poll(
-      () =>
-        page.evaluate(
-          () =>
-            (
-              window as typeof window & {
-                __nativeCamera?: {
-                  running: boolean;
-                  previewVisible: boolean;
-                  starts: number;
-                };
-              }
-            ).__nativeCamera,
-        ),
-      { timeout: 5_000 },
-    )
-    .toMatchObject({
+    await settings.click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole("button", { name: "Close" }).click();
+    await expect(dialog).toBeHidden();
+    await waitForNativeCamera(page, {
       running: true,
-      previewVisible: true,
-      starts: startsBeforeBackground + 1,
+      starts: transition + 1,
+      stops: transition,
     });
+    await expect
+      .poll(async () => (await nativeCameraSnapshot(page)).previewCalls.length)
+      .toBe(transition * 2 + 1);
+    const current = (await nativeCameraSnapshot(page)).previewCalls.at(-1)!;
+    await settleNativePreview(page, current.id, "resolve");
+    await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+    await settleNativePreview(
+      page,
+      stale.id,
+      transition % 2 === 0 ? "resolve" : "reject",
+    );
+    await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+    await expect(
+      page.getByText("Couldn't start the iPhone camera."),
+    ).toHaveCount(0);
+  }
 
-  await page
-    .getByRole("group", { name: "Countdown seconds" })
-    .getByRole("button", { name: "1s" })
-    .click();
-  await page.getByRole("button", { name: "Take Photos" }).click();
-  await expect(
-    page.getByText("Couldn't take that photo. Try again."),
-  ).toBeVisible({ timeout: 5_000 });
-  await expect(
-    page.getByRole("button", { name: "Try Camera Again" }),
-  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await expect(dialog).toBeHidden();
+  await waitForNativeCamera(page, {
+    running: true,
+    previewVisible: true,
+    starts: 6,
+    stops: 5,
+  });
+});
+
+test("repeated background recovery keeps only the newest native preview", async ({
+  page,
+}) => {
+  await installNativeCameraMock(page);
+
+  await page.goto("/?native=1");
+  await waitForNativeCamera(page, {
+    running: true,
+    starts: 1,
+    previewCalls: [{ id: 1, status: "pending" }],
+  });
+  await settleNativePreview(page, 1, "resolve");
+  await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+
+  for (let transition = 1; transition <= 4; transition += 1) {
+    await requestNativePreviewUpdate(page);
+    await expect
+      .poll(async () => (await nativeCameraSnapshot(page)).previewCalls.length)
+      .toBe(transition * 2);
+    const stale = (await nativeCameraSnapshot(page)).previewCalls.at(-1)!;
+
+    await setDocumentVisibility(page, "hidden");
+    await waitForNativeCamera(page, {
+      running: false,
+      stops: transition,
+    });
+    await setDocumentVisibility(page, "visible");
+    await waitForNativeCamera(page, {
+      running: true,
+      starts: transition + 1,
+    });
+    await expect
+      .poll(async () => (await nativeCameraSnapshot(page)).previewCalls.length)
+      .toBe(transition * 2 + 1);
+    const current = (await nativeCameraSnapshot(page)).previewCalls.at(-1)!;
+    await settleNativePreview(page, current.id, "resolve");
+    await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+    await settleNativePreview(
+      page,
+      stale.id,
+      transition % 2 === 0 ? "resolve" : "reject",
+    );
+    await expect(page.locator("html")).toHaveClass(/native-camera-active/);
+    await expect(
+      page.getByText("Couldn't start the iPhone camera."),
+    ).toHaveCount(0);
+  }
+
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await waitForNativeCamera(page, {
+    running: true,
+    previewVisible: true,
+    starts: 5,
+    stops: 4,
+  });
 });
 
 test("camera opening is visible and duplicate-proof", async ({ page }) => {
@@ -488,8 +414,12 @@ test("every shot gets the full selected countdown after freeze recovery", async 
   }, sequenceStartedAt);
   expect(timing.firstShutter).toBeGreaterThanOrEqual(3_200);
   expect(timing.firstShutter).toBeLessThan(4_200);
-  expect(timing.interval).toBeGreaterThanOrEqual(1_400);
-  expect(timing.interval).toBeLessThan(1_950);
+  expect(timing.interval).toBeGreaterThanOrEqual(
+    REQUIRED_SHUTTER_FREEZE_MS +
+      LIVE_PREVIEW_RECOVERY_MS +
+      SELECTED_COUNTDOWN_MS,
+  );
+  expect(timing.interval).toBeLessThan(2_200);
   await page.getByRole("button", { name: "Cancel" }).click();
 });
 
