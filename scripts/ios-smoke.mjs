@@ -399,7 +399,16 @@ async function recentNativeLog(device) {
     { capture: true, allowFailure: true, timeoutMs: 30000, timeoutOk: true },
   );
 
-  return `${stdout}\n${stderr}`.trim();
+  return `${stdout}\n${stderr}`
+    .split("\n")
+    .filter(
+      (line) =>
+        line.trim() &&
+        !line.startsWith("Timestamp") &&
+        !line.includes("getpwuid_r did not find a match"),
+    )
+    .join("\n")
+    .trim();
 }
 
 async function assertNoNativeLaunchFailures(device) {
@@ -447,6 +456,11 @@ async function launchApp(device, label = "launching") {
       return Number(match[1]);
     } catch (error) {
       launchError = error;
+      const recoveredPid = await runningAppPid(device);
+      if (recoveredPid !== null) {
+        process.stdout.write(`recovered running PID ${recoveredPid}\n`);
+        return recoveredPid;
+      }
       process.stdout.write("failed\n");
       if (attempt === 1) {
         await run("xcrun", ["simctl", "shutdown", device.udid], {
@@ -460,6 +474,19 @@ async function launchApp(device, label = "launching") {
     }
   }
   throw launchError;
+}
+
+async function runningAppPid(device) {
+  const pattern = `CoreSimulator/Devices/${device.udid}/.*/App\\.app/App$`;
+  const result = await run("pgrep", ["-f", pattern], {
+    allowFailure: true,
+    capture: true,
+    timeoutMs: 10000,
+    timeoutOk: true,
+  });
+  if (result.code !== 0 || result.timedOut) return null;
+  const pid = Number(result.stdout.trim().split("\n")[0]);
+  return Number.isInteger(pid) && pid > 0 ? pid : null;
 }
 
 async function testDevice(device) {

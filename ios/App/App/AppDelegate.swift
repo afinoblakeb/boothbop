@@ -47,22 +47,31 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         let sceneWindow = UIWindow(windowScene: windowScene)
         sceneWindow.backgroundColor = .boothBopCanvas
+        let rootViewController = BridgeViewController()
+        rootViewController.loadViewIfNeeded()
+        rootViewController.view.backgroundColor = .boothBopCanvas
+
         let launchViewController = UIStoryboard(
             name: "LaunchScreen", bundle: nil
         ).instantiateInitialViewController() ?? UIViewController()
+        launchViewController.loadViewIfNeeded()
         launchViewController.view.backgroundColor = .boothBopCanvas
-        sceneWindow.rootViewController = launchViewController
+        let launchOverlay = launchViewController.view!
+        launchOverlay.frame = rootViewController.view.bounds
+        launchOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        rootViewController.view.addSubview(launchOverlay)
+
+        sceneWindow.rootViewController = rootViewController
         window = sceneWindow
         sceneWindow.makeKeyAndVisible()
 
+        // Capacitor's SplashScreen plugin attaches its launch overlay on the
+        // next main-loop turn. Keep the storyboard surface above the bridge
+        // until that overlay exists, then remove only the temporary view. The
+        // window root never changes, preserving UIKit appearance transitions.
         DispatchQueue.main.async {
-            let rootViewController = BridgeViewController()
-            rootViewController.loadViewIfNeeded()
-            // Capacitor's SplashScreen plugin attaches its launch overlay on
-            // the next main-loop turn. Keep the system launch controller
-            // visible until that overlay exists, then swap without a gap.
             DispatchQueue.main.async {
-                sceneWindow.rootViewController = rootViewController
+                launchOverlay.removeFromSuperview()
             }
         }
     }

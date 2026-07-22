@@ -7,6 +7,17 @@ const cameraSource = source
   .split("// MARK: - BoothBopVideo")[0];
 
 describe("native camera source contract", () => {
+  it("keeps one UIKit root controller throughout launch", () => {
+    const sceneSource = source
+      .split("class SceneDelegate")[1]
+      .split("// MARK: - BoothBopPhotos")[0];
+    expect(
+      sceneSource.match(/sceneWindow\.rootViewController\s*=/g),
+    ).toHaveLength(1);
+    expect(sceneSource).toContain("launchOverlay");
+    expect(sceneSource).toContain("launchOverlay.removeFromSuperview()");
+  });
+
   it("prepares full-quality photo resources before reporting the camera ready", () => {
     expect(source).toContain("setPreparedPhotoSettingsArray");
     expect(source).toContain("photoPreparationComplete");
