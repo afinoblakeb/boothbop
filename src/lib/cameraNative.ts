@@ -6,6 +6,7 @@ import { isNativeShell } from "./platform";
 const START_TIMEOUT_MS = 12_000;
 const CAPTURE_TIMEOUT_MS = 15_000;
 const PREVIEW_TIMEOUT_MS = 3_000;
+const SHUTTER_FREEZE_TIMEOUT_MS = 3_000;
 const STOP_TIMEOUT_MS = 3_000;
 const WARMUP_JPEG =
   "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q==";
@@ -96,6 +97,14 @@ export async function stopNativeCamera(): Promise<void> {
       // Stopping is idempotent and best-effort during navigation/unmount.
     }
   });
+}
+
+export async function finishNativeShutterFreeze(): Promise<void> {
+  await withTimeout(
+    BoothBopCamera.finishShutterFreeze(),
+    SHUTTER_FREEZE_TIMEOUT_MS,
+    "native shutter freeze",
+  );
 }
 
 export async function observeNativeCameraFailures(

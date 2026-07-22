@@ -477,6 +477,66 @@ test("every shot gets the full selected countdown after freeze recovery", async 
   await page.getByRole("button", { name: "Cancel" }).click();
 });
 
+test("the fourth photo stays frozen through slow capture processing", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class SlowFinalImageCapture {
+      constructor(_track: MediaStreamTrack) {}
+
+      async takePhoto(): Promise<Blob> {
+        const state = window as typeof window & { __captureCount?: number };
+        state.__captureCount = (state.__captureCount ?? 0) + 1;
+        if (state.__captureCount === 4) {
+          await new Promise((resolve) => window.setTimeout(resolve, 2_000));
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        canvas.getContext("2d")?.fillRect(0, 0, 32, 32);
+        return await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob((blob) =>
+            blob ? resolve(blob) : reject(new Error("Test capture failed")),
+          ),
+        );
+      }
+    }
+
+    Object.defineProperty(globalThis, "ImageCapture", {
+      configurable: true,
+      value: SlowFinalImageCapture,
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as typeof window & { __captureCount?: number })
+              .__captureCount ?? 0,
+        ),
+      { timeout: 12_000 },
+    )
+    .toBe(4);
+
+  const frozenPreview = page.getByLabel("Captured photo preview");
+  await expect(frozenPreview).toBeVisible();
+  await page.waitForTimeout(700);
+  await expect(frozenPreview).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Share Photo|Save Photo/ }),
+  ).toBeVisible({ timeout: 3_000 });
+});
+
 test("slow gallery persistence never delays the review screen", async ({
   page,
 }) => {

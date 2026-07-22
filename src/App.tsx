@@ -90,6 +90,7 @@ import { mediaRenderKey } from "./lib/renderKey";
 import {
   canUseNativeCamera,
   captureNativeSquareFrame,
+  finishNativeShutterFreeze,
   observeNativeCameraFailures,
   setNativePreviewFrame,
   startNativeCamera,
@@ -100,6 +101,11 @@ interface MediaResult {
   url: string;
   blob: Blob;
   filename: string;
+}
+
+interface FrozenCapture {
+  frame: HTMLCanvasElement;
+  releaseFreeze: () => Promise<void>;
 }
 
 const wait = (ms: number) =>
@@ -576,18 +582,35 @@ export default function App() {
     return captureBestSquareFrame(video);
   }
 
-  function beginShutterFreeze(video: HTMLVideoElement | null): Promise<void> {
-    if (nativeCameraActiveRef.current || !video) {
-      // The native camera draws its own immediate preview freeze. Waiting here
-      // keeps the final shot from tearing the native preview down too early.
-      return wait(SHUTTER_FREEZE_MS);
-    }
+  async function captureCameraFrameWithFreeze(
+    video: HTMLVideoElement | null,
+  ): Promise<FrozenCapture> {
+    const nativeFreeze = nativeCameraActiveRef.current;
+    const preview =
+      !nativeFreeze && video ? captureSquareFrame(video, 720) : null;
+    if (preview) setFreezeFrame(preview);
 
-    const preview = captureSquareFrame(video, 720);
-    setFreezeFrame(preview);
-    return wait(SHUTTER_FREEZE_MS).then(() => {
-      setFreezeFrame((current) => (current === preview ? null : current));
-    });
+    let released = false;
+    const releaseFreeze = async () => {
+      if (released) return;
+      released = true;
+      if (preview) {
+        setFreezeFrame((current) => (current === preview ? null : current));
+      } else if (nativeFreeze) {
+        await finishNativeShutterFreeze();
+      }
+    };
+
+    try {
+      const [frame] = await Promise.all([
+        captureActiveCameraFrame(video),
+        wait(SHUTTER_FREEZE_MS),
+      ]);
+      return { frame, releaseFreeze };
+    } catch (error) {
+      await releaseFreeze();
+      throw error;
+    }
   }
 
   // Attach the live stream whenever we are showing the camera.
@@ -1001,17 +1024,15 @@ export default function App() {
 
       try {
         void tapHaptic("Medium");
-        const shutterFreeze = beginShutterFreeze(video);
-        const replacement = await captureActiveCameraFrame(video);
-        await shutterFreeze;
+        const { frame: replacement, releaseFreeze } =
+          await captureCameraFrameWithFreeze(video);
         if (sequenceCancelled()) {
-          setFreezeFrame(null);
+          await releaseFreeze();
           return;
         }
         const updated = replaceFrame(framesRef.current, replacing, replacement);
         framesRef.current = updated;
         setFrames(updated);
-        stopActiveCamera();
 
         setRetakeIndex(null);
         retakeIndexRef.current = null;
@@ -1041,6 +1062,9 @@ export default function App() {
           }
         });
         setPhase("review");
+        await afterPaint();
+        await releaseFreeze();
+        stopActiveCamera();
       } catch {
         setFreezeFrame(null);
         failCamera("Couldn't retake that photo. Your original is still here.");
@@ -1050,6 +1074,7 @@ export default function App() {
 
     try {
       const captured: HTMLCanvasElement[] = [];
+      let releaseFinalFreeze: (() => Promise<void>) | null = null;
       setFrames([]);
       await wait(400);
 
@@ -1059,19 +1084,22 @@ export default function App() {
         if (!(await runCountdown(countdownSeconds))) return;
 
         void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
-        const shutterFreeze = beginShutterFreeze(video);
-        const frame = await captureActiveCameraFrame(video);
-        await shutterFreeze;
+        const { frame, releaseFreeze } =
+          await captureCameraFrameWithFreeze(video);
         if (sequenceCancelled()) {
-          setFreezeFrame(null);
+          await releaseFreeze();
           return;
         }
         captured.push(frame);
         setFrames([...captured]);
-        if (shot < SHOTS - 1) await wait(LIVE_PREVIEW_RECOVERY_MS);
+        if (shot < SHOTS - 1) {
+          await releaseFreeze();
+          await wait(LIVE_PREVIEW_RECOVERY_MS);
+        } else {
+          releaseFinalFreeze = releaseFreeze;
+        }
       }
 
-      stopActiveCamera();
       framesRef.current = captured;
       setFormat("strip");
       if (sequenceOwnerRef.current === owner) {
@@ -1106,6 +1134,9 @@ export default function App() {
         }
       });
       setPhase("review");
+      await afterPaint();
+      await releaseFinalFreeze?.();
+      stopActiveCamera();
 
       // Auto-save is best-effort and never blocks the review screen.
       void autoSaveToAlbum(captured, autosave, sessionRevision);

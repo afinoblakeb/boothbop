@@ -34,6 +34,7 @@ export interface BoothBopCameraPlugin {
   start(): Promise<NativeCameraStart>;
   setPreviewFrame(frame: NativeCameraFrame): Promise<{ visible: boolean }>;
   capture(options: { size: number }): Promise<NativePhoto>;
+  finishShutterFreeze(): Promise<{ finished: boolean }>;
   release(options: { path: string }): Promise<{ released: boolean }>;
   stop(): Promise<{ stopped: boolean }>;
   addListener(

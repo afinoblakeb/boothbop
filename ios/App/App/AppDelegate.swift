@@ -254,6 +254,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setPreviewFrame", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "capture", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "finishShutterFreeze", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "release", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
     ]
@@ -333,6 +334,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var previewGeneration: UInt64?
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
+    private var shutterFreezeMinimumElapsed = false
+    private var shutterFreezeCaptureComplete = false
+    private var shutterFreezeDismissRequested = false
     private var requestedPreviewFrame: CGRect = .zero
     private var requestedPreviewCornerRadius: CGFloat = 0
     private var faceOverlayLayers: [Int: CAShapeLayer] = [:]
@@ -483,6 +487,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
             self.removeTemporaryPhotos([fileURL])
             call.resolve(["released": true])
+        }
+    }
+
+    @objc func finishShutterFreeze(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            self.shutterFreezeDismissRequested = true
+            self.finishShutterFreezeIfReady()
+            call.resolve(["finished": true])
         }
     }
 
@@ -1200,13 +1212,16 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureSize = 1920
         pendingPhoto = nil
         captureCompletionReceived = false
-        call.resolve([
-            "path": photo.fileURL.absoluteString,
-            "mimeType": "image/jpeg",
-            "width": photo.width,
-            "height": photo.height,
-            "mirrored": true,
-        ])
+        DispatchQueue.main.async {
+            self.completeShutterFreeze()
+            call.resolve([
+                "path": photo.fileURL.absoluteString,
+                "mimeType": "image/jpeg",
+                "width": photo.width,
+                "height": photo.height,
+                "mirrored": true,
+            ])
+        }
     }
 
     private func failStart(_ error: Error, code: String, id: UUID) {
@@ -1228,7 +1243,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureSize = 1920
         pendingPhoto = nil
         captureCompletionReceived = false
-        call.reject(message, code)
+        DispatchQueue.main.async {
+            self.completeShutterFreeze()
+            call.reject(message, code)
+        }
     }
 
     private func tearDownSession(
@@ -1347,20 +1365,41 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
         shutterFreezeGeneration &+= 1
         let generation = shutterFreezeGeneration
+        shutterFreezeMinimumElapsed = false
+        shutterFreezeCaptureComplete = false
+        shutterFreezeDismissRequested = false
         freezeView.frame = previewView.bounds
         freezeView.image = image
         freezeView.isHidden = false
 
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(600)) {
             guard self.shutterFreezeGeneration == generation else { return }
-            self.hideShutterFreeze()
+            self.shutterFreezeMinimumElapsed = true
+            self.finishShutterFreezeIfReady()
         }
+    }
+
+    private func completeShutterFreeze() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        shutterFreezeCaptureComplete = true
+        finishShutterFreezeIfReady()
+    }
+
+    private func finishShutterFreezeIfReady() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard shutterFreezeMinimumElapsed,
+              shutterFreezeCaptureComplete,
+              shutterFreezeDismissRequested else { return }
+        hideShutterFreeze()
     }
 
     private func hideShutterFreeze() {
         dispatchPrecondition(condition: .onQueue(.main))
         shutterFreezeView?.isHidden = true
         shutterFreezeView?.image = nil
+        shutterFreezeMinimumElapsed = false
+        shutterFreezeCaptureComplete = false
+        shutterFreezeDismissRequested = false
     }
 
     @discardableResult
@@ -1383,6 +1422,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private func removePreview() {
         dispatchPrecondition(condition: .onQueue(.main))
         shutterFreezeGeneration &+= 1
+        shutterFreezeMinimumElapsed = false
+        shutterFreezeCaptureComplete = false
+        shutterFreezeDismissRequested = false
         clearFaceOverlays()
         shutterFreezeView?.removeFromSuperview()
         shutterFreezeView = nil

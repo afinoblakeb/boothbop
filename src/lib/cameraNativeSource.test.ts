@@ -98,6 +98,10 @@ describe("native camera source contract", () => {
     );
     expect(cameraSource).toContain("previewInstalled");
     expect(cameraSource).toContain(".milliseconds(600)");
+    expect(cameraSource).toContain("shutterFreezeCaptureComplete");
+    expect(cameraSource).toContain("completeShutterFreeze");
+    expect(cameraSource).toContain("finishShutterFreezeIfReady");
+    expect(cameraSource).toContain("finishShutterFreeze(_ call:");
   });
 
   it("rejects false preview readiness and watches for lost native captures", () => {
