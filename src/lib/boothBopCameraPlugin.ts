@@ -9,17 +9,25 @@ export interface NativeCameraFrame {
 }
 
 export interface NativePhoto {
-  data: string;
+  path: string;
   mimeType: string;
   width: number;
   height: number;
+  mirrored: boolean;
+}
+
+export interface NativeCameraStart {
+  width: number;
+  height: number;
+  warmupPath?: string;
 }
 
 export interface BoothBopCameraPlugin {
   isAvailable(): Promise<{ available: boolean }>;
-  start(): Promise<{ width: number; height: number }>;
+  start(): Promise<NativeCameraStart>;
   setPreviewFrame(frame: NativeCameraFrame): Promise<{ visible: boolean }>;
-  capture(): Promise<NativePhoto>;
+  capture(options: { size: number }): Promise<NativePhoto>;
+  release(options: { path: string }): Promise<{ released: boolean }>;
   stop(): Promise<{ stopped: boolean }>;
 }
 

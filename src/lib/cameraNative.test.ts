@@ -5,6 +5,7 @@ const cameraPlugin = vi.hoisted(() => ({
   start: vi.fn(),
   setPreviewFrame: vi.fn(),
   capture: vi.fn(),
+  release: vi.fn(),
   stop: vi.fn(),
 }));
 
@@ -21,8 +22,19 @@ import {
 afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  Object.defineProperty(window, "Capacitor", {
+    configurable: true,
+    value: undefined,
+  });
   Object.values(cameraPlugin).forEach((mock) => mock.mockReset());
 });
+
+function installCapacitor(values: Record<string, unknown>) {
+  Object.defineProperty(window, "Capacitor", {
+    configurable: true,
+    value: values,
+  });
+}
 
 function installNativePlugin(available = true) {
   vi.stubGlobal("window", {
@@ -91,8 +103,9 @@ describe("native camera bridge", () => {
     const starting = startNativeCamera().then(() => {
       ready = true;
     });
-    await Promise.resolve();
-    await Promise.resolve();
+    await vi.waitFor(() => {
+      expect(createImageBitmap).toHaveBeenCalledOnce();
+    });
 
     expect(cameraPlugin.start).toHaveBeenCalledOnce();
     expect(createImageBitmap).toHaveBeenCalledWith(
@@ -105,6 +118,43 @@ describe("native camera bridge", () => {
 
     expect(drawImage).toHaveBeenCalledOnce();
     expect(close).toHaveBeenCalledOnce();
+  });
+
+  it("warms and releases the real native file before reporting ready", async () => {
+    const fileURL = "file:///tmp/boothbop-warmup.jpg";
+    const convertedURL =
+      "capacitor://localhost/_capacitor_file_/tmp/boothbop-warmup.jpg";
+    cameraPlugin.start.mockResolvedValue({
+      width: 3024,
+      height: 4032,
+      warmupPath: fileURL,
+    });
+    cameraPlugin.release.mockResolvedValue({ released: true });
+    installCapacitor({
+      convertFileSrc: vi.fn().mockReturnValue(convertedURL),
+    });
+    const blob = new Blob(["warmup"], { type: "image/jpeg" });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(blob),
+    });
+    vi.stubGlobal("fetch", fetch);
+    const close = vi.fn();
+    vi.stubGlobal(
+      "createImageBitmap",
+      vi.fn().mockResolvedValue({ width: 1920, height: 1920, close }),
+    );
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage,
+    } as unknown as CanvasRenderingContext2D);
+
+    await startNativeCamera();
+
+    expect(fetch).toHaveBeenCalledWith(convertedURL);
+    expect(drawImage).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+    expect(cameraPlugin.release).toHaveBeenCalledWith({ path: fileURL });
   });
 
   it("waits for a previous native session to stop before starting again", async () => {
@@ -127,18 +177,32 @@ describe("native camera bridge", () => {
     expect(cameraPlugin.start).toHaveBeenCalledOnce();
   });
 
-  it("turns the full-resolution native JPEG into a mirrored square", async () => {
-    const binary = btoa("jpeg");
+  it("loads the native square from a temporary file without a base64 bridge", async () => {
+    const fileURL = "file:///tmp/boothbop-photo.jpg";
+    const convertedURL =
+      "capacitor://localhost/_capacitor_file_/tmp/boothbop-photo.jpg";
     cameraPlugin.capture.mockResolvedValue({
-      data: binary,
+      path: fileURL,
       mimeType: "image/jpeg",
-      width: 4032,
-      height: 3024,
+      width: 1920,
+      height: 1920,
+      mirrored: true,
     });
+    cameraPlugin.release.mockResolvedValue({ released: true });
+    installCapacitor({
+      isNativePlatform: () => true,
+      convertFileSrc: vi.fn().mockReturnValue(convertedURL),
+    });
+    const blob = new Blob(["jpeg"], { type: "image/jpeg" });
+    const fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      blob: vi.fn().mockResolvedValue(blob),
+    });
+    vi.stubGlobal("fetch", fetch);
     const close = vi.fn();
     const bitmap = {
-      width: 4032,
-      height: 3024,
+      width: 1920,
+      height: 1920,
       close,
     } as unknown as ImageBitmap;
     vi.stubGlobal("createImageBitmap", vi.fn().mockResolvedValue(bitmap));
@@ -155,17 +219,43 @@ describe("native camera bridge", () => {
 
     expect(canvas.width).toBe(1920);
     expect(canvas.height).toBe(1920);
+    expect(cameraPlugin.capture).toHaveBeenCalledWith({ size: 1920 });
+    expect(fetch).toHaveBeenCalledWith(convertedURL);
     expect(context.drawImage).toHaveBeenCalledWith(
       bitmap,
-      504,
       0,
-      3024,
-      3024,
+      0,
+      1920,
+      1920,
       0,
       0,
       1920,
       1920,
     );
+    expect(context.translate).not.toHaveBeenCalled();
+    expect(context.scale).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledOnce();
+    expect(cameraPlugin.release).toHaveBeenCalledWith({ path: fileURL });
+  });
+
+  it("releases the native file when WebKit cannot load it", async () => {
+    const fileURL = "file:///tmp/boothbop-broken.jpg";
+    cameraPlugin.capture.mockResolvedValue({
+      path: fileURL,
+      mimeType: "image/jpeg",
+      width: 1920,
+      height: 1920,
+      mirrored: true,
+    });
+    cameraPlugin.release.mockResolvedValue({ released: true });
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false }));
+    const createImageBitmap = vi.fn();
+    vi.stubGlobal("createImageBitmap", createImageBitmap);
+
+    await expect(captureNativeSquareFrame()).rejects.toThrow(
+      "Native photo file could not be loaded",
+    );
+    expect(createImageBitmap).not.toHaveBeenCalled();
+    expect(cameraPlugin.release).toHaveBeenCalledWith({ path: fileURL });
   });
 });

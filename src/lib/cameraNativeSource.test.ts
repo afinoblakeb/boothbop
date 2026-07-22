@@ -2,6 +2,9 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const source = readFileSync("ios/App/App/AppDelegate.swift", "utf8");
+const cameraSource = source
+  .split("// MARK: - BoothBopCamera")[1]
+  .split("// MARK: - BoothBopVideo")[0];
 
 describe("native camera source contract", () => {
   it("prepares full-quality photo resources before reporting the camera ready", () => {
@@ -17,5 +20,12 @@ describe("native camera source contract", () => {
     expect(source).toContain("let redetectionDelay: CFTimeInterval = 0.45");
     expect(source).toContain(".insetBy(dx: 8, dy: 8)");
     expect(source).toContain(".withAlphaComponent(0.5).cgColor");
+  });
+
+  it("moves a ready-to-use square through a temporary file instead of base64", () => {
+    expect(cameraSource).toContain("renderSquareJPEG");
+    expect(cameraSource).toContain("FileManager.default.temporaryDirectory");
+    expect(cameraSource).toContain('"path": photo.fileURL.absoluteString');
+    expect(cameraSource).not.toContain("base64EncodedString()");
   });
 });

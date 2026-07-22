@@ -1,5 +1,6 @@
 import { BoothBopCamera } from "./boothBopCameraPlugin";
-import { drawMirroredSquare, MAX_CAPTURE_SIZE } from "./camera";
+import { captureSizeForSource, MAX_CAPTURE_SIZE } from "./camera";
+import { configureHighQualityScaling } from "./filter";
 import { isNativeShell } from "./platform";
 
 const START_TIMEOUT_MS = 12_000;
@@ -42,10 +43,12 @@ export async function canUseNativeCamera(): Promise<boolean> {
 
 export async function startNativeCamera(): Promise<void> {
   await pendingStop;
-  await Promise.all([
-    withTimeout(BoothBopCamera.start(), START_TIMEOUT_MS, "native camera"),
-    warmWebImagePipeline(),
-  ]);
+  const started = await withTimeout(
+    BoothBopCamera.start(),
+    START_TIMEOUT_MS,
+    "native camera",
+  );
+  await warmWebImagePipeline(started.warmupPath);
 }
 
 export async function setNativePreviewFrame(
@@ -81,20 +84,64 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
   return new Blob([bytes], { type: mimeType });
 }
 
-async function warmWebImagePipeline(): Promise<void> {
-  if (typeof createImageBitmap !== "function") return;
+function convertFileSrc(path: string): string {
+  const capacitor = (
+    window as Window & {
+      Capacitor?: { convertFileSrc?: (path: string) => string };
+    }
+  ).Capacitor;
+  return capacitor?.convertFileSrc?.(path) ?? path;
+}
+
+async function readNativePhoto(path: string): Promise<Blob> {
+  const response = await fetch(convertFileSrc(path));
+  if (!response.ok) throw new Error("Native photo file could not be loaded");
+  return response.blob();
+}
+
+async function releaseNativePhoto(path: string): Promise<void> {
+  try {
+    await BoothBopCamera.release({ path });
+  } catch {
+    // Temporary-directory cleanup is also enforced when the camera stops.
+  }
+}
+
+async function warmWebImagePipeline(warmupPath?: string): Promise<void> {
+  if (typeof createImageBitmap !== "function") {
+    if (warmupPath) await releaseNativePhoto(warmupPath);
+    return;
+  }
   let bitmap: ImageBitmap | undefined;
   try {
-    bitmap = await createImageBitmap(base64ToBlob(WARMUP_JPEG, "image/jpeg"));
+    const blob = warmupPath
+      ? await readNativePhoto(warmupPath)
+      : base64ToBlob(WARMUP_JPEG, "image/jpeg");
+    bitmap = await createImageBitmap(blob);
     const canvas = document.createElement("canvas");
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+    canvas.width = MAX_CAPTURE_SIZE;
+    canvas.height = MAX_CAPTURE_SIZE;
+    const context = canvas.getContext("2d");
+    if (context) {
+      configureHighQualityScaling(context);
+      context.drawImage(
+        bitmap,
+        0,
+        0,
+        bitmap.width,
+        bitmap.height,
+        0,
+        0,
+        canvas.width,
+        canvas.height,
+      );
+    }
   } catch {
     // This is a startup optimization. Native capture remains available if an
     // older WebKit build cannot pre-decode the tiny local JPEG.
   } finally {
     bitmap?.close();
+    if (warmupPath) await releaseNativePhoto(warmupPath);
   }
 }
 
@@ -102,21 +149,35 @@ export async function captureNativeSquareFrame(
   requestedSize = MAX_CAPTURE_SIZE,
 ): Promise<HTMLCanvasElement> {
   const photo = await withTimeout(
-    BoothBopCamera.capture(),
+    BoothBopCamera.capture({ size: requestedSize }),
     CAPTURE_TIMEOUT_MS,
     "native photo",
   );
-  const bitmap = await createImageBitmap(
-    base64ToBlob(photo.data, photo.mimeType || "image/jpeg"),
-  );
+  let bitmap: ImageBitmap | undefined;
   try {
-    return drawMirroredSquare(
+    bitmap = await createImageBitmap(await readNativePhoto(photo.path));
+    const sourceWidth = bitmap.width || photo.width;
+    const sourceHeight = bitmap.height || photo.height;
+    const size = captureSizeForSource(sourceWidth, sourceHeight, requestedSize);
+    const canvas = document.createElement("canvas");
+    canvas.width = size;
+    canvas.height = size;
+    const context = canvas.getContext("2d")!;
+    configureHighQualityScaling(context);
+    context.drawImage(
       bitmap,
-      bitmap.width || photo.width,
-      bitmap.height || photo.height,
-      requestedSize,
+      0,
+      0,
+      sourceWidth,
+      sourceHeight,
+      0,
+      0,
+      size,
+      size,
     );
+    return canvas;
   } finally {
-    bitmap.close();
+    bitmap?.close();
+    await releaseNativePhoto(photo.path);
   }
 }
