@@ -21,6 +21,7 @@ import { ZoomableImage } from "../components/ZoomableImage";
 import type { Format } from "../types";
 import type { BoomSpeed } from "../lib/boom";
 import type { RuntimeFeatureFlags } from "../lib/remoteConfig";
+import { useModalFocus } from "../hooks/useModalFocus";
 
 // Human-readable names for the strip color themes (for screen readers — the
 // swatches are otherwise color-only). Keys mirror THEMES in lib/strip.ts.
@@ -105,15 +106,6 @@ export function ReviewScreen({
   >({});
 
   useEffect(() => {
-    if (!editing) return;
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setEditing(false);
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [editing]);
-
-  useEffect(() => {
     if (!editing || !thumbs[0]) return;
     let cancelled = false;
 
@@ -149,8 +141,8 @@ export function ReviewScreen({
         : "Save Photo";
   const isBusy = generating !== null;
   const mediaGenerating = generating === "gif" || generating === "video";
-  const sharePreparing = generating === "share";
-  const socialPreparing = socialPreparation === "preparing";
+  const socialPreparing = format === "gif" && socialPreparation === "preparing";
+  const sharePreparing = generating === "share" || socialPreparing;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center py-4">
@@ -167,7 +159,11 @@ export function ReviewScreen({
       {/* Live preview of the selected output */}
       <div className="relative mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
         {mediaGenerating ? (
-          <div className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown">
+          <div
+            role="status"
+            aria-live="polite"
+            className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown"
+          >
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
             {generating === "gif" ? "Making your GIF…" : "Recording video…"}
           </div>
@@ -188,7 +184,7 @@ export function ReviewScreen({
             className="max-h-full w-auto border-2 border-ink"
           />
         ) : null}
-        {socialPreparing && !mediaGenerating && (
+        {sharePreparing && !mediaGenerating && (
           <div
             role="status"
             aria-live="polite"
@@ -209,7 +205,7 @@ export function ReviewScreen({
                 Play forward and back
               </p>
             </div>
-            <Toggle on={boom} onChange={onBoom} />
+            <Toggle aria-label="Boom" on={boom} onChange={onBoom} />
           </div>
           {boom && (
             <label className="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-ink/20 pt-2 font-sans text-[10px] uppercase text-warmgray">
@@ -302,7 +298,7 @@ export function ReviewScreen({
           <ReviewAction
             label={sharePreparing ? "Preparing..." : shareLabel}
             onClick={onShare}
-            disabled={isBusy || !previewUrl}
+            disabled={isBusy || socialPreparing || !previewUrl}
             primary
           >
             <ShareIcon className="h-6 w-6" />
@@ -319,14 +315,91 @@ export function ReviewScreen({
         )}
       </div>
       {showRetakePicker && features.retakeOne && (
-        <div
-          className="mt-2 grid w-full grid-cols-4 gap-2"
-          aria-label="Choose a photo to retake"
+        <RetakePicker
+          thumbs={thumbs}
+          onClose={() => setShowRetakePicker(false)}
+          onSelect={onRetakeOne}
+        />
+      )}
+      <div className="mt-2 flex min-h-8 items-center justify-center gap-4 font-sans text-xs font-semibold text-brown">
+        {format === "gif" && shareFilesOk && (
+          <button
+            type="button"
+            onClick={onShareOriginalGif}
+            disabled={isBusy || !previewUrl}
+            className="min-h-11 underline underline-offset-2 disabled:opacity-40"
+          >
+            Share Original GIF
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={onRetake}
+          className="min-h-11 underline underline-offset-2"
         >
+          Start Over
+        </button>
+      </div>
+
+      {note && (
+        <p
+          role="status"
+          aria-live="polite"
+          className="mt-3 text-center font-sans text-sm text-teal"
+        >
+          {note}
+        </p>
+      )}
+
+      <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
+        Photos stay on this device. BoothBop never uploads or stores them.
+      </p>
+
+      {error && (
+        <div role="alert">
+          <Callout
+            as="p"
+            tone="error"
+            className="mt-4 px-4 py-3 font-sans text-sm text-orange-dark"
+          >
+            {error}
+          </Callout>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RetakePicker({
+  thumbs,
+  onClose,
+  onSelect,
+}: {
+  thumbs: string[];
+  onClose: () => void;
+  onSelect: (index: number) => void;
+}) {
+  const modalRef = useModalFocus<HTMLDivElement>(onClose);
+  return (
+    <div
+      ref={modalRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Choose a photo to retake"
+      className="fixed inset-0 z-40 flex items-end bg-ink/55"
+    >
+      <div className="w-full border-t-2 border-ink bg-cream px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
+        <div className="mx-auto flex max-w-md items-center justify-between">
+          <SectionLabel>Retake one</SectionLabel>
+          <IconButton data-autofocus aria-label="Close" onClick={onClose}>
+            ✕
+          </IconButton>
+        </div>
+        <div className="mx-auto mt-2 grid max-w-md grid-cols-4 gap-2">
           {thumbs.map((thumb, index) => (
             <button
               key={index}
-              onClick={() => onRetakeOne(index)}
+              onClick={() => onSelect(index)}
               aria-label={`Retake photo ${index + 1}`}
               className="relative aspect-square min-h-11 overflow-hidden border-2 border-ink bg-paper"
             >
@@ -337,44 +410,7 @@ export function ReviewScreen({
             </button>
           ))}
         </div>
-      )}
-      <div className="mt-2 flex min-h-8 items-center justify-center gap-4 font-sans text-xs font-semibold text-brown">
-        {format === "gif" && shareFilesOk && (
-          <button
-            type="button"
-            onClick={onShareOriginalGif}
-            disabled={isBusy || !previewUrl}
-            className="min-h-8 underline underline-offset-2 disabled:opacity-40"
-          >
-            Share Original GIF
-          </button>
-        )}
-        <button
-          type="button"
-          onClick={onRetake}
-          className="min-h-8 underline underline-offset-2"
-        >
-          Start Over
-        </button>
       </div>
-
-      {note && (
-        <p className="mt-3 text-center font-sans text-sm text-teal">{note}</p>
-      )}
-
-      <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
-        Photos stay on this device. BoothBop never uploads or stores them.
-      </p>
-
-      {error && (
-        <Callout
-          as="p"
-          tone="error"
-          className="mt-4 px-4 py-3 font-sans text-sm text-orange-dark"
-        >
-          {error}
-        </Callout>
-      )}
     </div>
   );
 }
@@ -401,7 +437,7 @@ function ReviewAction({
       disabled={disabled}
       aria-pressed={pressed}
       className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 border-x border-ink px-1 font-sans text-[11px] font-semibold leading-tight disabled:opacity-40 ${
-        primary ? "bg-orange text-cream" : "text-ink"
+        primary ? "bg-orange text-ink" : "text-ink"
       }`}
     >
       {children}
@@ -435,8 +471,10 @@ function PhotoEditor({
   setThemeKey: (theme: keyof typeof THEMES) => void;
   onDone: () => void;
 }) {
+  const modalRef = useModalFocus<HTMLDivElement>(onDone);
   return (
     <div
+      ref={modalRef}
       role="dialog"
       aria-modal="true"
       aria-label="Edit photos"
@@ -445,6 +483,7 @@ function PhotoEditor({
       <header className="relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end justify-center border-b border-cream/15 px-4 pb-3 pt-[env(safe-area-inset-top)]">
         <h2 className="font-sans text-base font-semibold">Edit</h2>
         <button
+          data-autofocus
           type="button"
           onClick={onDone}
           className="absolute bottom-2 right-3 min-h-11 px-2 font-sans text-base font-semibold text-orange"

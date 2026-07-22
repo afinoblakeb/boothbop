@@ -38,7 +38,7 @@ export function SegmentedControl<T extends string | number>({
         fullWidth ? "w-full" : "w-max"
       } ${className}`}
     >
-      {options.map((o) => {
+      {options.map((o, index) => {
         const selected = o.value === value;
         const a11y =
           ariaRole === "tab"
@@ -49,10 +49,33 @@ export function SegmentedControl<T extends string | number>({
             key={String(o.value)}
             onClick={() => onChange(o.value)}
             disabled={o.disabled}
+            tabIndex={ariaRole === "tab" ? (selected ? 0 : -1) : undefined}
+            onKeyDown={(event) => {
+              if (ariaRole !== "tab") return;
+              const delta =
+                event.key === "ArrowRight"
+                  ? 1
+                  : event.key === "ArrowLeft"
+                    ? -1
+                    : 0;
+              if (!delta) return;
+              event.preventDefault();
+              let next = index;
+              do {
+                next = (next + delta + options.length) % options.length;
+              } while (options[next].disabled && next !== index);
+              const group = event.currentTarget.parentElement;
+              onChange(options[next].value);
+              requestAnimationFrame(() => {
+                const tabs =
+                  group?.querySelectorAll<HTMLElement>('[role="tab"]');
+                tabs?.[next]?.focus();
+              });
+            }}
             {...a11y}
             className={`font-display uppercase tracking-wide transition ${
               fullWidth ? "flex-1" : ""
-            } ${selected ? "bg-orange text-cream" : "text-ink"} ${itemClassName}`}
+            } ${selected ? "bg-orange text-ink" : "text-ink"} ${itemClassName}`}
           >
             {o.label}
           </button>

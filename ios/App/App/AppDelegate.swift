@@ -279,6 +279,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         try? FileManager.default.removeItem(at: outURL)
 
         let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+        writer.shouldOptimizeForNetworkUse = true
         let framesPerPhoto = max(1, Int((Double(frameMs) / 1000.0 * Double(fps)).rounded()))
         let compression: [String: Any] = [
             AVVideoAverageBitRateKey: bitrate,
@@ -292,6 +293,11 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             AVVideoCodecKey: AVVideoCodecType.h264,
             AVVideoWidthKey: width,
             AVVideoHeightKey: height,
+            AVVideoColorPropertiesKey: [
+                AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
+                AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2
+            ],
             AVVideoCompressionPropertiesKey: compression
         ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
@@ -300,7 +306,10 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         let attrs: [String: Any] = [
             kCVPixelBufferPixelFormatTypeKey as String: Int(kCVPixelFormatType_32BGRA),
             kCVPixelBufferWidthKey as String: width,
-            kCVPixelBufferHeightKey as String: height
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferCGImageCompatibilityKey as String: true,
+            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
         ]
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input, sourcePixelBufferAttributes: attrs)
@@ -308,10 +317,12 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         writer.add(input)
         guard writer.startWriting() else { throw writer.error ?? VideoError.writer }
         writer.startSession(atSourceTime: .zero)
+        guard let pixelBufferPool = adaptor.pixelBufferPool else { throw VideoError.writer }
 
         // Decode each frame to a pixel buffer once, then hold it for its slot.
         let buffers = try images.map {
-            try self.pixelBuffer(fromBase64: $0, width: width, height: height)
+            try self.pixelBuffer(
+                fromBase64: $0, width: width, height: height, pool: pixelBufferPool)
         }
         let timescale = CMTimeScale(fps)
         var frameIndex: Int64 = 0
@@ -352,7 +363,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
     }
 
     private func pixelBuffer(
-        fromBase64 base64: String, width: Int, height: Int
+        fromBase64 base64: String, width: Int, height: Int, pool: CVPixelBufferPool
     ) throws -> CVPixelBuffer {
         // Tolerate an optional "data:...;base64," prefix.
         let raw = base64.contains(",") ? String(base64.split(separator: ",").last ?? "") : base64
@@ -361,15 +372,20 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             throw VideoError.decode
         }
 
-        let attrs: [String: Any] = [
-            kCVPixelBufferCGImageCompatibilityKey as String: true,
-            kCVPixelBufferCGBitmapContextCompatibilityKey as String: true
-        ]
         var pb: CVPixelBuffer?
-        let status = CVPixelBufferCreate(
-            kCFAllocatorDefault, width, height,
-            kCVPixelFormatType_32BGRA, attrs as CFDictionary, &pb)
+        let status = CVPixelBufferPoolCreatePixelBuffer(
+            kCFAllocatorDefault, pool, &pb)
         guard status == kCVReturnSuccess, let buffer = pb else { throw VideoError.decode }
+
+        CVBufferSetAttachment(
+            buffer, kCVImageBufferColorPrimariesKey,
+            kCVImageBufferColorPrimaries_ITU_R_709_2, .shouldPropagate)
+        CVBufferSetAttachment(
+            buffer, kCVImageBufferTransferFunctionKey,
+            kCVImageBufferTransferFunction_sRGB, .shouldPropagate)
+        CVBufferSetAttachment(
+            buffer, kCVImageBufferYCbCrMatrixKey,
+            kCVImageBufferYCbCrMatrix_ITU_R_709_2, .shouldPropagate)
 
         CVPixelBufferLockBaseAddress(buffer, [])
         defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
@@ -378,7 +394,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             width: width, height: height,
             bitsPerComponent: 8,
             bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-            space: CGColorSpaceCreateDeviceRGB(),
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
             bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
                 | CGBitmapInfo.byteOrder32Little.rawValue
         ) else { throw VideoError.decode }

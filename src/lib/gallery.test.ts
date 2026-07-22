@@ -5,9 +5,11 @@ import {
   clearSessions,
   deleteSession,
   galleryCanvasSize,
-  listSessions,
+  listSessionSummaries,
+  loadSession,
   saveSession,
   updateSessionPhotos,
+  type Session,
 } from "./gallery";
 
 const photo = (byte: number) =>
@@ -22,6 +24,38 @@ afterEach(async () => {
 });
 
 describe("gallery sessions", () => {
+  it("migrates existing v1 sessions without losing their masters", async () => {
+    const legacy: Session = {
+      id: "legacy-session",
+      createdAt: 1234,
+      photos: fourPhotos(),
+    };
+    await new Promise<void>((resolve, reject) => {
+      const request = indexedDB.open("boothbop", 1);
+      request.onupgradeneeded = () =>
+        request.result.createObjectStore("sessions", { keyPath: "id" });
+      request.onsuccess = () => {
+        const database = request.result;
+        const transaction = database.transaction("sessions", "readwrite");
+        transaction.objectStore("sessions").put(legacy);
+        transaction.oncomplete = () => {
+          database.close();
+          resolve();
+        };
+        transaction.onerror = () => reject(transaction.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+
+    const summaries = await listSessionSummaries();
+    expect(summaries).toHaveLength(1);
+    expect(summaries[0]).toMatchObject({
+      id: legacy.id,
+      createdAt: legacy.createdAt,
+    });
+    expect((await loadSession(legacy.id)).photos).toHaveLength(4);
+  });
+
   it("preserves decoded source dimensions unless an explicit size is requested", () => {
     expect(galleryCanvasSize(1440, 1440)).toEqual({
       width: 1440,
@@ -46,7 +80,7 @@ describe("gallery sessions", () => {
     a.createdAt = 1000;
     b.createdAt = 2000;
     await saveSession([]); // touch store so ids differ
-    const list = await listSessions();
+    const list = await listSessionSummaries();
     const ids = list.map((s) => s.id);
     expect(ids).toContain(a.id);
     expect(ids).toContain(b.id);
@@ -60,7 +94,7 @@ describe("gallery sessions", () => {
     const a = await saveSession(fourPhotos());
     const b = await saveSession(fourPhotos());
     await deleteSession(a.id);
-    const list = await listSessions();
+    const list = await listSessionSummaries();
     const ids = list.map((s) => s.id);
     expect(ids).not.toContain(a.id);
     expect(ids).toContain(b.id);
@@ -70,15 +104,16 @@ describe("gallery sessions", () => {
     await saveSession(fourPhotos());
     await saveSession(fourPhotos());
     await clearSessions();
-    expect(await listSessions()).toHaveLength(0);
+    expect(await listSessionSummaries()).toHaveLength(0);
   });
 
   it("persists the photos array through a save/list round-trip", async () => {
     const { id } = await saveSession([photo(42), photo(7)]);
-    const stored = (await listSessions()).find((s) => s.id === id);
-    expect(stored).toBeDefined();
-    expect(stored!.photos).toHaveLength(2);
-    expect(stored!.photos[0]).toBeTruthy();
+    const summaries = await listSessionSummaries();
+    expect(summaries[0]).not.toHaveProperty("photos");
+    const stored = await loadSession(id);
+    expect(stored.photos).toHaveLength(2);
+    expect(stored.photos[0]).toBeTruthy();
   });
 
   it("updates photos without changing identity or creating a duplicate", async () => {
@@ -86,12 +121,12 @@ describe("gallery sessions", () => {
     const replacement = [photo(1), photo(2), photo(99)];
 
     const updated = await updateSessionPhotos(session.id, replacement);
-    const stored = await listSessions();
+    const stored = await listSessionSummaries();
 
     expect(updated.id).toBe(session.id);
     expect(updated.createdAt).toBe(session.createdAt);
     expect(stored).toHaveLength(1);
-    expect(stored[0].photos).toHaveLength(3);
+    expect((await loadSession(session.id)).photos).toHaveLength(3);
   });
 
   it("rejects an update for a session that no longer exists", async () => {

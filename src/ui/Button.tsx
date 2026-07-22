@@ -7,10 +7,10 @@ export type ButtonSize = "lg" | "md" | "sm";
 // look, parameterized by intent (variant) and scale (size). Pass spacing-only
 // extras (mt-*, max-w-*) via className.
 const BASE =
-  "inline-flex items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide transition active:translate-y-px disabled:opacity-40";
+  "inline-flex min-h-[44px] items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide transition active:translate-y-px disabled:opacity-40";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-orange text-cream active:bg-orange-dark",
+  primary: "bg-orange text-ink active:bg-orange-dark",
   secondary: "bg-paper text-ink active:bg-cream",
   danger: "border-orange-dark bg-paper text-orange-dark active:bg-cream",
 };

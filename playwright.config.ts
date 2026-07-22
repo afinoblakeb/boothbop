@@ -7,6 +7,9 @@ export default defineConfig({
   testDir: "./tests/e2e",
   outputDir: "./node_modules/.cache/playwright/test-results",
   fullyParallel: true,
+  // High-quality GIF/video journeys are intentionally memory-heavy. Running
+  // them serially prevents host contention from becoming false UI failures.
+  workers: 1,
   timeout: 30_000,
   expect: { timeout: 7_500 },
   reporter: "list",

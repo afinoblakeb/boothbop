@@ -2,6 +2,42 @@ import { enableFileSharing, expect, test } from "./fixtures";
 
 test.use({ viewport: { width: 390, height: 844 } });
 
+test("camera opening is visible and duplicate-proof", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    Object.defineProperty(navigator.mediaDevices, "getUserMedia", {
+      configurable: true,
+      value: async (...args: Parameters<typeof original>) => {
+        const state = window as typeof window & { __cameraCalls?: number };
+        state.__cameraCalls = (state.__cameraCalls ?? 0) + 1;
+        await new Promise((resolve) => setTimeout(resolve, 150));
+        return original(...args);
+      },
+    });
+  });
+  await page.goto("/");
+  const start = page.getByRole("button", { name: "Take Photos" });
+  await start.evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(
+    page.getByRole("button", { name: "Opening Camera…" }),
+  ).toBeDisabled();
+  await expect(page.locator("video")).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __cameraCalls?: number }).__cameraCalls,
+      ),
+    )
+    .toBe(1);
+});
+
 test("captures four camera frames and reaches Share Photo", async ({
   page,
 }) => {
@@ -21,6 +57,10 @@ test("captures four camera frames and reaches Share Photo", async ({
   });
   const save = page.getByRole("button", { name: "Share Photo" });
   await expect(save).toBeEnabled();
+  await save.click();
+  await expect(
+    page.getByText("Your high-quality photo is ready. Tap Share Photo again."),
+  ).toBeVisible();
   await save.click();
   await expect
     .poll(() =>

@@ -10,15 +10,19 @@ export class RenderJob<T> {
   private key: string | null = null;
   private promise: Promise<T> | null = null;
   private value: T | undefined;
+  private controller: AbortController | null = null;
 
-  get(key: string, produce: () => Promise<T>): Promise<T> {
+  get(key: string, produce: (signal: AbortSignal) => Promise<T>): Promise<T> {
     if (this.key === key && this.promise) return this.promise;
 
+    this.controller?.abort();
+    const controller = new AbortController();
     const generation = this.generation;
-    const promise = produce();
+    const promise = produce(controller.signal);
     this.key = key;
     this.promise = promise;
     this.value = undefined;
+    this.controller = controller;
 
     void promise.then(
       (value) => {
@@ -39,6 +43,7 @@ export class RenderJob<T> {
           this.key = null;
           this.promise = null;
           this.value = undefined;
+          this.controller = null;
         }
       },
     );
@@ -51,9 +56,11 @@ export class RenderJob<T> {
   }
 
   invalidate(): void {
+    this.controller?.abort();
     this.generation += 1;
     this.key = null;
     this.promise = null;
     this.value = undefined;
+    this.controller = null;
   }
 }

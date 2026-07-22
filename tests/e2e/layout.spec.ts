@@ -52,3 +52,24 @@ for (const phone of phones) {
     });
   });
 }
+
+test.describe("compact camera", () => {
+  test.use({ viewport: { width: 320, height: 568 } });
+
+  test("preview and every capture control stay usable without scrolling", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Take Photos" }).click();
+
+    await expectFullyInViewport(page.locator("video"));
+    await expectFullyInViewport(
+      page.getByRole("group", { name: "Countdown seconds" }),
+    );
+    await expectFullyInViewport(
+      page.getByRole("button", { name: "Take Photos" }),
+    );
+    await expectFullyInViewport(page.getByRole("button", { name: "Cancel" }));
+    await expectNoHorizontalOverflow(page);
+  });
+});

@@ -64,7 +64,11 @@ export function SettingsScreen({
                 Show the logo on saved photos and animations.
               </p>
             </div>
-            <Toggle on={branding} onChange={onBranding} />
+            <Toggle
+              aria-label="BoothBop branding"
+              on={branding}
+              onChange={onBranding}
+            />
           </div>
         </>
       )}
@@ -98,7 +102,7 @@ export function SettingsScreen({
                   aria-pressed={settings.dest === d}
                   className={`border-2 border-ink px-3 py-2 font-display text-base uppercase tracking-wide transition active:translate-y-px ${
                     settings.dest === d
-                      ? "bg-orange text-cream"
+                      ? "bg-orange text-ink"
                       : "bg-paper text-ink"
                   }`}
                 >
@@ -127,6 +131,7 @@ export function SettingsScreen({
                   {f.label}
                 </Heading>
                 <Toggle
+                  aria-label={`Auto-save ${f.label}`}
                   on={settings[f.key]}
                   disabled={f.disabled}
                   onChange={(v) => onToggle(f.key, v)}

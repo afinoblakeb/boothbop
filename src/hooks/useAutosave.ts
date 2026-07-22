@@ -10,6 +10,7 @@ import {
   type AutosaveSettings,
 } from "../lib/settings";
 import {
+  canSaveWithPermission,
   ensurePhotosPermission,
   type PermissionResult,
 } from "../lib/photosAlbum";
@@ -64,9 +65,7 @@ export function useAutosave() {
     }
     // The album needs FULL access; the camera roll is fine with add-only, where
     // "limited" (Select Photos) still allows adding.
-    const ok =
-      status === "granted" ||
-      (next.dest === "cameraRoll" && status === "limited");
+    const ok = canSaveWithPermission(next.dest, status);
     if (ok) {
       setError(null);
       return;

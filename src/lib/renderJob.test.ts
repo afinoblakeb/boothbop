@@ -50,4 +50,21 @@ describe("RenderJob", () => {
 
     await expect(job.get("same", async () => 7)).resolves.toBe(7);
   });
+
+  it("aborts obsolete work when the key changes or the slot is invalidated", async () => {
+    const job = new RenderJob<number>();
+    const signals: AbortSignal[] = [];
+    void job.get("first", async (signal) => {
+      signals.push(signal);
+      return new Promise<number>(() => {});
+    });
+    void job.get("second", async (signal) => {
+      signals.push(signal);
+      return new Promise<number>(() => {});
+    });
+    expect(signals[0].aborted).toBe(true);
+    expect(signals[1].aborted).toBe(false);
+    job.invalidate();
+    expect(signals[1].aborted).toBe(true);
+  });
 });

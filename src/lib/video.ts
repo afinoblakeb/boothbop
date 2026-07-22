@@ -15,6 +15,7 @@ export interface VideoOptions {
   watermark?: boolean; // brand watermark bottom-right (paid feature removes it)
   watermarkImg?: HTMLImageElement | null; // preloaded logo
   filter?: FilterId;
+  signal?: AbortSignal;
 }
 
 export interface VideoResult {
@@ -70,8 +71,10 @@ export async function encodeVideo(
     watermark = true,
     watermarkImg = null,
     filter = "original",
+    signal,
   }: VideoOptions = {},
 ): Promise<VideoResult> {
+  signal?.throwIfAborted();
   const picked = pickMimeType();
   if (!picked) throw new Error("Video recording isn't supported here.");
 
@@ -116,12 +119,26 @@ export async function encodeVideo(
   const chunks: BlobPart[] = [];
   recorder.ondataavailable = (e) => e.data.size && chunks.push(e.data);
 
-  const done = new Promise<VideoResult>((resolve) => {
-    recorder.onstop = () =>
-      resolve({
-        blob: new Blob(chunks, { type: picked.mimeType }),
-        extension: picked.extension,
-      });
+  let terminalError: Error | null = null;
+  let stopped = false;
+  const stop = () => {
+    if (stopped) return;
+    stopped = true;
+    if (recorder.state !== "inactive") recorder.stop();
+  };
+  const done = new Promise<VideoResult>((resolve, reject) => {
+    recorder.onstop = () => {
+      if (terminalError) reject(terminalError);
+      else
+        resolve({
+          blob: new Blob(chunks, { type: picked.mimeType }),
+          extension: picked.extension,
+        });
+    };
+    recorder.onerror = () => {
+      terminalError = new Error("Video recorder failed.");
+      stop();
+    };
   });
 
   recorder.start();
@@ -130,30 +147,45 @@ export async function encodeVideo(
   // freezes the canvas and throttles timers — which would otherwise produce a
   // tens-of-seconds clip of a frozen frame. Stop the instant we're hidden, and
   // cap the total duration as a backstop.
-  let stopped = false;
-  const stop = () => {
-    if (stopped) return;
-    stopped = true;
-    if (recorder.state !== "inactive") recorder.stop();
-  };
   const onHidden = () => {
-    if (document.visibilityState === "hidden") stop();
+    if (document.visibilityState === "hidden") {
+      terminalError = new Error("Video recording was interrupted.");
+      stop();
+    }
+  };
+  const onAbort = () => {
+    terminalError = new DOMException("Aborted", "AbortError");
+    stop();
   };
   document.addEventListener("visibilitychange", onHidden);
-  const deadline = setTimeout(stop, loops * frames.length * frameMs + 1500);
+  signal?.addEventListener("abort", onAbort, { once: true });
+  if (signal?.aborted) onAbort();
+  const deadline = setTimeout(
+    () => {
+      terminalError = new Error("Video recording timed out.");
+      stop();
+    },
+    loops * frames.length * frameMs + 1500,
+  );
 
   const sequence: HTMLCanvasElement[] = [];
   for (let l = 0; l < loops; l++) sequence.push(...frames);
-  for (const frame of sequence) {
-    if (stopped) break;
-    draw(frame);
-    await wait(frameMs);
+  try {
+    for (const frame of sequence) {
+      if (stopped) break;
+      draw(frame);
+      await wait(frameMs);
+      signal?.throwIfAborted();
+    }
+    stop();
+    return await done;
+  } finally {
+    clearTimeout(deadline);
+    document.removeEventListener("visibilitychange", onHidden);
+    signal?.removeEventListener("abort", onAbort);
+    stop();
+    stream.getTracks().forEach((track) => track.stop());
   }
-
-  clearTimeout(deadline);
-  document.removeEventListener("visibilitychange", onHidden);
-  stop();
-  return done;
 }
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));

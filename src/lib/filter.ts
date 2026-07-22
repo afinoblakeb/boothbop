@@ -20,6 +20,13 @@ export const FILTERS: readonly FilterDefinition[] = [
   { id: "inverse", label: "Inverse" },
 ];
 
+export function configureHighQualityScaling(
+  ctx: CanvasRenderingContext2D,
+): void {
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+}
+
 /** Apply one deterministic color recipe while preserving every alpha byte. */
 export function applyFilterToRgba(
   input: Uint8ClampedArray,
@@ -84,6 +91,7 @@ export function drawFilteredFrame(
   height: number,
   filter: FilterId,
 ): void {
+  configureHighQualityScaling(ctx);
   ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, width, height);
   filterCanvasRegion(ctx, x, y, width, height, filter);
 }
@@ -105,6 +113,7 @@ export function createFilterPreview(
         reject(new Error("Canvas unavailable"));
         return;
       }
+      configureHighQualityScaling(ctx);
       ctx.drawImage(image, 0, 0, image.width, image.height, 0, 0, size, size);
       filterCanvasRegion(ctx, 0, 0, size, size, filter);
       resolve(canvas.toDataURL("image/png"));

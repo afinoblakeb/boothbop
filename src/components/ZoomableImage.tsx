@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { IconButton } from "../ui";
+import { useModalFocus } from "../hooks/useModalFocus";
 
 /**
  * An inline image that opens a full-screen viewer for a closer look. The inline
@@ -25,9 +26,13 @@ export function ZoomableImage({
         type="button"
         onClick={() => setOpen(true)}
         aria-label="Zoom in for a closer look"
-        className="contents"
+        className="relative block h-full min-h-0 w-full overflow-hidden"
       >
-        <img src={src} alt={alt} className={`${className} cursor-zoom-in`} />
+        <img
+          src={src}
+          alt={alt}
+          className={`absolute inset-0 m-auto max-w-full ${className} cursor-zoom-in`}
+        />
       </button>
       {open && (
         <ZoomOverlay src={src} alt={alt} onClose={() => setOpen(false)} />
@@ -46,10 +51,18 @@ function ZoomOverlay({
   onClose: () => void;
 }) {
   const [zoomed, setZoomed] = useState(false);
+  const modalRef = useModalFocus<HTMLDivElement>(onClose);
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-ink/95 pt-[calc(env(safe-area-inset-top)+0.5rem)]">
+    <div
+      ref={modalRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Photo preview"
+      className="fixed inset-0 z-50 flex flex-col bg-ink/95 pt-[calc(env(safe-area-inset-top)+0.5rem)]"
+    >
       <div className="flex justify-end px-3">
         <IconButton
+          data-autofocus
           aria-label="Close zoom"
           onClick={onClose}
           className="text-3xl text-cream"

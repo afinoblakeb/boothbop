@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ensurePhotosPermission, saveToPhotos } from "./photosAlbum";
+import {
+  canSaveWithPermission,
+  ensurePhotosPermission,
+  saveToPhotos,
+} from "./photosAlbum";
 import { BoothBopPhotos } from "./boothBopPhotosPlugin";
 import type { AccessStatus } from "./boothBopPhotosPlugin";
 
@@ -33,6 +37,15 @@ describe("photosAlbum on web (no native shell)", () => {
     await expect(ensurePhotosPermission("cameraRoll")).resolves.toBe(
       "unsupported",
     );
+  });
+});
+
+describe("Photos permission policy", () => {
+  it("accepts limited add-only access only for the camera roll", () => {
+    expect(canSaveWithPermission("cameraRoll", "limited")).toBe(true);
+    expect(canSaveWithPermission("album", "limited")).toBe(false);
+    expect(canSaveWithPermission("album", "granted")).toBe(true);
+    expect(canSaveWithPermission("cameraRoll", "denied")).toBe(false);
   });
 });
 

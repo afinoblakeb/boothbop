@@ -18,7 +18,7 @@ export function TopBar({
       <button
         onClick={onHome}
         aria-label="Home"
-        className="font-display text-2xl uppercase tracking-wide text-ink"
+        className="min-h-[44px] font-display text-2xl uppercase tracking-wide text-ink"
       >
         Booth<span className="text-orange">Bop</span>
       </button>
@@ -29,10 +29,9 @@ export function TopBar({
             My Photos
           </Button>
           <IconButton
-            compact
             aria-label="Settings"
             onClick={onSettings}
-            className="h-10 w-10 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream"
+            className="h-11 w-11 border-2 border-ink bg-paper text-ink transition active:translate-y-px active:bg-cream"
           >
             <GearIcon className="h-5 w-5" />
           </IconButton>

@@ -27,7 +27,8 @@ import { encodeVideoNative } from "./lib/videoNative";
 import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
 import {
   blobToCanvas,
-  canvasToBlob,
+  canvasToCoverBlob,
+  canvasesToBlobs,
   requestPersistence,
   saveSession,
   updateSessionPhotos,
@@ -44,6 +45,7 @@ import {
   type AutosaveTask,
 } from "./lib/settings";
 import {
+  canSaveWithPermission,
   ensurePhotosPermission,
   openIosSettings,
   saveToPhotos,
@@ -61,7 +63,7 @@ import { ReviewScreen } from "./screens/ReviewScreen";
 import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useAutosave } from "./hooks/useAutosave";
-import { type FilterId } from "./lib/filter";
+import { configureHighQualityScaling, type FilterId } from "./lib/filter";
 import { replaceFrame } from "./lib/session";
 import {
   boomFrameDelay,
@@ -81,6 +83,7 @@ import {
   loadReleaseAnnouncement,
 } from "./lib/whatsNew";
 import { RenderJob } from "./lib/renderJob";
+import { mediaRenderKey } from "./lib/renderKey";
 
 interface MediaResult {
   url: string;
@@ -98,9 +101,9 @@ function thumbnailUrl(frame: HTMLCanvasElement, size = 160): string {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
-  canvas
-    .getContext("2d")!
-    .drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
+  const context = canvas.getContext("2d")!;
+  configureHighQualityScaling(context);
+  context.drawImage(frame, 0, 0, frame.width, frame.height, 0, 0, size, size);
   return canvas.toDataURL("image/jpeg", 0.82);
 }
 
@@ -121,6 +124,7 @@ export default function App() {
   const [layout, setLayout] = useState<Layout>("4x1");
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
+  const [openingCamera, setOpeningCamera] = useState(false);
 
   const [format, setFormat] = useState<Format>("strip");
   const [generating, setGenerating] = useState<
@@ -196,56 +200,94 @@ export default function App() {
   const socialVideoJob = useRef(new RenderJob<VideoResult>());
   const stripJob = useRef(new RenderJob<Blob>());
   const socialMediaRef = useRef<MediaResult | null>(null);
+  const prewarmTimer = useRef<number | null>(null);
+  const generatingOwner = useRef<symbol | null>(null);
+  const mediaUrls = useRef(new Set<string>());
+  const shareInFlight = useRef(false);
   const currentChoices = (): RenderChoices => ({
     filter,
     boom: runtimeFeatures.boom && boom,
     boomSpeed,
     branding,
   });
-  const renderKey = (kind: string, choices: RenderChoices, extra = "") =>
-    JSON.stringify([renderRevision.current, kind, choices, extra]);
+  const renderKey = (
+    kind: string,
+    choices: RenderChoices,
+    extra = "",
+    revision = renderRevision.current,
+  ) => mediaRenderKey(revision, kind, choices, extra);
+
+  function beginGenerating(kind: "gif" | "video" | "share"): symbol {
+    const owner = Symbol(kind);
+    generatingOwner.current = owner;
+    setGenerating(kind);
+    return owner;
+  }
+
+  function endGenerating(owner: symbol): void {
+    if (generatingOwner.current !== owner) return;
+    generatingOwner.current = null;
+    setGenerating(null);
+  }
+
+  function mediaUrl(blob: Blob): string {
+    const url = URL.createObjectURL(blob);
+    mediaUrls.current.add(url);
+    return url;
+  }
 
   async function getGifBlob(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
+    revision = renderRevision.current,
   ): Promise<Blob> {
-    return gifJob.current.get(renderKey("gif", choices), async () => {
-      const watermarkImg = choices.branding ? await loadWatermark() : null;
-      return encodeGif(src, {
-        watermark: choices.branding,
-        watermarkImg,
-        filter: choices.filter,
-        boom: choices.boom,
-        delay: choices.boom ? boomFrameDelay(choices.boomSpeed) : undefined,
-        size: GIF_SIZE.high,
-      });
-    });
+    return gifJob.current.get(
+      renderKey("gif", choices, "", revision),
+      async (signal) => {
+        const watermarkImg = choices.branding ? await loadWatermark() : null;
+        return encodeGif(src, {
+          watermark: choices.branding,
+          watermarkImg,
+          filter: choices.filter,
+          boom: choices.boom,
+          delay: choices.boom ? boomFrameDelay(choices.boomSpeed) : undefined,
+          size: GIF_SIZE.high,
+          signal,
+        });
+      },
+    );
   }
   async function getVideoResult(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
+    revision = renderRevision.current,
   ): Promise<VideoResult> {
-    return videoJob.current.get(renderKey("video", choices), async () => {
-      const watermarkImg = choices.branding ? await loadWatermark() : null;
-      const opts = {
-        watermark: choices.branding,
-        watermarkImg,
-        filter: choices.filter,
-        ...VIDEO_PROFILE.high,
-      };
-      return isNativeShell()
-        ? encodeVideoNative(src, opts)
-        : encodeVideo(src, opts);
-    });
+    return videoJob.current.get(
+      renderKey("video", choices, "", revision),
+      async (signal) => {
+        const watermarkImg = choices.branding ? await loadWatermark() : null;
+        const opts = {
+          watermark: choices.branding,
+          watermarkImg,
+          filter: choices.filter,
+          ...VIDEO_PROFILE.high,
+          signal,
+        };
+        return isNativeShell()
+          ? encodeVideoNative(src, opts)
+          : encodeVideo(src, opts);
+      },
+    );
   }
 
   async function getSocialVideoResult(
     src: HTMLCanvasElement[],
     choices: RenderChoices = currentChoices(),
+    revision = renderRevision.current,
   ): Promise<VideoResult> {
     return socialVideoJob.current.get(
-      renderKey("social", choices),
-      async () => {
+      renderKey("social", choices, "", revision),
+      async (signal) => {
         const profile = VIDEO_PROFILE.high;
         const plan = planSocialVideo({
           frameCount: src.length,
@@ -264,6 +306,7 @@ export default function App() {
           bitrate: profile.bitrate,
           frameMs: plan.frameMs,
           loops: plan.loops,
+          signal,
         };
         const result = isNativeShell()
           ? await encodeVideoNative(orderedFrames, options)
@@ -389,6 +432,8 @@ export default function App() {
   const framesRef = useRef<HTMLCanvasElement[]>([]);
   const retakeIndexRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
+  const cameraOpeningRef = useRef(false);
+  const galleryOpenRequestRef = useRef(0);
 
   useEffect(() => {
     framesRef.current = frames;
@@ -413,6 +458,8 @@ export default function App() {
       retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    cameraOpeningRef.current = false;
+    setOpeningCamera(false);
     setCountdown(null);
     setFlash(false);
     stopCamera(streamRef.current);
@@ -444,23 +491,44 @@ export default function App() {
   }, []);
 
   function clearResults() {
+    if (prewarmTimer.current !== null) {
+      window.clearTimeout(prewarmTimer.current);
+      prewarmTimer.current = null;
+    }
     renderRevision.current += 1;
     gifJob.current.invalidate();
     videoJob.current.invalidate();
     socialVideoJob.current.invalidate();
     stripJob.current.invalidate();
+    generatingOwner.current = null;
     setGenerating(null);
     setSocialPreparation("idle");
     socialMediaRef.current = null;
-    setGifResult((r) => (r && URL.revokeObjectURL(r.url), null));
-    setVideoResult((r) => (r && URL.revokeObjectURL(r.url), null));
-    setSocialVideoResult((r) => {
-      if (r?.url) URL.revokeObjectURL(r.url);
-      return null;
-    });
+    for (const url of mediaUrls.current) URL.revokeObjectURL(url);
+    mediaUrls.current.clear();
+    setGifResult(null);
+    setVideoResult(null);
+    setSocialVideoResult(null);
   }
 
+  useEffect(
+    () => () => {
+      if (prewarmTimer.current !== null)
+        window.clearTimeout(prewarmTimer.current);
+      gifJob.current.invalidate();
+      videoJob.current.invalidate();
+      socialVideoJob.current.invalidate();
+      stripJob.current.invalidate();
+      for (const url of mediaUrls.current) URL.revokeObjectURL(url);
+      mediaUrls.current.clear();
+    },
+    [],
+  );
+
   async function openCamera(index: number | null = null) {
+    if (cameraOpeningRef.current) return;
+    cameraOpeningRef.current = true;
+    setOpeningCamera(true);
     const request = ++cameraRequestRef.current;
     setError(null);
     abortRef.current = false;
@@ -488,6 +556,11 @@ export default function App() {
       setRetakeIndex(null);
       retakeIndexRef.current = null;
       setPhase(index === null ? "idle" : "review");
+    } finally {
+      if (request === cameraRequestRef.current) {
+        cameraOpeningRef.current = false;
+        setOpeningCamera(false);
+      }
     }
   }
 
@@ -495,10 +568,13 @@ export default function App() {
   function cancelToHome() {
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    cameraOpeningRef.current = false;
+    setOpeningCamera(false);
     setCountdown(null);
     setFlash(false);
     stopCamera(streamRef.current);
     streamRef.current = null;
+    clearResults();
     setFrames([]);
     setActiveSessionId(null);
     setRetakeIndex(null);
@@ -532,6 +608,7 @@ export default function App() {
 
     setPhase("capturing");
     clearResults();
+    const sessionRevision = renderRevision.current;
     const replacing = retakeIndexRef.current;
 
     if (replacing !== null) {
@@ -558,10 +635,10 @@ export default function App() {
 
         if (activeSessionId) {
           try {
-            const photos = await Promise.all(
-              updated.map((c) => canvasToBlob(c)),
-            );
-            await updateSessionPhotos(activeSessionId, photos);
+            const photos = await canvasesToBlobs(updated);
+            const cover =
+              replacing === 0 ? await canvasToCoverBlob(updated[0]) : undefined;
+            await updateSessionPhotos(activeSessionId, photos, cover);
           } catch {
             setNote("Photo replaced, but My Photos couldn't be updated.");
           }
@@ -606,15 +683,16 @@ export default function App() {
 
     // Auto-save this session to the private on-device gallery.
     try {
-      const photos = await Promise.all(captured.map((c) => canvasToBlob(c)));
-      const session = await saveSession(photos);
+      const photos = await canvasesToBlobs(captured);
+      const cover = await canvasToCoverBlob(captured[0]);
+      const session = await saveSession(photos, cover);
       setActiveSessionId(session.id);
     } catch {
       setNote("Photos captured, but My Photos couldn't save this session.");
     }
 
     // Auto-save is best-effort and never blocks the review screen.
-    void autoSaveToAlbum(captured, autosave);
+    void autoSaveToAlbum(captured, autosave, sessionRevision);
 
     setFormat("strip");
     setPhase("review");
@@ -647,17 +725,27 @@ export default function App() {
   // Reopen a saved session in the review screen so the user can get the strip,
   // GIF, or video (and re-share) from any past shoot — not just the strip.
   async function openSession(session: Session) {
+    const request = ++galleryOpenRequestRef.current;
     clearResults();
     setError(null);
     setNote(null);
-    const canvases = await Promise.all(
-      session.photos.map((b) => blobToCanvas(b)),
-    );
-    setFrames(canvases);
-    setActiveSessionId(session.id);
-    setFormat("strip");
-    setShowGallery(false);
-    setPhase("review");
+    try {
+      const canvases = await Promise.all(
+        session.photos.map((blob) => blobToCanvas(blob)),
+      );
+      if (request !== galleryOpenRequestRef.current) return;
+      setFrames(canvases);
+      setActiveSessionId(session.id);
+      setFormat("strip");
+      setShowGallery(false);
+      setPhase("review");
+    } catch {
+      if (request === galleryOpenRequestRef.current) {
+        setError(
+          "Couldn't open that photo set. Its saved copy was not changed.",
+        );
+      }
+    }
   }
 
   // Strip preview (re-rendered when frames / layout / theme change).
@@ -683,33 +771,48 @@ export default function App() {
     setFormat(f);
     setError(null);
     setNote(null);
+    if (f !== "gif" && socialPreparation === "preparing") {
+      if (prewarmTimer.current !== null) {
+        window.clearTimeout(prewarmTimer.current);
+        prewarmTimer.current = null;
+      }
+      socialVideoJob.current.invalidate();
+      setSocialPreparation("idle");
+    }
     if (f === "gif" && !gifResult) await ensureGif();
     if (f === "video" && !videoResult) await ensureVideo();
   }
 
   async function ensureGif(choices: RenderChoices = currentChoices()) {
     const revision = renderRevision.current;
-    setGenerating("gif");
+    const owner = beginGenerating("gif");
     try {
       await wait(30); // let the spinner paint before the (sync) encode
-      const blob = await getGifBlob(framesRef.current, choices);
+      const sourceFrames = framesRef.current;
+      const blob = await getGifBlob(sourceFrames, choices, revision);
       if (revision !== renderRevision.current) return;
       setGifResult((r) => {
         if (r) return r;
         return {
-          url: URL.createObjectURL(blob),
+          url: mediaUrl(blob),
           blob,
           filename: `boothbop-${stamp()}.gif`,
         };
       });
       if (isSocialVideoSupported()) {
-        window.setTimeout(() => void prepareSocialVideo(false), 100);
+        if (prewarmTimer.current !== null)
+          window.clearTimeout(prewarmTimer.current);
+        prewarmTimer.current = window.setTimeout(() => {
+          prewarmTimer.current = null;
+          void prepareSocialVideo(false, sourceFrames, choices, revision);
+        }, 100);
       }
-    } catch {
+    } catch (caught) {
+      if ((caught as Error).name === "AbortError") return;
       if (revision === renderRevision.current)
         setError("Couldn't create the GIF.");
     } finally {
-      if (revision === renderRevision.current) setGenerating(null);
+      if (revision === renderRevision.current) endGenerating(owner);
     }
   }
 
@@ -719,27 +822,29 @@ export default function App() {
       return;
     }
     const revision = renderRevision.current;
-    setGenerating("video");
+    const owner = beginGenerating("video");
     try {
       const { blob, extension } = await getVideoResult(
         framesRef.current,
         choices,
+        revision,
       );
       if (revision !== renderRevision.current) return;
       setVideoResult((r) =>
         r
           ? r
           : {
-              url: URL.createObjectURL(blob),
+              url: mediaUrl(blob),
               blob,
               filename: `boothbop-${stamp()}.${extension}`,
             },
       );
     } catch (e) {
+      if ((e as Error).name === "AbortError") return;
       if (revision === renderRevision.current)
         setError(e instanceof Error ? e.message : "Couldn't record the video.");
     } finally {
-      if (revision === renderRevision.current) setGenerating(null);
+      if (revision === renderRevision.current) endGenerating(owner);
     }
   }
 
@@ -781,15 +886,34 @@ export default function App() {
     selectedLayout: Layout,
     theme: StripTheme,
     choices: RenderChoices = currentChoices(),
+    revision = renderRevision.current,
   ): Promise<Blob> {
     const extra = JSON.stringify([selectedLayout, theme]);
-    return stripJob.current.get(renderKey("strip", choices, extra), async () =>
-      stripBlob(src, selectedLayout, theme, {
-        cell: stripCellForFrames(src, PHOTO_CAPTURE.high),
-        branding: choices.branding,
-        filter: choices.filter,
-      }),
+    return stripJob.current.get(
+      renderKey("strip", choices, extra, revision),
+      async (signal) => {
+        signal.throwIfAborted();
+        const blob = await stripBlob(src, selectedLayout, theme, {
+          cell: stripCellForFrames(src, PHOTO_CAPTURE.high),
+          branding: choices.branding,
+          filter: choices.filter,
+        });
+        signal.throwIfAborted();
+        return blob;
+      },
     );
+  }
+
+  function cachedStripBlob(
+    selectedFrames = frames,
+    selectedLayout = layout,
+    selectedTheme = THEMES[themeKey],
+    choices = currentChoices(),
+    revision = renderRevision.current,
+  ): Blob | undefined {
+    const extra = JSON.stringify([selectedLayout, selectedTheme]);
+    if (selectedFrames.length < SHOTS) return undefined;
+    return stripJob.current.peek(renderKey("strip", choices, extra, revision));
   }
 
   // The blob for one auto-save task. Reuses the shared GIF/video cache so they
@@ -799,10 +923,12 @@ export default function App() {
     task: AutosaveTask,
     theme: StripTheme,
     choices: RenderChoices,
+    revision: number,
   ): Promise<Blob> {
-    if (task.layout) return getStripBlob(src, task.layout, theme, choices);
-    if (task.format === "gif") return getGifBlob(src, choices);
-    return (await getVideoResult(src, choices)).blob;
+    if (task.layout)
+      return getStripBlob(src, task.layout, theme, choices, revision);
+    if (task.format === "gif") return getGifBlob(src, choices, revision);
+    return (await getVideoResult(src, choices, revision)).blob;
   }
 
   // Fire-and-forget after a capture: save the enabled formats to Photos. Best-
@@ -810,9 +936,11 @@ export default function App() {
   async function autoSaveToAlbum(
     captured: HTMLCanvasElement[],
     settings: AutosaveSettings,
+    revision: number,
   ) {
-    const revision = renderRevision.current;
     if (!isNativeShell()) return;
+    const theme = THEMES[themeKey];
+    const choices = currentChoices();
     const tasks = planAutosaveTasks(settings, {
       gifSupported: runtimeFeatures.gif,
       videoSupported: runtimeFeatures.video,
@@ -826,16 +954,22 @@ export default function App() {
     } catch {
       status = "denied";
     }
-    if (status !== "granted") return;
+    if (!canSaveWithPermission(settings.dest, status)) return;
+    if (revision !== renderRevision.current) return;
 
     // Snapshot the theme so a set saved over a few seconds stays consistent even
     // if the user changes the color on the review screen mid-save.
-    const theme = THEMES[themeKey];
-    const choices = currentChoices();
     let savedAny = false;
     for (const task of tasks) {
+      if (revision !== renderRevision.current) return;
       try {
-        const blob = await renderForAutosave(captured, task, theme, choices);
+        const blob = await renderForAutosave(
+          captured,
+          task,
+          theme,
+          choices,
+          revision,
+        );
         if (await saveToPhotos(blob, task.kind, settings.dest)) savedAny = true;
       } catch {
         /* per-task best-effort */
@@ -894,13 +1028,20 @@ export default function App() {
     // Native app: use the Capacitor share sheet, which (unlike Web Share in a
     // WKWebView) offers "Save Image" / "Save Video" to the Photos library.
     if (isNativeShell()) {
+      if (shareInFlight.current) return;
+      shareInFlight.current = true;
+      const owner = beginGenerating("share");
       try {
+        await afterPaint();
         await nativeShareFile(blob, filename);
         void tapHaptic("Light");
       } catch (e) {
         const msg = (e as Error)?.message ?? "";
         if (/cancel/i.test(msg)) setNote("Share canceled.");
         else setError("Couldn't open the share sheet.");
+      } finally {
+        shareInFlight.current = false;
+        endGenerating(owner);
       }
       return;
     }
@@ -929,24 +1070,53 @@ export default function App() {
       await shareSocialAnimation();
       return;
     }
+    if (format === "strip" && !cachedStripBlob()) {
+      const revision = renderRevision.current;
+      const owner = beginGenerating("share");
+      setError(null);
+      setNote(null);
+      try {
+        await afterPaint();
+        const media = await currentMedia();
+        if (!media || revision !== renderRevision.current) return;
+        if (!isNativeShell()) {
+          setNote("Your high-quality photo is ready. Tap Share Photo again.");
+          return;
+        }
+        await shareMedia(media.blob, media.filename);
+        return;
+      } catch (caught) {
+        if ((caught as Error).name !== "AbortError")
+          setError("Couldn't prepare the photo.");
+        return;
+      } finally {
+        if (revision === renderRevision.current) endGenerating(owner);
+      }
+    }
     const media = await currentMedia();
     if (media) await shareMedia(media.blob, media.filename);
   }
 
   async function prepareSocialVideo(
     userInitiated: boolean,
+    sourceFrames = framesRef.current,
+    choices = currentChoices(),
+    revision = renderRevision.current,
   ): Promise<MediaResult | null> {
     if (socialMediaRef.current) return socialMediaRef.current;
-    const revision = renderRevision.current;
     setSocialPreparation("preparing");
+    const owner = userInitiated ? beginGenerating("share") : null;
     if (userInitiated) {
       setError(null);
       setNote(null);
-      setGenerating("share");
     }
     try {
       await afterPaint();
-      const result = await getSocialVideoResult(framesRef.current);
+      const result = await getSocialVideoResult(
+        sourceFrames,
+        choices,
+        revision,
+      );
       if (revision !== renderRevision.current) return null;
       const media = {
         url: "",
@@ -957,7 +1127,8 @@ export default function App() {
       setSocialVideoResult(media);
       setSocialPreparation("ready");
       return media;
-    } catch {
+    } catch (caught) {
+      if ((caught as Error).name === "AbortError") return null;
       if (revision === renderRevision.current) {
         setSocialPreparation("error");
         if (userInitiated) {
@@ -968,12 +1139,16 @@ export default function App() {
       }
       return null;
     } finally {
-      if (userInitiated && revision === renderRevision.current)
-        setGenerating(null);
+      if (owner && revision === renderRevision.current) endGenerating(owner);
     }
   }
 
   async function shareSocialAnimation() {
+    if (!socialVideoResult && !isNativeShell()) {
+      void prepareSocialVideo(true);
+      setNote("Finishing your high-quality share. Tap Share when it's ready.");
+      return;
+    }
     const media = socialVideoResult ?? (await prepareSocialVideo(true));
     if (media) await shareMedia(media.blob, media.filename);
   }
@@ -1014,6 +1189,7 @@ export default function App() {
         ) : (
           <IdleScreen
             onStart={() => void openCamera()}
+            openingCamera={openingCamera}
             installPrompt={installPrompt}
             error={error}
             releaseAnnouncement={releaseAnnouncement}
@@ -1075,7 +1251,10 @@ export default function App() {
 
       {showGallery && (
         <GalleryScreen
-          onClose={() => setShowGallery(false)}
+          onClose={() => {
+            galleryOpenRequestRef.current += 1;
+            setShowGallery(false);
+          }}
           onOpen={openSession}
         />
       )}

@@ -19,6 +19,18 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
   ]);
 }
 
+function withAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return promise;
+  signal.throwIfAborted();
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+    signal.addEventListener("abort", onAbort, { once: true });
+    void promise.then(resolve, reject).finally(() => {
+      signal.removeEventListener("abort", onAbort);
+    });
+  });
+}
+
 function base64ToBlob(base64: string, mime: string): Blob {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
@@ -119,11 +131,14 @@ export async function encodeVideoNative(
     watermark = true,
     watermarkImg = null,
     filter = "original",
+    signal,
   }: VideoOptions = {},
 ): Promise<VideoResult> {
   try {
+    signal?.throwIfAborted();
     const images: string[] = [];
     for (const frame of frames) {
+      signal?.throwIfAborted();
       images.push(
         await frameToBase64(
           frame,
@@ -137,22 +152,26 @@ export async function encodeVideoNative(
       );
     }
     const { BoothBopVideo } = await import("./boothBopVideoPlugin");
-    const { base64 } = await withTimeout(
-      BoothBopVideo.make({
-        images,
-        size,
-        width,
-        height,
-        bitrate,
-        frameMs,
-        loops,
-        fps: 30,
-      }),
-      NATIVE_TIMEOUT_MS,
-      "native video",
+    const { base64 } = await withAbort(
+      withTimeout(
+        BoothBopVideo.make({
+          images,
+          size,
+          width,
+          height,
+          bitrate,
+          frameMs,
+          loops,
+          fps: 30,
+        }),
+        NATIVE_TIMEOUT_MS,
+        "native video",
+      ),
+      signal,
     );
     return { blob: base64ToBlob(base64, "video/mp4"), extension: "mp4" };
-  } catch {
+  } catch (caught) {
+    if ((caught as Error).name === "AbortError") throw caught;
     // Plugin missing (older build) or render failed — fall back to the web
     // recorder so the Video tab still produces something.
     return encodeVideo(frames, {
@@ -166,6 +185,7 @@ export async function encodeVideoNative(
       watermark,
       watermarkImg,
       filter,
+      signal,
     });
   }
 }

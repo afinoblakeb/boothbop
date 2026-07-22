@@ -1,4 +1,5 @@
 // Camera access + frame capture helpers.
+import { configureHighQualityScaling } from "./filter";
 
 export const CAPTURE_SIZE = 720; // square capture resolution (px)
 export const MAX_CAPTURE_SIZE = 1920;
@@ -82,6 +83,7 @@ export function captureSquareFrame(
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
+  configureHighQualityScaling(ctx);
 
   const vw = video.videoWidth || size;
   const vh = video.videoHeight || size;

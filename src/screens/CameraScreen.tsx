@@ -36,8 +36,17 @@ export function CameraScreen({
   retakeIndex: number | null;
 }) {
   return (
-    <div className="flex flex-1 flex-col py-4">
-      <div className="relative aspect-square w-full overflow-hidden border-2 border-ink bg-ink">
+    <div className="camera-screen flex min-h-0 flex-1 flex-col py-4">
+      <span role="status" aria-live="assertive" className="sr-only">
+        {countdown !== null
+          ? `${countdown}`
+          : phase === "capturing"
+            ? retakeIndex === null
+              ? `Captured ${thumbs.length} of ${SHOTS}`
+              : `Retaking photo ${retakeIndex + 1}`
+            : "Camera ready"}
+      </span>
+      <div className="camera-preview relative aspect-square w-full shrink-0 overflow-hidden border-2 border-ink bg-ink">
         <video
           ref={videoRef}
           playsInline
@@ -79,7 +88,7 @@ export function CameraScreen({
       </div>
 
       {/* Filling photo slots */}
-      <div className="mt-4 grid grid-cols-4 gap-2">
+      <div className="camera-thumbs mt-4 grid shrink-0 grid-cols-4 gap-2">
         {Array.from({ length: SHOTS }).map((_, i) => (
           <div
             key={i}
@@ -100,10 +109,10 @@ export function CameraScreen({
         ))}
       </div>
 
-      <div className="mt-auto pt-4 text-center">
+      <div className="camera-controls mt-auto pt-4 text-center">
         {phase === "preview" ? (
           <>
-            <div className="mb-3 flex items-center justify-center gap-2">
+            <div className="camera-countdown mb-3 flex items-center justify-center gap-2">
               <Heading as="span" size="sm" className="text-brown">
                 Countdown
               </Heading>

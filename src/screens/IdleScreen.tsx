@@ -10,12 +10,14 @@ import type { ReleaseAnnouncement } from "../lib/whatsNew";
 /** The home screen: brand, pitch, primary action, install nudge, and legal. */
 export function IdleScreen({
   onStart,
+  openingCamera,
   installPrompt,
   error,
   releaseAnnouncement,
   onDismissReleaseAnnouncement,
 }: {
   onStart: () => void;
+  openingCamera: boolean;
   installPrompt: InstallPromptEvent | null;
   error: string | null;
   releaseAnnouncement: ReleaseAnnouncement | null;
@@ -40,10 +42,15 @@ export function IdleScreen({
           size="lg"
           fullWidth
           onClick={onStart}
+          disabled={openingCamera}
           className="mt-4 max-w-xs"
         >
-          <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
-          Take Photos
+          {openingCamera ? (
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-cream/40 border-t-cream" />
+          ) : (
+            <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
+          )}
+          {openingCamera ? "Opening Camera…" : "Take Photos"}
         </Button>
 
         {releaseAnnouncement && (
@@ -63,10 +70,9 @@ export function IdleScreen({
               </p>
             </div>
             <IconButton
-              compact
               aria-label="Dismiss update"
               onClick={onDismissReleaseAnnouncement}
-              className="h-9 w-9 shrink-0 text-brown"
+              className="h-11 w-11 shrink-0 text-brown"
             >
               <X className="h-5 w-5" />
             </IconButton>

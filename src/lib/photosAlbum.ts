@@ -11,6 +11,15 @@ import { BoothBopPhotos } from "./boothBopPhotosPlugin";
 
 export type PermissionResult = "granted" | "limited" | "denied" | "unsupported";
 
+export function canSaveWithPermission(
+  dest: AutosaveDest,
+  status: PermissionResult,
+): boolean {
+  return (
+    status === "granted" || (dest === "cameraRoll" && status === "limited")
+  );
+}
+
 function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();

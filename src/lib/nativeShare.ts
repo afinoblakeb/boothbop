@@ -22,6 +22,13 @@ function blobToBase64(blob: Blob): Promise<string> {
   });
 }
 
+export function uniqueShareFilename(
+  filename: string,
+  id: string = crypto.randomUUID(),
+) {
+  return `${id}-${filename}`;
+}
+
 /**
  * Share/save a generated file through the native iOS share sheet (which
  * includes Save Image / Save Video). Returns false on the web so callers can
@@ -37,11 +44,18 @@ export async function nativeShareFile(
     import("@capacitor/share"),
   ]);
   const data = await blobToBase64(blob);
+  const path = uniqueShareFilename(filename);
   const { uri } = await Filesystem.writeFile({
-    path: filename,
+    path,
     data,
     directory: Directory.Cache,
   });
-  await Share.share({ title: "BoothBop", files: [uri] });
-  return true;
+  try {
+    await Share.share({ title: "BoothBop", files: [uri] });
+    return true;
+  } finally {
+    await Filesystem.deleteFile({ path, directory: Directory.Cache }).catch(
+      () => {},
+    );
+  }
 }

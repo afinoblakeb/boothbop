@@ -18,15 +18,24 @@ async function openLegalPage(slug: "privacy" | "terms" | "support") {
 export function LegalFooter({ className = "" }: { className?: string }) {
   return (
     <footer className={`font-sans text-xs text-warmgray ${className}`}>
-      <button onClick={() => openLegalPage("privacy")} className="underline">
+      <button
+        onClick={() => openLegalPage("privacy")}
+        className="min-h-[44px] px-1 underline"
+      >
         Privacy
       </button>{" "}
       ·{" "}
-      <button onClick={() => openLegalPage("terms")} className="underline">
+      <button
+        onClick={() => openLegalPage("terms")}
+        className="min-h-[44px] px-1 underline"
+      >
         Terms
       </button>{" "}
       ·{" "}
-      <button onClick={() => openLegalPage("support")} className="underline">
+      <button
+        onClick={() => openLegalPage("support")}
+        className="min-h-[44px] px-1 underline"
+      >
         Support
       </button>
     </footer>
