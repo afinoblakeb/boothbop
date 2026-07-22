@@ -4,8 +4,13 @@ Date: 2026-07-10
 
 ## Decision
 
-Restart product development from the exact App Store release
-`0.0.1 (0.0.2)` at commit `465876d`.
+Product development was restarted from App Store release `0.0.1 (0.0.2)` at
+commit `465876d`. The current public production baseline is App Store release
+`0.0.3 (0.0.3)` at commit `0e9497c`. Version `0.0.4`, build `0.0.4`, is waiting
+for review at commit `b287baf`, tagged `appstore-v0.0.4-build-0.0.4`. Build
+`0.0.5` is being evaluated as its quality-focused replacement. New release
+work starts from the tagged `0.0.4` source, not an older baseline or a prototype
+branch.
 
 The `codex/0.1.0` and `codex/prototype-june-2026` branches are preserved as a
 prototype library. They are not production branches and must not be merged as a
@@ -25,7 +30,7 @@ The core job is:
 The product is successful when that loop feels immediate, dependable, and fun.
 It is not successful because it contains many editing controls.
 
-## Released Product Inventory
+## Current Release-Line Inventory
 
 The baseline already carries more surface area than the core promise:
 
@@ -34,17 +39,23 @@ The baseline already carries more surface area than the core promise:
 - Six strip colors.
 - Strip, GIF, and looping-video output.
 - Save/share and a private local gallery.
-- Per-format export quality settings.
+- Five focused looks, Retake One, and optional BoothBop branding.
+- Boom as a speed-controlled GIF motion option.
+- Social-ready MP4 sharing for GIF animations, with the original GIF still
+  available.
+- A one-time, permission-free in-app update notice.
 - Native automatic saving to Photos.
 - PWA installation and PhotoBlast migration UI.
 
 These are existing obligations, not automatic endorsements. We may simplify
 their presentation when evidence shows they compete with the core loop.
 
-## Baseline Audit
+## Original Baseline Audit
 
-The audit used the released source, production build, iOS Release build, fresh
-simulator install, and a browser camera journey at 320x568, 390x844, and 430x932.
+This historical audit used the `0.0.1 (0.0.2)` source, production build, iOS
+Release build, fresh simulator install, and a browser camera journey at
+320x568, 390x844, and 430x932. Its findings explain the reset; they are not the
+current release status.
 
 ### What Works
 
@@ -70,9 +81,9 @@ simulator install, and a browser camera journey at 320x568, 390x844, and 430x932
 4. **Competing home hierarchy.** My Photos appears in both the top bar and main
    body. On the PWA, the installation card can occupy more space than the booth
    action.
-5. **Control density.** Settings exposes auto-save destination, four format
-   toggles, and three quality choices for each medium. This is significant
-   configuration for a product whose promise is no-setup capture.
+5. **Control density.** Settings exposed more configuration than the product's
+   no-setup promise justified. The current build `0.0.5` candidate removes
+   output-quality selection and always uses the best supported quality.
 6. **Silent best-effort failures.** Gallery persistence, pregeneration, and
    automatic Photos saving suppress some failures. The core capture continues,
    which is good, but users can lack confirmation when expected persistence
@@ -89,7 +100,7 @@ Future work must not regress these parts of the baseline:
 - Offline operation after installation.
 - Camera permission loss and dead-stream handling.
 
-## Release 0.0.3: Quality Foundation
+## Release 0.0.3: Quality Foundation (Completed)
 
 The owner approved four narrowly defined, early-user-proven additions as an
 explicit exception to the normal one-feature cadence: optional branding, five
@@ -110,6 +121,27 @@ Its acceptance criteria are:
 - Retake cancellation and failure preserve the original four photos.
 - The release archives cleanly and is ready for an optional personal-device
   spot-check before distribution.
+
+## Release 0.0.4: Social-Ready Sharing (Waiting for Review)
+
+Candidate `0.0.4 (0.0.4)` adds one user-facing capability: GIF animations can
+be shared as an Instagram-compatible H.264 MP4 while the original GIF remains
+available. The tagged candidate also includes a one-time in-app update notice.
+It is waiting for review, not publicly released. Its evidence is recorded in
+`docs/QUALITY_AUDIT_0.0.4.md` and
+`docs/features/0.0.4-social-sharing.md`.
+
+## Build 0.0.5: Media Quality Candidate (In Progress)
+
+Build `0.0.5` keeps App Store version `0.0.4` and is a quality correction, not
+a feature release. It makes best quality automatic, uses bounded previews,
+preserves gallery masters, moves GIF work off the UI thread, deduplicates and
+invalidates render jobs, and improves native video inputs and encoding.
+
+The candidate is not shipped. The current source gate passes, but production
+browser, native simulator, archive, upload, TestFlight, and physical-device
+validation remain release gates. Exact evidence and open work are recorded in
+`docs/features/0.0.4-build-0.0.5-media-quality.md`.
 
 ## Feature Selection Rules
 

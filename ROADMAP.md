@@ -12,23 +12,28 @@ without setup or explanation.
 Every release must improve that promise or leave it untouched. Feature count is
 not a success metric.
 
-## Current Baseline
+## Current Production Baseline
 
-- App Store version: `0.0.1`
-- App Store build: `0.0.2`
-- Git commit: `465876d`
-- Release tag: `appstore-v0.0.1-build-0.0.2`
-- Development branch: `codex/product-reset`
+- App Store candidate version: `0.0.4`
+- Public App Store version: `0.0.3`
+- Public App Store build: `0.0.3`
+- Public release commit: `0e9497c`
+- Public release tag: `appstore-v0.0.3-build-0.0.3`
+- Version `0.0.4` review state: `WAITING_FOR_REVIEW`
+- Queued build: `0.0.4` at `b287baf`
+- Queued build tag: `appstore-v0.0.4-build-0.0.4`
+- Queued build branch: `codex/0.0.4-social-sharing`
+- Active candidate branch: `codex/0.0.4-build-0.0.5-media-quality`
 
 The previous feature work remains preserved on `codex/0.1.0` and
 `codex/prototype-june-2026`. Those branches are research and implementation
 references. They must never be merged wholesale into the release line.
 
-## Next Release: 0.0.3 Quality Foundation
+## Completed: 0.0.3 Quality Foundation
 
 The owner approved one explicit exception to the one-feature cadence: four
-small, proven capabilities form the initial creative foundation. This is not a
-return to the prototype feature bundle. The release must:
+small, proven capabilities form the initial creative foundation. This was not
+a return to the prototype feature bundle. The release required:
 
 1. Prove a fresh native install advances beyond the launch screen.
 2. Add an automated capture-to-review-to-save journey.
@@ -38,7 +43,41 @@ return to the prototype feature bundle. The release must:
    and Retake One defined in `docs/QUALITY_RELEASE_0.0.3.md`.
 6. Build, archive, and pass a compact-to-Pro-Max simulator matrix.
 
-After 0.0.3, the one-feature monthly cadence resumes.
+The release shipped as `0.0.3 (0.0.3)`. Its implementation and distribution
+evidence is recorded in `docs/QUALITY_RELEASE_0.0.3.md`.
+
+## Waiting for Review: 0.0.4 Social-Ready Sharing
+
+Candidate `0.0.4 (0.0.4)` adds one capability: GIF animations share as a
+social-compatible H.264 MP4 while the original GIF remains available. It is
+waiting for review as of 2026-07-21 and is not the public production version. See
+`docs/features/0.0.4-social-sharing.md` and `docs/QUALITY_AUDIT_0.0.4.md`.
+
+## Active Candidate: 0.0.4 Build 0.0.5
+
+Build `0.0.5` is a replacement binary for App Store version `0.0.4`, not a new
+feature release. Its scope is media quality, responsiveness, and lifecycle
+correctness:
+
+1. Make best-supported capture and export quality automatic; expose no output
+   quality selector.
+2. Keep screen previews bounded while full-quality exports retain source
+   detail.
+3. Preserve lossless gallery masters and load full sessions only when opened.
+4. Move GIF processing off the UI thread and deduplicate, prewarm, cancel, and
+   invalidate render jobs safely.
+5. Improve native video frame fidelity, H.264 configuration, progress, and
+   failure cleanup.
+6. Re-run production-browser and simulator matrices, then archive, validate,
+   upload, and TestFlight-test only after all earlier gates pass.
+
+The source quality gate currently passes. Production-browser startup timed out
+before tests ran in the latest verification attempt, and native, archive,
+upload, TestFlight, and physical-device gates are not complete. The release
+decision therefore remains **Revise**. See
+`docs/features/0.0.4-build-0.0.5-media-quality.md` for exact evidence.
+
+After this quality-only replacement, the one-feature monthly cadence resumes.
 
 ## Release Cadence
 
