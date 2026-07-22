@@ -104,7 +104,7 @@ interface MediaResult {
 
 const wait = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
-const SHUTTER_FREEZE_MS = 400;
+const SHUTTER_FREEZE_MS = 600;
 const LIVE_PREVIEW_RECOVERY_MS = 50;
 const FIRST_SHOT_COUNTDOWN_SECONDS = 3;
 const afterPaint = () =>

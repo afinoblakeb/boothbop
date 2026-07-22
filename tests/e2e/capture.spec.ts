@@ -399,7 +399,7 @@ test("every shot gets the full selected countdown after freeze recovery", async 
             (window as typeof window & { __shutterTimes?: number[] })
               .__shutterTimes?.length ?? 0,
         ),
-      { timeout: 6_000 },
+      { timeout: 8_000 },
     )
     .toBeGreaterThanOrEqual(2);
 
