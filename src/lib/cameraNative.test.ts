@@ -22,6 +22,7 @@ import {
 } from "./cameraNative";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   Object.defineProperty(window, "Capacitor", {
@@ -213,6 +214,31 @@ describe("native camera bridge", () => {
     await Promise.all([firstStart, stopping, secondStart]);
 
     expect(events).toEqual(["start-1", "start-1-ready", "stop", "start-2"]);
+  });
+
+  it("lets a new start proceed when a native stop never settles", async () => {
+    vi.useFakeTimers();
+    cameraPlugin.stop.mockReturnValue(new Promise(() => {}));
+    cameraPlugin.start.mockResolvedValue({ width: 3024, height: 4032 });
+
+    const stopping = stopNativeCamera();
+    const restarting = startNativeCamera();
+    await vi.advanceTimersByTimeAsync(4_000);
+    await Promise.all([stopping, restarting]);
+
+    expect(cameraPlugin.start).toHaveBeenCalledOnce();
+  });
+
+  it("bounds preview positioning when the native bridge stalls", async () => {
+    vi.useFakeTimers();
+    cameraPlugin.setPreviewFrame.mockReturnValue(new Promise(() => {}));
+
+    const positioning = setNativePreviewFrame(new DOMRect(0, 0, 390, 390), 8);
+    const rejection = expect(positioning).rejects.toThrow(
+      "native camera preview timed out",
+    );
+    await vi.advanceTimersByTimeAsync(4_000);
+    await rejection;
   });
 
   it("forwards native session failures and removes the listener", async () => {

@@ -1,3 +1,5 @@
+import { storageGet, storageSet } from "./safeStorage";
+
 export type BoomSpeed = 1 | 2 | 3;
 
 export const BOOM_DEFAULT_SPEED: BoomSpeed = 3;
@@ -14,12 +16,12 @@ export function boomFrameDelay(speed: BoomSpeed): number {
 }
 
 export function loadBoomSpeed(): BoomSpeed {
-  const stored = Number(localStorage.getItem(BOOM_SPEED_KEY));
+  const stored = Number(storageGet(BOOM_SPEED_KEY));
   return stored === 1 || stored === 2 || stored === 3
     ? stored
     : BOOM_DEFAULT_SPEED;
 }
 
 export function saveBoomSpeed(speed: BoomSpeed): void {
-  localStorage.setItem(BOOM_SPEED_KEY, String(speed));
+  storageSet(BOOM_SPEED_KEY, String(speed));
 }

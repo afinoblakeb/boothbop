@@ -3,6 +3,7 @@
 // All logic here is pure/React-free so it can be unit-tested.
 
 import type { Layout } from "./strip";
+import { storageGet, storageSet } from "./safeStorage";
 
 export type AutosaveDest = "album" | "cameraRoll";
 export type AutosaveFormat = "strip" | "grid" | "gif" | "video";
@@ -37,21 +38,20 @@ export const AUTOSAVE_DEFAULTS: AutosaveSettings = {
 
 export function loadAutosave(): AutosaveSettings {
   return {
-    dest:
-      localStorage.getItem(KEYS.dest) === "cameraRoll" ? "cameraRoll" : "album",
-    strip: localStorage.getItem(KEYS.strip) === "1",
-    grid: localStorage.getItem(KEYS.grid) === "1",
-    gif: localStorage.getItem(KEYS.gif) === "1",
-    video: localStorage.getItem(KEYS.video) === "1",
+    dest: storageGet(KEYS.dest) === "cameraRoll" ? "cameraRoll" : "album",
+    strip: storageGet(KEYS.strip) === "1",
+    grid: storageGet(KEYS.grid) === "1",
+    gif: storageGet(KEYS.gif) === "1",
+    video: storageGet(KEYS.video) === "1",
   };
 }
 
 export function saveAutosaveDest(dest: AutosaveDest): void {
-  localStorage.setItem(KEYS.dest, dest);
+  storageSet(KEYS.dest, dest);
 }
 
 export function saveAutosaveFormat(format: AutosaveFormat, on: boolean): void {
-  localStorage.setItem(KEYS[format], on ? "1" : "0");
+  storageSet(KEYS[format], on ? "1" : "0");
 }
 
 export function anyAutosaveOn(s: AutosaveSettings): boolean {
@@ -108,24 +108,24 @@ const QUALITY_KEYS: Record<QualityMedia, string> = {
 
 export function loadQuality(): QualitySettings {
   for (const key of Object.values(QUALITY_KEYS)) {
-    localStorage.setItem(key, "high");
+    storageSet(key, "high");
   }
   return { ...QUALITY_DEFAULTS };
 }
 
 export function saveQuality(media: QualityMedia, _quality: Quality): void {
-  localStorage.setItem(QUALITY_KEYS[media], "high");
+  storageSet(QUALITY_KEYS[media], "high");
 }
 
 const BRANDING_KEY = "bb.branding";
 
 /** Branding stays on unless the user explicitly opts out. */
 export function loadBranding(): boolean {
-  return localStorage.getItem(BRANDING_KEY) !== "0";
+  return storageGet(BRANDING_KEY) !== "0";
 }
 
 export function saveBranding(on: boolean): void {
-  localStorage.setItem(BRANDING_KEY, on ? "1" : "0");
+  storageSet(BRANDING_KEY, on ? "1" : "0");
 }
 
 // Pipeline parameters per tier. The photo tier drives the square capture

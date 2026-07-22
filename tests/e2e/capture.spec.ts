@@ -76,6 +76,24 @@ test("native camera failure stays on a recoverable camera surface", async ({
   );
 });
 
+test("native launch survives unavailable preference storage", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+    Storage.prototype.setItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+  });
+
+  await page.goto("/?native=1");
+
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await expect(page.getByText(/something went wrong/i)).toHaveCount(0);
+});
+
 test("rapid settings transitions cannot strand the native camera black", async ({
   page,
 }) => {

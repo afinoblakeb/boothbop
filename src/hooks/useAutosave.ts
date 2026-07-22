@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { isNativeShell } from "../lib/platform";
+import { storageGet, storageSet } from "../lib/safeStorage";
 import {
   anyAutosaveOn,
   loadAutosave,
@@ -43,7 +44,7 @@ export function useAutosave() {
   const [error, setError] = useState<string | null>(null);
   const applyGenerationRef = useRef(0);
   const [tipSeen, setTipSeen] = useState(
-    () => localStorage.getItem("bb.autosave.tipSeen") === "1",
+    () => storageGet("bb.autosave.tipSeen") === "1",
   );
 
   // On launch (native): if auto-save is already on, verify access is still
@@ -103,7 +104,7 @@ export function useAutosave() {
 
   function dismissTip() {
     if (tipSeen) return;
-    localStorage.setItem("bb.autosave.tipSeen", "1");
+    storageSet("bb.autosave.tipSeen", "1");
     setTipSeen(true);
   }
 

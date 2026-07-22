@@ -54,6 +54,7 @@ import {
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
 import { onceAfterSuccess } from "./lib/onceAfterSuccess";
+import { storageGet, storageSet } from "./lib/safeStorage";
 import { nativeShareFile } from "./lib/nativeShare";
 import { SHOTS } from "./constants";
 import type { Format, InstallPromptEvent, Phase } from "./types";
@@ -156,7 +157,7 @@ export default function App() {
     "idle" | "preparing" | "ready" | "error"
   >("idle");
   const [filter, setFilter] = useState<FilterId>(() => {
-    const stored = localStorage.getItem("bb.filter");
+    const stored = storageGet("bb.filter");
     return stored === "warm" ||
       stored === "cool" ||
       stored === "bw" ||
@@ -165,9 +166,7 @@ export default function App() {
       ? stored
       : "original";
   });
-  const [boom, setBoom] = useState(
-    () => localStorage.getItem("bb.boom") === "1",
-  );
+  const [boom, setBoom] = useState(() => storageGet("bb.boom") === "1");
   const [boomSpeed, setBoomSpeed] = useState<BoomSpeed>(loadBoomSpeed);
   const [branding, setBranding] = useState(loadBranding);
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
@@ -344,11 +343,11 @@ export default function App() {
 
   // Shutter delay (seconds counted down before each shot), persisted.
   const [delay, setDelay] = useState<number>(() => {
-    const v = Number(localStorage.getItem("bb.delay"));
+    const v = Number(storageGet("bb.delay"));
     return v === 1 || v === 2 || v === 3 ? v : 2;
   });
   useEffect(() => {
-    localStorage.setItem("bb.delay", String(delay));
+    storageSet("bb.delay", String(delay));
   }, [delay]);
 
   useEffect(() => {
@@ -372,12 +371,12 @@ export default function App() {
   // boothbop.com/?from=photoblast. Persist it so the welcome-back guidance
   // survives reloads until they've installed BoothBop.
   const [migrated, setMigrated] = useState(
-    () => localStorage.getItem("bb.migrated") === "1",
+    () => storageGet("bb.migrated") === "1",
   );
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get("from") === "photoblast") {
-      localStorage.setItem("bb.migrated", "1");
+      storageSet("bb.migrated", "1");
       setMigrated(true);
       // Strip the marker so it doesn't linger on reload or get bookmarked.
       params.delete("from");
@@ -393,13 +392,13 @@ export default function App() {
   // A migrated user gets a dedicated install-only landing (no photo UI) whose
   // sole job is to convert them to the new app. "Continue" is an escape hatch.
   const [migrationDismissed, setMigrationDismissed] = useState(
-    () => localStorage.getItem("bb.migrationDismissed") === "1",
+    () => storageGet("bb.migrationDismissed") === "1",
   );
   // Never show the install nudge or the PhotoBlast migration landing inside the
   // native App Store build — both point users to the web/PWA, which Apple rejects.
   const showMigration = migrated && !migrationDismissed && !isNativeShell();
   function dismissMigration() {
-    localStorage.setItem("bb.migrationDismissed", "1");
+    storageSet("bb.migrationDismissed", "1");
     setMigrationDismissed(true);
   }
 
@@ -1219,7 +1218,7 @@ export default function App() {
   }
 
   function changeFilter(next: FilterId) {
-    localStorage.setItem("bb.filter", next);
+    storageSet("bb.filter", next);
     setFilter(next);
     clearResults();
     const choices = { ...currentChoices(), filter: next };
@@ -1228,7 +1227,7 @@ export default function App() {
   }
 
   function changeBoom(on: boolean) {
-    localStorage.setItem("bb.boom", on ? "1" : "0");
+    storageSet("bb.boom", on ? "1" : "0");
     setBoom(on);
     clearResults();
     if (format === "gif") void ensureGif({ ...currentChoices(), boom: on });
