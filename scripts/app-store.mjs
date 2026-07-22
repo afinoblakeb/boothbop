@@ -41,17 +41,17 @@ Read-only:
   npm run appstore:status [-- --version 0.0.3]
 
 Archive and validate locally:
-  npm run appstore -- build --version 0.0.4 --build 0.0.4
+  npm run appstore -- build --version 0.0.4 --build 0.0.5
 
 Archive, validate, and upload a tagged clean commit:
-  npm run appstore -- build --version 0.0.4 --build 0.0.4 --upload
+  npm run appstore -- build --version 0.0.4 --build 0.0.5 --upload
 
 Attach a processed build, update What's New, and submit for automatic release:
-  npm run appstore -- submit --version 0.0.4 --build 0.0.4 \\
+  npm run appstore -- submit --version 0.0.4 --build 0.0.5 \\
     --whats-new docs/releases/0.0.4.txt --confirm-submit
 
 Run both upload and submission:
-  npm run appstore -- release --version 0.0.4 --build 0.0.4 \\
+  npm run appstore -- release --version 0.0.4 --build 0.0.5 \\
     --whats-new docs/releases/0.0.4.txt --upload --confirm-submit
 
 Destructive/network mutations require the explicit flags shown above.`;
@@ -274,7 +274,7 @@ async function buildAndMaybeUpload(options) {
 
   await run("npm", ["run", "check"]);
   await run("npm", ["run", "test:e2e"]);
-  await run("npm", ["run", "ios:sync"]);
+  await run("npm", ["run", "ios:smoke"]);
 
   const credentials = await loadAppStoreCredentials();
   const outputRoot = path.join(

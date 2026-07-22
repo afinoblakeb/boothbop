@@ -33,6 +33,7 @@ const requestedDevices = (
   .split(",")
   .map((name) => name.trim())
   .filter(Boolean);
+const updateDeviceName = process.env.IOS_SMOKE_UPDATE_DEVICE ?? "iPhone 17";
 
 function run(command, args, options = {}) {
   const {
@@ -360,6 +361,50 @@ async function assertNoNativeLaunchFailures(device) {
   }
 }
 
+async function launchApp(device, label = "launching") {
+  let launchError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      process.stdout.write(`${label} (attempt ${attempt})... `);
+      const launched = await run(
+        "xcrun",
+        [
+          "simctl",
+          "launch",
+          "--terminate-running-process",
+          device.udid,
+          bundleId,
+        ],
+        { quiet: true, timeoutMs: 45000 },
+      );
+      if (
+        !new RegExp(`${bundleId.replaceAll(".", "\\.")}:\\s*\\d+`).test(
+          launched.stdout,
+        )
+      ) {
+        throw new Error(
+          `simctl launch did not return a PID: ${launched.stdout.trim()}`,
+        );
+      }
+      process.stdout.write("done\n");
+      return;
+    } catch (error) {
+      launchError = error;
+      process.stdout.write("failed\n");
+      if (attempt === 1) {
+        await run("xcrun", ["simctl", "shutdown", device.udid], {
+          allowFailure: true,
+          quiet: true,
+          timeoutMs: 30000,
+          timeoutOk: true,
+        });
+        await bootDevice(device);
+      }
+    }
+  }
+  throw launchError;
+}
+
 async function testDevice(device) {
   const label = `${device.name} (${device.runtime.replace(
     "com.apple.CoreSimulator.SimRuntime.",
@@ -413,51 +458,7 @@ async function testDevice(device) {
 
     const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     const screenshot = path.join(screenshotDir, `${safeName}.png`);
-    let launchError;
-    for (let attempt = 1; attempt <= 2; attempt += 1) {
-      try {
-        process.stdout.write(`launching (attempt ${attempt})... `);
-        const launched = await run(
-          "xcrun",
-          [
-            "simctl",
-            "launch",
-            "--terminate-running-process",
-            device.udid,
-            bundleId,
-          ],
-          {
-            quiet: true,
-            timeoutMs: 45000,
-          },
-        );
-        if (
-          !new RegExp(`${bundleId.replaceAll(".", "\\.")}:\\s*\\d+`).test(
-            launched.stdout,
-          )
-        ) {
-          throw new Error(
-            `simctl launch did not return a PID: ${launched.stdout.trim()}`,
-          );
-        }
-        process.stdout.write("done\n");
-        launchError = undefined;
-        break;
-      } catch (error) {
-        launchError = error;
-        process.stdout.write("failed\n");
-        if (attempt === 1) {
-          await run("xcrun", ["simctl", "shutdown", device.udid], {
-            allowFailure: true,
-            quiet: true,
-            timeoutMs: 30000,
-            timeoutOk: true,
-          });
-          await bootDevice(device);
-        }
-      }
-    }
-    if (launchError) throw launchError;
+    await launchApp(device);
 
     const { blackTransitionFrames, elapsedMs, stats } =
       await captureVisibleScreenshot(device, screenshot);
@@ -472,6 +473,30 @@ async function testDevice(device) {
         elapsedMs / 1000
       ).toFixed(1)}s screenshot=${screenshot}`,
     );
+
+    // Reinstall over an existing launched copy without uninstalling. This is
+    // the simulator equivalent of an App Store update and guards the launch
+    // path that previously produced a blank review-device screen.
+    if (device.name === updateDeviceName) {
+      process.stdout.write("installing update over existing app... ");
+      await run("xcrun", ["simctl", "install", device.udid, appPath], {
+        quiet: true,
+        timeoutMs: 120000,
+      });
+      process.stdout.write("done\n");
+      await launchApp(device, "launching updated app");
+      const updateScreenshot = path.join(
+        screenshotDir,
+        `${safeName}-update.png`,
+      );
+      const update = await captureVisibleScreenshot(device, updateScreenshot);
+      await assertNoNativeLaunchFailures(device);
+      console.log(
+        `update visible transitionBlack=${update.blackTransitionFrames} home=${(
+          update.elapsedMs / 1000
+        ).toFixed(1)}s screenshot=${updateScreenshot}`,
+      );
+    }
   } finally {
     await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
       allowFailure: true,

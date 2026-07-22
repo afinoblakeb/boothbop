@@ -47,16 +47,18 @@ key's containing directory. The key file must retain the
 3. Run the local candidate without network mutation:
 
    ```bash
-   npm run appstore -- build --version 0.0.4 --build 0.0.4
+   npm run appstore -- build --version 0.0.4 --build 0.0.5
    ```
 
-   This runs `npm run check`, the complete Playwright suite, Capacitor sync, a
-   signed Release archive/export, and Apple server-side IPA validation.
+   This runs `npm run check`, the complete Playwright suite, fresh-install
+   launch tests across compact, standard, and Pro Max simulators, an
+   overwrite-install launch test on the standard simulator, a signed Release
+   archive/export, and Apple server-side IPA validation.
 
 4. Review the candidate, commit it, and tag the exact commit:
 
    ```bash
-   git tag appstore-v0.0.4-build-0.0.4
+   git tag appstore-v0.0.4-build-0.0.5
    git push origin HEAD --follow-tags
    ```
 
@@ -65,7 +67,7 @@ key's containing directory. The key file must retain the
    ```bash
    npm run appstore -- release \
      --version 0.0.4 \
-     --build 0.0.4 \
+     --build 0.0.5 \
      --whats-new docs/releases/0.0.4.txt \
      --upload \
      --confirm-submit
@@ -79,10 +81,10 @@ the review item, and submits it for automatic release after approval.
 For separate upload and submission steps:
 
 ```bash
-npm run appstore -- build --version 0.0.4 --build 0.0.4 --upload
+npm run appstore -- build --version 0.0.4 --build 0.0.5 --upload
 npm run appstore -- submit \
   --version 0.0.4 \
-  --build 0.0.4 \
+  --build 0.0.5 \
   --whats-new docs/releases/0.0.4.txt \
   --confirm-submit
 ```

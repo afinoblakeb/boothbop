@@ -1,6 +1,8 @@
-Sharing is easier. GIF animations now share as social-ready videos, so they
-work with Instagram and other video-first apps. You can still share the
-original GIF whenever you want.
+Sharing is faster and sharper. BoothBop now prepares high-quality animations
+in the background, and GIFs share as portrait videos that fit Instagram and
+other video-first apps. You can still share the original GIF whenever you
+want.
 
-This update also includes a one-time, permission-free notice so major BoothBop
-improvements are easy to discover after an automatic update.
+Photos saved in My Photos keep their original detail, and every new export uses
+BoothBop's best quality automatically. A small in-app update card highlights
+major improvements after automatic updates without asking for notifications.
