@@ -38,6 +38,52 @@ test("camera opening is visible and duplicate-proof", async ({ page }) => {
     .toBe(1);
 });
 
+test("slow gallery persistence never delays the review screen", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.toBlob;
+    HTMLCanvasElement.prototype.toBlob = function (callback, type, quality) {
+      window.setTimeout(
+        () => original.call(this, callback, type, quality),
+        4_000,
+      );
+    };
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
+    timeout: 12_000,
+  });
+});
+
+test("two synchronous shutter taps create one photo session", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).evaluate((button) => {
+    button.click();
+    button.click();
+  });
+
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
+    timeout: 20_000,
+  });
+  await page.getByRole("button", { name: "My Photos" }).click();
+  await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(1);
+});
+
 test("captures four camera frames and reaches Share Photo", async ({
   page,
 }) => {

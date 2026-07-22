@@ -153,7 +153,8 @@ export default function App() {
   const [boomSpeed, setBoomSpeed] = useState<BoomSpeed>(loadBoomSpeed);
   const [branding, setBranding] = useState(loadBranding);
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const activeSessionIdRef = useRef<string | null>(null);
+  const pendingSessionSaveRef = useRef<Promise<Session | null> | null>(null);
 
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
@@ -433,11 +434,19 @@ export default function App() {
   const retakeIndexRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
   const cameraOpeningRef = useRef(false);
+  const sequenceRunningRef = useRef(false);
   const galleryOpenRequestRef = useRef(0);
 
   useEffect(() => {
     framesRef.current = frames;
   }, [frames]);
+
+  function framesAreCurrent(expected: HTMLCanvasElement[]): boolean {
+    return (
+      framesRef.current.length === expected.length &&
+      framesRef.current.every((frame, index) => frame === expected[index])
+    );
+  }
 
   // Attach the live stream whenever we are showing the camera.
   useEffect(() => {
@@ -548,7 +557,8 @@ export default function App() {
       });
       if (index === null) {
         setFrames([]);
-        setActiveSessionId(null);
+        activeSessionIdRef.current = null;
+        pendingSessionSaveRef.current = null;
       }
       setPhase("preview");
     } catch (e) {
@@ -576,7 +586,8 @@ export default function App() {
     streamRef.current = null;
     clearResults();
     setFrames([]);
-    setActiveSessionId(null);
+    activeSessionIdRef.current = null;
+    pendingSessionSaveRef.current = null;
     setRetakeIndex(null);
     retakeIndexRef.current = null;
     setError(null);
@@ -598,6 +609,16 @@ export default function App() {
   }
 
   async function runSequence() {
+    if (sequenceRunningRef.current) return;
+    sequenceRunningRef.current = true;
+    try {
+      await executeSequence();
+    } finally {
+      sequenceRunningRef.current = false;
+    }
+  }
+
+  async function executeSequence() {
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
     if (!video || !(await videoReady(video))) {
@@ -633,21 +654,31 @@ export default function App() {
         stopCamera(streamRef.current);
         streamRef.current = null;
 
-        if (activeSessionId) {
-          try {
-            const photos = await canvasesToBlobs(updated);
-            const cover =
-              replacing === 0 ? await canvasToCoverBlob(updated[0]) : undefined;
-            await updateSessionPhotos(activeSessionId, photos, cover);
-          } catch {
-            setNote("Photo replaced, but My Photos couldn't be updated.");
-          }
-        }
-
         setRetakeIndex(null);
         retakeIndexRef.current = null;
         setFormat("strip");
         setPhase("review");
+
+        const pendingSave = pendingSessionSaveRef.current;
+        void (async () => {
+          const pendingSession = await pendingSave;
+          const sessionId =
+            activeSessionIdRef.current ?? pendingSession?.id ?? null;
+          if (!sessionId) return;
+          try {
+            const photos = await canvasesToBlobs(updated);
+            const cover =
+              replacing === 0 ? await canvasToCoverBlob(updated[0]) : undefined;
+            await updateSessionPhotos(sessionId, photos, cover);
+            if (framesAreCurrent(updated)) {
+              activeSessionIdRef.current = sessionId;
+            }
+          } catch {
+            if (framesAreCurrent(updated)) {
+              setNote("Photo replaced, but My Photos couldn't be updated.");
+            }
+          }
+        })();
       } catch {
         setFlash(false);
         failCamera("Couldn't retake that photo. Your original is still here.");
@@ -680,22 +711,36 @@ export default function App() {
 
     stopCamera(streamRef.current);
     streamRef.current = null;
+    framesRef.current = captured;
+    setFormat("strip");
+    setPhase("review");
 
     // Auto-save this session to the private on-device gallery.
-    try {
-      const photos = await canvasesToBlobs(captured);
-      const cover = await canvasToCoverBlob(captured[0]);
-      const session = await saveSession(photos, cover);
-      setActiveSessionId(session.id);
-    } catch {
-      setNote("Photos captured, but My Photos couldn't save this session.");
-    }
+    const pendingSave = (async (): Promise<Session | null> => {
+      try {
+        const photos = await canvasesToBlobs(captured);
+        const cover = await canvasToCoverBlob(captured[0]);
+        return await saveSession(photos, cover);
+      } catch {
+        if (framesAreCurrent(captured)) {
+          setNote("Photos captured, but My Photos couldn't save this session.");
+        }
+        return null;
+      }
+    })();
+    pendingSessionSaveRef.current = pendingSave;
+    void pendingSave.then((session) => {
+      if (
+        session &&
+        pendingSessionSaveRef.current === pendingSave &&
+        framesAreCurrent(captured)
+      ) {
+        activeSessionIdRef.current = session.id;
+      }
+    });
 
     // Auto-save is best-effort and never blocks the review screen.
     void autoSaveToAlbum(captured, autosave, sessionRevision);
-
-    setFormat("strip");
-    setPhase("review");
   }
 
   function retake() {
@@ -714,7 +759,8 @@ export default function App() {
       const canvases = await loadSampleFrames(setNum, PHOTO_CAPTURE.high);
       clearResults();
       setFrames(canvases);
-      setActiveSessionId(null);
+      activeSessionIdRef.current = null;
+      pendingSessionSaveRef.current = null;
       setFormat("strip");
       setPhase("review");
     } catch {
@@ -735,7 +781,8 @@ export default function App() {
       );
       if (request !== galleryOpenRequestRef.current) return;
       setFrames(canvases);
-      setActiveSessionId(session.id);
+      activeSessionIdRef.current = session.id;
+      pendingSessionSaveRef.current = null;
       setFormat("strip");
       setShowGallery(false);
       setPhase("review");
