@@ -3,6 +3,7 @@ import {
   CAMERA_MSG,
   cameraError,
   captureBestSquareFrame,
+  captureSquareFrame,
   startCamera,
   stopCamera,
   videoReady,
@@ -98,7 +99,10 @@ interface MediaResult {
   filename: string;
 }
 
-const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const wait = (ms: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, ms));
+const SHUTTER_FREEZE_MS = 200;
+const LIVE_PREVIEW_RECOVERY_MS = 50;
 const afterPaint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -533,6 +537,20 @@ export default function App() {
     return captureBestSquareFrame(video);
   }
 
+  function beginShutterFreeze(video: HTMLVideoElement | null): Promise<void> {
+    if (nativeCameraActiveRef.current || !video) {
+      // The native camera draws its own immediate preview freeze. Waiting here
+      // keeps the final shot from tearing the native preview down too early.
+      return wait(SHUTTER_FREEZE_MS);
+    }
+
+    const preview = captureSquareFrame(video, 720);
+    setFreezeFrame(preview);
+    return wait(SHUTTER_FREEZE_MS).then(() => {
+      setFreezeFrame((current) => (current === preview ? null : current));
+    });
+  }
+
   // Attach the live stream whenever we are showing the camera.
   useEffect(() => {
     if (phase !== "preview" && phase !== "capturing") return;
@@ -796,7 +814,9 @@ export default function App() {
 
       try {
         void tapHaptic("Medium");
+        const shutterFreeze = beginShutterFreeze(video);
         const replacement = await captureActiveCameraFrame(video);
+        await shutterFreeze;
         if (sequenceCancelled()) {
           setFreezeFrame(null);
           return;
@@ -804,9 +824,6 @@ export default function App() {
         const updated = replaceFrame(framesRef.current, replacing, replacement);
         framesRef.current = updated;
         setFrames(updated);
-        setFreezeFrame(replacement);
-        await wait(200);
-        setFreezeFrame(null);
         stopActiveCamera();
 
         setRetakeIndex(null);
@@ -858,17 +875,16 @@ export default function App() {
       setCountdown(null);
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
+      const shutterFreeze = beginShutterFreeze(video);
       const frame = await captureActiveCameraFrame(video);
+      await shutterFreeze;
       if (sequenceCancelled()) {
         setFreezeFrame(null);
         return;
       }
       captured.push(frame);
       setFrames([...captured]);
-      setFreezeFrame(frame);
-      await wait(200);
-      setFreezeFrame(null);
-      if (shot < SHOTS - 1) await wait(750); // quick "pose!" gap
+      if (shot < SHOTS - 1) await wait(LIVE_PREVIEW_RECOVERY_MS);
     }
 
     stopActiveCamera();

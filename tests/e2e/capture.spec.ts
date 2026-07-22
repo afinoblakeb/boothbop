@@ -120,8 +120,17 @@ test("a slow full-resolution capture freezes the photo without a white flash", a
       constructor(_track: MediaStreamTrack) {}
 
       async takePhoto(): Promise<Blob> {
-        const state = window as typeof window & { __shutterStarted?: boolean };
+        const state = window as typeof window & {
+          __shutterStarted?: boolean;
+          __freezeVisibleNextFrame?: boolean;
+          __photoResolved?: boolean;
+        };
         state.__shutterStarted = true;
+        window.requestAnimationFrame(() => {
+          state.__freezeVisibleNextFrame = Boolean(
+            document.querySelector('[aria-label="Captured photo preview"]'),
+          );
+        });
         await new Promise((resolve) => window.setTimeout(resolve, 700));
         const canvas = document.createElement("canvas");
         canvas.width = 32;
@@ -130,13 +139,15 @@ test("a slow full-resolution capture freezes the photo without a white flash", a
         if (!context) throw new Error("Missing test canvas context");
         context.fillStyle = "#3e7c78";
         context.fillRect(0, 0, canvas.width, canvas.height);
-        return await new Promise<Blob>((resolve, reject) =>
+        const blob = await new Promise<Blob>((resolve, reject) =>
           canvas.toBlob(
             (blob) =>
               blob ? resolve(blob) : reject(new Error("Test capture failed")),
             "image/png",
           ),
         );
+        state.__photoResolved = true;
+        return blob;
       }
     }
 
@@ -164,7 +175,93 @@ test("a slow full-resolution capture freezes the photo without a white flash", a
     )
     .toBe(true);
   await expect(page.locator(".flash")).toHaveCount(0);
-  await expect(page.getByLabel("Captured photo preview")).toBeVisible();
+  const frozenPreview = page.getByLabel("Captured photo preview");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __freezeVisibleNextFrame?: boolean;
+            }
+          ).__freezeVisibleNextFrame,
+      ),
+    )
+    .toBe(true);
+  await page.waitForTimeout(300);
+  await expect(frozenPreview).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __photoResolved?: boolean })
+            .__photoResolved,
+      ),
+    )
+    .toBe(true);
+  await page.waitForTimeout(50);
+  await expect(frozenPreview).toHaveCount(0);
+});
+
+test("every shot gets the full selected countdown after freeze recovery", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    class TimedImageCapture {
+      constructor(_track: MediaStreamTrack) {}
+
+      async takePhoto(): Promise<Blob> {
+        const state = window as typeof window & { __shutterTimes?: number[] };
+        state.__shutterTimes ??= [];
+        state.__shutterTimes.push(performance.now());
+
+        const canvas = document.createElement("canvas");
+        canvas.width = 32;
+        canvas.height = 32;
+        canvas.getContext("2d")?.fillRect(0, 0, 32, 32);
+        return await new Promise<Blob>((resolve, reject) =>
+          canvas.toBlob((blob) =>
+            blob ? resolve(blob) : reject(new Error("Test capture failed")),
+          ),
+        );
+      }
+    }
+
+    Object.defineProperty(globalThis, "ImageCapture", {
+      configurable: true,
+      value: TimedImageCapture,
+    });
+  });
+
+  await page.goto("/");
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (window as typeof window & { __shutterTimes?: number[] })
+              .__shutterTimes?.length ?? 0,
+        ),
+      { timeout: 6_000 },
+    )
+    .toBeGreaterThanOrEqual(2);
+
+  const interval = await page.evaluate(() => {
+    const times = (window as typeof window & { __shutterTimes?: number[] })
+      .__shutterTimes;
+    if (!times || times.length < 2) throw new Error("Missing shutter times");
+    return times[1] - times[0];
+  });
+  expect(interval).toBeGreaterThanOrEqual(1_200);
+  expect(interval).toBeLessThan(1_750);
+  await page.getByRole("button", { name: "Cancel" }).click();
 });
 
 test("slow gallery persistence never delays the review screen", async ({

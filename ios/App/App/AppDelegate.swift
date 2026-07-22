@@ -2,6 +2,7 @@ import UIKit
 import Capacitor
 import Photos
 import AVFoundation
+import CoreImage
 
 private extension UIColor {
     static let boothBopCream = UIColor(
@@ -271,6 +272,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         label: "com.boothbop.camera.session", qos: .userInitiated)
     private let sampleQueue = DispatchQueue(
         label: "com.boothbop.camera.samples", qos: .userInitiated)
+    private let previewImageContext = CIContext(options: [
+        .cacheIntermediates: false
+    ])
 
     // All capture state below is owned by sessionQueue.
     private var session: AVCaptureSession?
@@ -284,9 +288,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var pendingPhoto: CapturedPhoto?
     private var latestFrameSize: (width: Int, height: Int)?
 
+    // These properties are owned by sampleQueue. Retaining one pixel buffer is
+    // enough to freeze the exact visible moment without continuously encoding
+    // preview frames.
+    private var latestPreviewPixelBuffer: CVPixelBuffer?
+    private var reportedFirstFrame = false
+
     // Preview properties are accessed only on the main thread.
     private var previewView: UIView?
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var shutterFreezeView: UIImageView?
+    private var shutterFreezeGeneration = 0
     private var requestedPreviewFrame: CGRect = .zero
 
     @objc func isAvailable(_ call: CAPPluginCall) {
@@ -378,6 +390,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.pendingCaptureCall = call
             self.pendingCaptureID = settings.uniqueID
             self.pendingPhoto = nil
+
+            let shutterImage = self.sampleQueue.sync {
+                self.makeLatestPreviewImage()
+            }
+            if let shutterImage = shutterImage {
+                DispatchQueue.main.sync {
+                    self.showShutterFreeze(shutterImage)
+                }
+            }
             output.capturePhoto(with: settings, delegate: self)
         }
     }
@@ -421,6 +442,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             photoOutput = configured.photoOutput
             activeDevice = configured.device
             latestFrameSize = nil
+            sampleQueue.sync {
+                latestPreviewPixelBuffer = nil
+                reportedFirstFrame = false
+            }
 
             DispatchQueue.main.async {
                 self.installPreviewIfNeeded(session: configured.session)
@@ -581,6 +606,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         from connection: AVCaptureConnection
     ) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        latestPreviewPixelBuffer = pixelBuffer
+        guard !reportedFirstFrame else { return }
+        reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         sessionQueue.async {
@@ -588,9 +616,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.latestFrameSize = (width, height)
             self.pendingStartCall = nil
             self.pendingStartID = nil
-            self.videoOutput?.setSampleBufferDelegate(nil, queue: nil)
             call.resolve(["width": width, "height": height])
         }
+    }
+
+    private func makeLatestPreviewImage() -> UIImage? {
+        dispatchPrecondition(condition: .onQueue(sampleQueue))
+        guard let pixelBuffer = latestPreviewPixelBuffer else { return nil }
+        let image = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cgImage = previewImageContext.createCGImage(
+            image, from: image.extent) else { return nil }
+        return UIImage(cgImage: cgImage)
     }
 
     public func photoOutput(
@@ -685,6 +721,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         if session?.isRunning == true {
             session?.stopRunning()
         }
+        sampleQueue.sync {
+            latestPreviewPixelBuffer = nil
+            reportedFirstFrame = false
+        }
         session = nil
         videoOutput = nil
         photoOutput = nil
@@ -732,6 +772,41 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         applyPreviewFrame(requestedPreviewFrame)
     }
 
+    private func showShutterFreeze(_ image: UIImage) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let previewView = previewView else { return }
+
+        let freezeView: UIImageView
+        if let existing = shutterFreezeView {
+            freezeView = existing
+        } else {
+            let created = UIImageView(frame: previewView.bounds)
+            created.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            created.contentMode = .scaleAspectFill
+            created.clipsToBounds = true
+            previewView.addSubview(created)
+            shutterFreezeView = created
+            freezeView = created
+        }
+
+        shutterFreezeGeneration &+= 1
+        let generation = shutterFreezeGeneration
+        freezeView.frame = previewView.bounds
+        freezeView.image = image
+        freezeView.isHidden = false
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) {
+            guard self.shutterFreezeGeneration == generation else { return }
+            self.hideShutterFreeze()
+        }
+    }
+
+    private func hideShutterFreeze() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        shutterFreezeView?.isHidden = true
+        shutterFreezeView?.image = nil
+    }
+
     private func applyPreviewFrame(_ cssFrame: CGRect) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let webView = bridge?.webView,
@@ -739,10 +814,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
               let previewHost = previewView.superview else { return }
         previewView.frame = webView.convert(cssFrame, to: previewHost)
         previewLayer?.frame = previewView.bounds
+        shutterFreezeView?.frame = previewView.bounds
     }
 
     private func removePreview() {
         dispatchPrecondition(condition: .onQueue(.main))
+        shutterFreezeGeneration &+= 1
+        shutterFreezeView?.removeFromSuperview()
+        shutterFreezeView = nil
         previewLayer?.session = nil
         previewLayer?.removeFromSuperlayer()
         previewView?.removeFromSuperview()
