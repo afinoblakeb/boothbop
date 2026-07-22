@@ -657,6 +657,7 @@ export default function App() {
         setRetakeIndex(null);
         retakeIndexRef.current = null;
         setFormat("strip");
+        sequenceRunningRef.current = false;
         setPhase("review");
 
         const pendingSave = pendingSessionSaveRef.current;
@@ -713,6 +714,7 @@ export default function App() {
     streamRef.current = null;
     framesRef.current = captured;
     setFormat("strip");
+    sequenceRunningRef.current = false;
     setPhase("review");
 
     // Auto-save this session to the private on-device gallery.

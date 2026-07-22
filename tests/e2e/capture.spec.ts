@@ -171,7 +171,12 @@ test("captures four camera frames and reaches Share Photo", async ({
 
   await page.getByRole("button", { name: "Retake One" }).click();
   await page.getByRole("button", { name: "Retake photo 2" }).click();
-  await page.getByRole("button", { name: "Retake Photo 2" }).click();
+  await page
+    .getByRole("button", { name: "Retake Photo 2" })
+    .evaluate((button) => {
+      button.click();
+      button.click();
+    });
   await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
     timeout: 10_000,
   });
