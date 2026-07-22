@@ -1,12 +1,15 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `1b64582`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, source commit `4511342`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
 blocker below passes on the owner's iPhone.
 
 ## Install
+
+The signed Release build from this source commit was installed wirelessly on
+the paired iPhone 15 Pro on 2026-07-22. To reinstall it from Xcode:
 
 1. Open `ios/App/App.xcodeproj` in Xcode.
 2. Select the `App` scheme and the owner's iPhone.
