@@ -223,6 +223,538 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
     }
 }
 
+// MARK: - BoothBopCamera: native full-resolution front-camera capture
+//
+// The web camera path can only copy a frame from WebKit's video stream. This
+// plugin keeps preview and still capture in one AVCaptureSession so iOS can use
+// its native focus, exposure, white-balance, and photo-processing pipeline.
+@objc(BoothBopCamera)
+public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
+    AVCaptureVideoDataOutputSampleBufferDelegate, AVCapturePhotoCaptureDelegate {
+    public let identifier = "BoothBopCamera"
+    public let jsName = "BoothBopCamera"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setPreviewFrame", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "capture", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "stop", returnType: CAPPluginReturnPromise),
+    ]
+
+    private enum CameraError: LocalizedError {
+        case unavailable
+        case accessDenied
+        case configuration(String)
+        case startTimedOut
+
+        var errorDescription: String? {
+            switch self {
+            case .unavailable:
+                return "The front camera is unavailable"
+            case .accessDenied:
+                return "Camera access was denied"
+            case .configuration(let message):
+                return message
+            case .startTimedOut:
+                return "The camera did not produce a frame in time"
+            }
+        }
+    }
+
+    private struct CapturedPhoto {
+        let data: Data
+        let width: Int
+        let height: Int
+    }
+
+    private let sessionQueue = DispatchQueue(
+        label: "com.boothbop.camera.session", qos: .userInitiated)
+    private let sampleQueue = DispatchQueue(
+        label: "com.boothbop.camera.samples", qos: .userInitiated)
+
+    // All capture state below is owned by sessionQueue.
+    private var session: AVCaptureSession?
+    private var videoOutput: AVCaptureVideoDataOutput?
+    private var photoOutput: AVCapturePhotoOutput?
+    private var activeDevice: AVCaptureDevice?
+    private var pendingStartCall: CAPPluginCall?
+    private var pendingStartID: UUID?
+    private var pendingCaptureCall: CAPPluginCall?
+    private var pendingCaptureID: Int64?
+    private var pendingPhoto: CapturedPhoto?
+    private var latestFrameSize: (width: Int, height: Int)?
+
+    // Preview properties are accessed only on the main thread.
+    private var previewView: UIView?
+    private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var requestedPreviewFrame: CGRect = .zero
+
+    @objc func isAvailable(_ call: CAPPluginCall) {
+        sessionQueue.async {
+            call.resolve(["available": self.frontCamera() != nil])
+        }
+    }
+
+    @objc func start(_ call: CAPPluginCall) {
+        sessionQueue.async {
+            if let size = self.latestFrameSize,
+               self.session?.isRunning == true,
+               self.pendingStartCall == nil {
+                return call.resolve(["width": size.width, "height": size.height])
+            }
+            guard self.pendingStartCall == nil else {
+                return call.reject("Camera start is already in progress", "busy")
+            }
+            guard self.session == nil else {
+                return call.reject("Camera session is not ready", "busy")
+            }
+
+            let startID = UUID()
+            self.pendingStartCall = call
+            self.pendingStartID = startID
+            self.authorizeAndStart(id: startID)
+        }
+    }
+
+    @objc func setPreviewFrame(_ call: CAPPluginCall) {
+        guard let x = call.getDouble("x"),
+              let y = call.getDouble("y"),
+              let width = call.getDouble("width"),
+              let height = call.getDouble("height"),
+              x.isFinite, y.isFinite, width.isFinite, height.isFinite,
+              width > 0, height > 0 else {
+            return call.reject("A finite, positive preview frame is required", "argumentError")
+        }
+        let cssFrame = CGRect(x: x, y: y, width: width, height: height)
+
+        sessionQueue.async {
+            guard let session = self.session else {
+                return call.reject("Camera is not started", "notStarted")
+            }
+            DispatchQueue.main.async {
+                self.installPreviewIfNeeded(session: session)
+                self.requestedPreviewFrame = cssFrame
+                self.applyPreviewFrame(cssFrame)
+                call.resolve()
+            }
+        }
+    }
+
+    @objc func capture(_ call: CAPPluginCall) {
+        sessionQueue.async {
+            guard self.pendingCaptureCall == nil else {
+                return call.reject("A photo capture is already in progress", "busy")
+            }
+            guard let session = self.session, session.isRunning,
+                  self.latestFrameSize != nil,
+                  let output = self.photoOutput else {
+                return call.reject("Camera is not ready", "notStarted")
+            }
+            guard output.availablePhotoCodecTypes.contains(.jpeg) else {
+                return call.reject("JPEG capture is unavailable", "unavailable")
+            }
+
+            let settings = AVCapturePhotoSettings(
+                format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+            settings.photoQualityPrioritization = .quality
+            settings.flashMode = .off
+            if #available(iOS 16.0, *) {
+                let dimensions = output.maxPhotoDimensions
+                if dimensions.width > 0, dimensions.height > 0 {
+                    settings.maxPhotoDimensions = dimensions
+                }
+            } else {
+                settings.isHighResolutionPhotoEnabled = true
+            }
+
+            if let connection = output.connection(with: .video) {
+                self.configurePortraitMirroring(connection)
+            }
+
+            self.pendingCaptureCall = call
+            self.pendingCaptureID = settings.uniqueID
+            self.pendingPhoto = nil
+            output.capturePhoto(with: settings, delegate: self)
+        }
+    }
+
+    @objc func stop(_ call: CAPPluginCall) {
+        sessionQueue.async {
+            self.tearDownSession(rejectPending: true) {
+                call.resolve()
+            }
+        }
+    }
+
+    private func authorizeAndStart(id: UUID) {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            configureAndStart(id: id)
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                self?.sessionQueue.async {
+                    guard let self = self, self.pendingStartID == id else { return }
+                    if granted {
+                        self.configureAndStart(id: id)
+                    } else {
+                        self.failStart(CameraError.accessDenied, code: "accessDenied", id: id)
+                    }
+                }
+            }
+        case .denied, .restricted:
+            failStart(CameraError.accessDenied, code: "accessDenied", id: id)
+        @unknown default:
+            failStart(CameraError.accessDenied, code: "accessDenied", id: id)
+        }
+    }
+
+    private func configureAndStart(id: UUID) {
+        guard pendingStartID == id else { return }
+        do {
+            let configured = try makeSession()
+            session = configured.session
+            videoOutput = configured.videoOutput
+            photoOutput = configured.photoOutput
+            activeDevice = configured.device
+            latestFrameSize = nil
+
+            DispatchQueue.main.async {
+                self.installPreviewIfNeeded(session: configured.session)
+            }
+
+            configured.session.startRunning()
+            guard configured.session.isRunning else {
+                throw CameraError.configuration("The camera session could not start")
+            }
+
+            sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
+                guard let self = self, self.pendingStartID == id else { return }
+                self.failStart(CameraError.startTimedOut, code: "startTimedOut", id: id)
+            }
+        } catch {
+            failStart(error, code: "configurationError", id: id)
+        }
+    }
+
+    private func makeSession() throws -> (
+        session: AVCaptureSession,
+        videoOutput: AVCaptureVideoDataOutput,
+        photoOutput: AVCapturePhotoOutput,
+        device: AVCaptureDevice
+    ) {
+        guard let device = frontCamera() else { throw CameraError.unavailable }
+        let input: AVCaptureDeviceInput
+        do {
+            input = try AVCaptureDeviceInput(device: device)
+        } catch {
+            throw CameraError.configuration("The front camera could not be opened")
+        }
+
+        configure(device: device)
+
+        let captureSession = AVCaptureSession()
+        captureSession.beginConfiguration()
+        defer { captureSession.commitConfiguration() }
+        guard captureSession.canSetSessionPreset(.photo) else {
+            throw CameraError.configuration("Full-resolution photo capture is unavailable")
+        }
+        captureSession.sessionPreset = .photo
+        guard captureSession.canAddInput(input) else {
+            throw CameraError.configuration("The front camera input could not be added")
+        }
+        captureSession.addInput(input)
+
+        let stillOutput = AVCapturePhotoOutput()
+        guard captureSession.canAddOutput(stillOutput) else {
+            throw CameraError.configuration("The photo output could not be added")
+        }
+        captureSession.addOutput(stillOutput)
+        stillOutput.maxPhotoQualityPrioritization = .quality
+        if #available(iOS 16.0, *) {
+            if let dimensions = device.activeFormat.supportedMaxPhotoDimensions.max(
+                by: { Int64($0.width) * Int64($0.height) < Int64($1.width) * Int64($1.height) }
+            ) {
+                stillOutput.maxPhotoDimensions = dimensions
+            }
+        } else {
+            stillOutput.isHighResolutionCaptureEnabled = true
+        }
+
+        let readinessOutput = AVCaptureVideoDataOutput()
+        readinessOutput.alwaysDiscardsLateVideoFrames = true
+        readinessOutput.videoSettings = [
+            kCVPixelBufferPixelFormatTypeKey as String:
+                Int(kCVPixelFormatType_420YpCbCr8BiPlanarFullRange)
+        ]
+        readinessOutput.setSampleBufferDelegate(self, queue: sampleQueue)
+        guard captureSession.canAddOutput(readinessOutput) else {
+            throw CameraError.configuration("The preview output could not be added")
+        }
+        captureSession.addOutput(readinessOutput)
+
+        if let connection = readinessOutput.connection(with: .video) {
+            configurePortraitMirroring(connection)
+        }
+        if let connection = stillOutput.connection(with: .video) {
+            configurePortraitMirroring(connection)
+        }
+        return (captureSession, readinessOutput, stillOutput, device)
+    }
+
+    private func frontCamera() -> AVCaptureDevice? {
+        if let trueDepth = AVCaptureDevice.default(
+            .builtInTrueDepthCamera, for: .video, position: .front) {
+            return trueDepth
+        }
+        return AVCaptureDevice.default(
+            .builtInWideAngleCamera, for: .video, position: .front)
+    }
+
+    private func configure(device: AVCaptureDevice) {
+        do {
+            try device.lockForConfiguration()
+            defer { device.unlockForConfiguration() }
+            if device.isFocusModeSupported(.continuousAutoFocus) {
+                device.focusMode = .continuousAutoFocus
+            }
+            if device.isFocusPointOfInterestSupported {
+                device.focusPointOfInterest = CGPoint(x: 0.5, y: 0.5)
+            }
+            if device.isSmoothAutoFocusSupported {
+                device.isSmoothAutoFocusEnabled = true
+            }
+            if device.isExposureModeSupported(.continuousAutoExposure) {
+                device.exposureMode = .continuousAutoExposure
+            }
+            if device.isExposurePointOfInterestSupported {
+                device.exposurePointOfInterest = CGPoint(x: 0.5, y: 0.5)
+            }
+            if device.isWhiteBalanceModeSupported(.continuousAutoWhiteBalance) {
+                device.whiteBalanceMode = .continuousAutoWhiteBalance
+            }
+            device.isSubjectAreaChangeMonitoringEnabled = true
+        } catch {
+            // Session setup may still succeed with the device's current auto modes.
+        }
+    }
+
+    private func configurePortraitMirroring(_ connection: AVCaptureConnection) {
+        if #available(iOS 17.0, *) {
+            if connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90
+            }
+        } else if connection.isVideoOrientationSupported {
+            connection.videoOrientation = .portrait
+        }
+        if connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = true
+        }
+    }
+
+    public func captureOutput(
+        _ output: AVCaptureOutput,
+        didOutput sampleBuffer: CMSampleBuffer,
+        from connection: AVCaptureConnection
+    ) {
+        guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let width = CVPixelBufferGetWidth(pixelBuffer)
+        let height = CVPixelBufferGetHeight(pixelBuffer)
+        sessionQueue.async {
+            guard let call = self.pendingStartCall else { return }
+            self.latestFrameSize = (width, height)
+            self.pendingStartCall = nil
+            self.pendingStartID = nil
+            self.videoOutput?.setSampleBufferDelegate(nil, queue: nil)
+            call.resolve(["width": width, "height": height])
+        }
+    }
+
+    public func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishProcessingPhoto photo: AVCapturePhoto,
+        error: Error?
+    ) {
+        sessionQueue.async {
+            guard self.pendingCaptureID == photo.resolvedSettings.uniqueID else { return }
+            if let error = error {
+                return self.failCapture(error.localizedDescription, code: "captureError")
+            }
+            guard let data = photo.fileDataRepresentation(),
+                  let image = UIImage(data: data),
+                  let cgImage = image.cgImage else {
+                return self.failCapture("The captured photo could not be encoded", code: "captureError")
+            }
+
+            let rotatesDimensions: Bool
+            switch image.imageOrientation {
+            case .left, .leftMirrored, .right, .rightMirrored:
+                rotatesDimensions = true
+            default:
+                rotatesDimensions = false
+            }
+            self.pendingPhoto = CapturedPhoto(
+                data: data,
+                width: rotatesDimensions ? cgImage.height : cgImage.width,
+                height: rotatesDimensions ? cgImage.width : cgImage.height)
+        }
+    }
+
+    public func photoOutput(
+        _ output: AVCapturePhotoOutput,
+        didFinishCaptureFor resolvedSettings: AVCaptureResolvedPhotoSettings,
+        error: Error?
+    ) {
+        sessionQueue.async {
+            guard self.pendingCaptureID == resolvedSettings.uniqueID,
+                  let call = self.pendingCaptureCall else { return }
+            if let error = error {
+                return self.failCapture(error.localizedDescription, code: "captureError")
+            }
+            guard let photo = self.pendingPhoto else {
+                return self.failCapture("The camera returned no photo data", code: "captureError")
+            }
+
+            self.pendingCaptureCall = nil
+            self.pendingCaptureID = nil
+            self.pendingPhoto = nil
+            call.resolve([
+                "data": photo.data.base64EncodedString(),
+                "mimeType": "image/jpeg",
+                "width": photo.width,
+                "height": photo.height,
+            ])
+        }
+    }
+
+    private func failStart(_ error: Error, code: String, id: UUID) {
+        guard pendingStartID == id, let call = pendingStartCall else { return }
+        pendingStartCall = nil
+        pendingStartID = nil
+        call.reject(error.localizedDescription, code)
+        tearDownSession(rejectPending: false)
+    }
+
+    private func failCapture(_ message: String, code: String) {
+        guard let call = pendingCaptureCall else { return }
+        pendingCaptureCall = nil
+        pendingCaptureID = nil
+        pendingPhoto = nil
+        call.reject(message, code)
+    }
+
+    private func tearDownSession(
+        rejectPending: Bool,
+        completion: (() -> Void)? = nil
+    ) {
+        pendingStartID = nil
+        if rejectPending {
+            pendingStartCall?.reject("Camera stopped", "cancelled")
+            pendingCaptureCall?.reject("Camera stopped", "cancelled")
+        }
+        pendingStartCall = nil
+        pendingCaptureCall = nil
+        pendingCaptureID = nil
+        pendingPhoto = nil
+        latestFrameSize = nil
+
+        videoOutput?.setSampleBufferDelegate(nil, queue: nil)
+        if session?.isRunning == true {
+            session?.stopRunning()
+        }
+        session = nil
+        videoOutput = nil
+        photoOutput = nil
+        activeDevice = nil
+
+        DispatchQueue.main.async {
+            self.removePreview()
+            completion?()
+        }
+    }
+
+    private func installPreviewIfNeeded(session: AVCaptureSession) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let rootView = bridge?.viewController?.view,
+              let webView = bridge?.webView,
+              let previewHost = webView.superview else { return }
+
+        rootView.backgroundColor = .boothBopCream
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+
+        if previewView == nil {
+            let nativePreview = UIView(frame: .zero)
+            nativePreview.backgroundColor = .black
+            nativePreview.clipsToBounds = true
+            previewHost.insertSubview(nativePreview, belowSubview: webView)
+
+            let layer = AVCaptureVideoPreviewLayer(session: session)
+            layer.videoGravity = .resizeAspectFill
+            nativePreview.layer.addSublayer(layer)
+            previewView = nativePreview
+            previewLayer = layer
+        } else {
+            previewLayer?.session = session
+        }
+
+        if let connection = previewLayer?.connection {
+            configurePortraitMirroring(connection)
+        }
+        applyPreviewFrame(requestedPreviewFrame)
+    }
+
+    private func applyPreviewFrame(_ cssFrame: CGRect) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let webView = bridge?.webView,
+              let previewView = previewView,
+              let previewHost = previewView.superview else { return }
+        previewView.frame = webView.convert(cssFrame, to: previewHost)
+        previewLayer?.frame = previewView.bounds
+    }
+
+    private func removePreview() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        previewLayer?.session = nil
+        previewLayer?.removeFromSuperlayer()
+        previewView?.removeFromSuperview()
+        previewLayer = nil
+        previewView = nil
+        requestedPreviewFrame = .zero
+
+        bridge?.viewController?.view.backgroundColor = .boothBopCream
+        bridge?.webView?.isOpaque = false
+        bridge?.webView?.backgroundColor = .boothBopCream
+        bridge?.webView?.scrollView.backgroundColor = .boothBopCream
+    }
+
+    deinit {
+        pendingStartCall?.reject("Camera released", "cancelled")
+        pendingCaptureCall?.reject("Camera released", "cancelled")
+        videoOutput?.setSampleBufferDelegate(nil, queue: nil)
+        let activeSession = session
+        let nativePreview = previewView
+        let nativePreviewLayer = previewLayer
+        let rootView = bridge?.viewController?.view
+        let webView = bridge?.webView
+        sessionQueue.async {
+            if activeSession?.isRunning == true {
+                activeSession?.stopRunning()
+            }
+        }
+        DispatchQueue.main.async {
+            nativePreviewLayer?.session = nil
+            nativePreviewLayer?.removeFromSuperlayer()
+            nativePreview?.removeFromSuperview()
+            rootView?.backgroundColor = .boothBopCream
+            webView?.isOpaque = false
+            webView?.backgroundColor = .boothBopCream
+            webView?.scrollView.backgroundColor = .boothBopCream
+        }
+    }
+}
+
 // MARK: - BoothBopVideo: assemble the 4 photos into an MP4 natively
 //
 // The web MediaRecorder/captureStream path records in real time (~5s) and is
@@ -530,6 +1062,7 @@ class BridgeViewController: CAPBridgeViewController {
 
     override func capacitorDidLoad() {
         bridge?.registerPluginInstance(BoothBopPhotos())
+        bridge?.registerPluginInstance(BoothBopCamera())
         bridge?.registerPluginInstance(BoothBopVideo())
     }
 }
