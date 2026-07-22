@@ -4,6 +4,12 @@ import Photos
 import AVFoundation
 
 private extension UIColor {
+    static let boothBopCanvas = UIColor(
+        red: 246.0 / 255.0,
+        green: 246.0 / 255.0,
+        blue: 244.0 / 255.0,
+        alpha: 1.0)
+
     static let boothBopCream = UIColor(
         red: 246.0 / 255.0,
         green: 231.0 / 255.0,
@@ -522,10 +528,10 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 class BridgeViewController: CAPBridgeViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .boothBopCream
+        view.backgroundColor = .boothBopCanvas
         webView?.isOpaque = false
-        webView?.backgroundColor = .boothBopCream
-        webView?.scrollView.backgroundColor = .boothBopCream
+        webView?.backgroundColor = .boothBopCanvas
+        webView?.scrollView.backgroundColor = .boothBopCanvas
     }
 
     override func capacitorDidLoad() {
