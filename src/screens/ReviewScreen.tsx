@@ -145,7 +145,7 @@ export function ReviewScreen({
   const sharePreparing = generating === "share" || socialPreparing;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center py-4">
+    <div className="flex min-h-0 flex-1 flex-col items-center py-3">
       {/* Format tabs */}
       <SegmentedControl
         ariaRole="tab"
@@ -153,16 +153,16 @@ export function ReviewScreen({
         value={format}
         onChange={onSelectFormat}
         options={tabs.map((t) => ({ value: t.id, label: t.label }))}
-        itemClassName="py-3 text-xl"
+        itemClassName="text-sm"
       />
 
       {/* Live preview of the selected output */}
-      <div className="relative mt-3 flex min-h-0 w-full flex-1 items-center justify-center">
+      <div className="relative mt-3 flex min-h-0 w-full flex-1 items-center justify-center overflow-hidden rounded-md bg-surface-muted/60 p-2">
         {mediaGenerating ? (
           <div
             role="status"
             aria-live="polite"
-            className="flex flex-col items-center gap-3 font-display text-xl uppercase tracking-wide text-brown"
+            className="flex flex-col items-center gap-3 font-sans text-sm font-semibold text-text-muted"
           >
             <span className="h-8 w-8 animate-spin rounded-full border-4 border-ink/20 border-t-orange" />
             {generating === "gif" ? "Making your GIF…" : "Recording video…"}
@@ -170,7 +170,7 @@ export function ReviewScreen({
         ) : format === "video" && previewUrl ? (
           <video
             src={previewUrl}
-            className="max-h-full w-auto border-2 border-ink"
+            className="max-h-full w-auto rounded-sm shadow-control"
             autoPlay
             loop
             muted
@@ -181,14 +181,14 @@ export function ReviewScreen({
           <ZoomableImage
             src={previewUrl}
             alt={`Your ${format}`}
-            className="max-h-full w-auto border-2 border-ink"
+            className="max-h-full w-auto rounded-sm shadow-control"
           />
         ) : null}
         {sharePreparing && !mediaGenerating && (
           <div
             role="status"
             aria-live="polite"
-            className="absolute bottom-2 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap border border-cream/30 bg-ink/95 px-3 py-2 font-sans text-xs font-semibold text-cream shadow-lg"
+            className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-md border border-editor-border bg-editor/95 px-3 py-2 font-sans text-xs font-semibold text-text-inverse shadow-overlay"
           >
             <span className="h-4 w-4 animate-spin rounded-full border-2 border-cream/30 border-t-orange" />
             Preparing high-quality share…
@@ -197,7 +197,7 @@ export function ReviewScreen({
       </div>
 
       {format === "gif" && features.boom && (
-        <div className="mt-3 w-full border-2 border-ink bg-paper px-3 py-2">
+        <div className="mt-3 w-full rounded-lg border border-border bg-surface px-3 py-2">
           <div className="flex items-center justify-between">
             <div>
               <SectionLabel>Boom</SectionLabel>
@@ -208,7 +208,7 @@ export function ReviewScreen({
             <Toggle aria-label="Boom" on={boom} onChange={onBoom} />
           </div>
           {boom && (
-            <label className="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-ink/20 pt-2 font-sans text-[10px] uppercase text-warmgray">
+            <label className="mt-2 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-t border-border pt-2 font-sans text-xs text-text-muted">
               <span>Slow</span>
               <input
                 type="range"
@@ -275,7 +275,7 @@ export function ReviewScreen({
 
       {/* Compact review toolbar keeps the output visible on every phone size. */}
       <div
-        className="mt-3 grid w-full border-y-2 border-ink bg-paper"
+        className="mt-3 grid w-full gap-1 rounded-lg bg-surface-muted p-1"
         style={{
           gridTemplateColumns: `repeat(${1 + Number(features.editor) + Number(features.retakeOne)}, minmax(0, 1fr))`,
         }}
@@ -321,13 +321,13 @@ export function ReviewScreen({
           onSelect={onRetakeOne}
         />
       )}
-      <div className="mt-2 flex min-h-8 items-center justify-center gap-4 font-sans text-xs font-semibold text-brown">
+      <div className="mt-1 flex min-h-8 items-center justify-center gap-4 font-sans text-xs font-semibold text-text-muted">
         {format === "gif" && shareFilesOk && (
           <button
             type="button"
             onClick={onShareOriginalGif}
             disabled={isBusy || !previewUrl}
-            className="min-h-11 underline underline-offset-2 disabled:opacity-40"
+            className="min-h-11 rounded-md px-2 outline-none transition focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40"
           >
             Share Original GIF
           </button>
@@ -335,7 +335,7 @@ export function ReviewScreen({
         <button
           type="button"
           onClick={onRetake}
-          className="min-h-11 underline underline-offset-2"
+          className="min-h-11 rounded-md px-2 outline-none transition focus-visible:ring-2 focus-visible:ring-accent"
         >
           Start Over
         </button>
@@ -345,13 +345,13 @@ export function ReviewScreen({
         <p
           role="status"
           aria-live="polite"
-          className="mt-3 text-center font-sans text-sm text-teal"
+          className="mt-3 text-center font-sans text-sm text-positive"
         >
           {note}
         </p>
       )}
 
-      <p className="mt-3 max-w-xs text-center font-sans text-xs text-warmgray">
+      <p className="mt-2 max-w-xs text-center font-sans text-xs text-text-muted">
         Photos stay on this device. BoothBop never uploads or stores them.
       </p>
 
@@ -386,9 +386,9 @@ function RetakePicker({
       role="dialog"
       aria-modal="true"
       aria-label="Choose a photo to retake"
-      className="fixed inset-0 z-40 flex items-end bg-ink/55"
+      className="fixed inset-0 z-40 flex items-end bg-black/45"
     >
-      <div className="w-full border-t-2 border-ink bg-cream px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3">
+      <div className="w-full rounded-t-lg border-t border-border bg-surface px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 shadow-overlay">
         <div className="mx-auto flex max-w-md items-center justify-between">
           <SectionLabel>Retake one</SectionLabel>
           <IconButton data-autofocus aria-label="Close" onClick={onClose}>
@@ -401,10 +401,10 @@ function RetakePicker({
               key={index}
               onClick={() => onSelect(index)}
               aria-label={`Choose photo ${index + 1} to retake`}
-              className="relative aspect-square min-h-11 overflow-hidden border-2 border-ink bg-paper"
+              className="relative aspect-square min-h-11 overflow-hidden rounded-md border border-border bg-surface-muted outline-none transition focus-visible:ring-2 focus-visible:ring-accent"
             >
               <img src={thumb} alt="" className="h-full w-full object-cover" />
-              <span className="absolute bottom-0 right-0 bg-ink px-1.5 py-0.5 font-display text-sm text-cream">
+              <span className="absolute bottom-1 right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-editor/85 px-1 font-sans text-xs font-semibold text-text-inverse">
                 {index + 1}
               </span>
             </button>
@@ -436,8 +436,12 @@ function ReviewAction({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={pressed}
-      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 border-x border-ink px-1 font-sans text-[11px] font-semibold leading-tight disabled:opacity-40 ${
-        primary ? "bg-orange text-ink" : "text-ink"
+      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 font-sans text-[11px] font-semibold leading-tight outline-none transition focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 ${
+        primary
+          ? "bg-accent text-on-accent shadow-control active:bg-accent-strong"
+          : pressed
+            ? "bg-surface text-accent shadow-control"
+            : "text-text-muted active:bg-surface/70"
       }`}
     >
       {children}
@@ -478,15 +482,15 @@ function PhotoEditor({
       role="dialog"
       aria-modal="true"
       aria-label="Edit photos"
-      className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden bg-ink text-cream"
+      className="fixed inset-0 z-50 flex min-h-0 flex-col overflow-hidden bg-editor text-text-inverse"
     >
-      <header className="relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end justify-center border-b border-cream/15 px-4 pb-3 pt-[env(safe-area-inset-top)]">
+      <header className="relative flex h-[calc(3.5rem+env(safe-area-inset-top))] shrink-0 items-end justify-center border-b border-editor-border px-4 pb-3 pt-[env(safe-area-inset-top)]">
         <h2 className="font-sans text-base font-semibold">Edit</h2>
         <button
           data-autofocus
           type="button"
           onClick={onDone}
-          className="absolute bottom-2 right-3 min-h-11 px-2 font-sans text-base font-semibold text-orange"
+          className="absolute bottom-2 right-3 min-h-11 rounded-md px-2 font-sans text-base font-semibold text-accent outline-none focus-visible:ring-2 focus-visible:ring-accent"
         >
           Done
         </button>
@@ -502,7 +506,7 @@ function PhotoEditor({
         )}
       </div>
 
-      <div className="h-[7.4rem] shrink-0 border-t border-cream/15">
+      <div className="h-[7.4rem] shrink-0 border-t border-editor-border bg-editor-surface">
         {activeTool === "look" && (
           <div className="flex h-full snap-x items-center gap-3 overflow-x-auto px-4 pb-2 pt-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {FILTERS.map((item) => (
@@ -512,10 +516,10 @@ function PhotoEditor({
                 onClick={() => onFilter(item.id)}
                 aria-label={item.label}
                 aria-pressed={filter === item.id}
-                className="flex w-[4.5rem] shrink-0 snap-center flex-col items-center gap-1 font-sans text-[11px]"
+                className="flex w-[4.5rem] shrink-0 snap-center flex-col items-center gap-1 rounded-md font-sans text-[11px] outline-none focus-visible:ring-2 focus-visible:ring-accent"
               >
                 <span
-                  className={`block h-[4.5rem] w-[4.5rem] overflow-hidden rounded border-2 ${
+                  className={`block h-[4.5rem] w-[4.5rem] overflow-hidden rounded-md border-2 ${
                     filter === item.id ? "border-orange" : "border-transparent"
                   }`}
                 >
@@ -565,8 +569,8 @@ function PhotoEditor({
                 aria-pressed={themeKey === key}
                 className={`h-14 w-14 shrink-0 rounded-full border-2 transition ${
                   themeKey === key
-                    ? "border-orange ring-2 ring-orange ring-offset-2 ring-offset-ink"
-                    : "border-cream/40"
+                    ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-editor-surface"
+                    : "border-editor-border"
                 }`}
                 style={{ background: theme.background }}
               />
@@ -575,7 +579,7 @@ function PhotoEditor({
         )}
       </div>
 
-      <nav className="grid h-[calc(4.4rem+env(safe-area-inset-bottom))] shrink-0 grid-cols-3 border-t border-cream/15 pb-[env(safe-area-inset-bottom)]">
+      <nav className="grid h-[calc(4.4rem+env(safe-area-inset-bottom))] shrink-0 grid-cols-3 border-t border-editor-border bg-editor pb-[env(safe-area-inset-bottom)]">
         <EditorTool
           label="Look"
           selected={activeTool === "look"}
@@ -619,7 +623,7 @@ function EditorTool({
       onClick={onClick}
       aria-pressed={selected}
       className={`flex min-w-0 flex-col items-center justify-center gap-1 font-sans text-[11px] font-medium ${
-        selected ? "text-orange" : "text-cream/65"
+        selected ? "text-accent" : "text-editor-muted"
       }`}
     >
       {children}
@@ -645,16 +649,16 @@ function LayoutChoice({
       onClick={onClick}
       aria-pressed={selected}
       className={`flex min-w-20 flex-col items-center gap-2 font-sans text-xs ${
-        selected ? "text-orange" : "text-cream/70"
+        selected ? "text-accent" : "text-editor-muted"
       }`}
     >
       <span
         className={`grid h-16 w-16 gap-1 border-2 p-1 ${
-          selected ? "border-orange" : "border-cream/40"
+          selected ? "border-accent" : "border-editor-border"
         } ${layout === "strip" ? "grid-cols-1" : "grid-cols-2"}`}
       >
         {[0, 1, 2, 3].map((index) => (
-          <span key={index} className="bg-cream/75" />
+          <span key={index} className="bg-text-inverse/75" />
         ))}
       </span>
       {label}
