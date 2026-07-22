@@ -1,6 +1,6 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `14d8144`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, commit `472ee76`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
@@ -14,8 +14,9 @@ blocker below passes on the owner's iPhone.
 
 ## Five-Minute Core Pass
 
-1. **Launch:** Cold-launch twice. Camera appears directly with no black screen,
-   web landing page, or tappable logo.
+1. **Launch:** Cold-launch twice. The neutral cool-white launch surface flows
+   directly into Camera with no black/cream flash, web landing page, or tappable
+   logo. The wordmark has no visible rectangular background.
 2. **Camera quality:** In ordinary indoor light, confirm the preview is sharp,
    correctly oriented, naturally colored, and adjusts focus/exposure when the
    subject distance and lighting change.
@@ -27,8 +28,10 @@ blocker below passes on the owner's iPhone.
    replacement is sharp and correctly oriented.
 5. **Edit:** Apply Warm, Cool, B&W, Sepia, and Inverse. Each is visibly distinct,
    the preview responds promptly, and Done returns to the full review screen.
-6. **Strip:** Save/share the classic strip. It has four square photos, the cream
-   brand footer, and an exact 2x6 proportion without distorted faces.
+6. **Strip:** Save/share the classic strip. It has four square photos with
+   comfortable spacing, the cream brand footer, and an exact 2x6 proportion
+   without distorted faces. Tap near the lower photos: zoom opens on that
+   region and presents a clearly visible white close control above the content.
 7. **Animation:** Review GIF, enable Boom, change speed, and review Video. Motion
    is smooth and output quality is visibly suitable for sharing.
 8. **Instagram:** Share the animation to Post, Reel, and Story. All three accept
@@ -43,7 +46,7 @@ blocker below passes on the owner's iPhone.
 
 Do not approve the build if any of these occur:
 
-- Black or blank launch surface.
+- Black, cream, or blank launch surface.
 - White shutter screen, stalled controls, crash, or lost capture.
 - Blurry, incorrectly mirrored/rotated, or unnaturally colored iPhone photos.
 - Cropped Instagram Post/Reel/Story output or rejected media.
