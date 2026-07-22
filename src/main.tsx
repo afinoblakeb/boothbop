@@ -4,16 +4,19 @@ import { registerSW } from "virtual:pwa-register";
 import App from "./App.tsx";
 import "./index.css";
 import { isNativeShell } from "./lib/platform";
+import { prepareServiceWorkerState } from "./startup/nativeStartup";
+import { StartupErrorBoundary } from "./startup/StartupErrorBoundary";
 
-// Register the PWA service worker on the web only. Inside the native
-// (Capacitor) WKWebView shell a service worker is moot and only causes
-// stale-asset/console noise, so skip it there.
-if (!isNativeShell()) {
-  registerSW({ immediate: true, onRegisterError() {} });
-}
+void prepareServiceWorkerState({
+  nativeShell: isNativeShell(),
+  registerWebServiceWorker: () =>
+    registerSW({ immediate: true, onRegisterError() {} }),
+});
 
 createRoot(document.getElementById("root")!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+  <StartupErrorBoundary>
+    <StrictMode>
+      <App />
+    </StrictMode>
+  </StartupErrorBoundary>,
 );
