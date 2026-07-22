@@ -1,24 +1,23 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
-export type ButtonVariant = "primary" | "secondary" | "danger";
+export type ButtonVariant = "primary" | "secondary" | "quiet" | "danger";
 export type ButtonSize = "lg" | "md" | "sm";
 
-// The flat, 2px-ink-border, condensed-display button — BoothBop's one button
-// look, parameterized by intent (variant) and scale (size). Pass spacing-only
-// extras (mt-*, max-w-*) via className.
 const BASE =
-  "inline-flex min-h-[44px] items-center justify-center gap-2 border-2 border-ink font-display uppercase tracking-wide transition active:translate-y-px disabled:opacity-40";
+  "inline-flex min-h-[44px] items-center justify-center gap-2 rounded-lg border font-sans font-semibold tracking-normal shadow-control outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app-canvas active:scale-[0.98] disabled:pointer-events-none disabled:opacity-40";
 
 const VARIANT: Record<ButtonVariant, string> = {
-  primary: "bg-orange text-ink active:bg-orange-dark",
-  secondary: "bg-paper text-ink active:bg-cream",
-  danger: "border-orange-dark bg-paper text-orange-dark active:bg-cream",
+  primary: "border-accent bg-accent text-on-accent active:bg-accent-strong",
+  secondary: "border-border bg-surface text-text active:bg-surface-muted",
+  quiet:
+    "border-transparent bg-transparent text-text shadow-none active:bg-surface-muted",
+  danger: "border-border bg-surface text-critical active:bg-surface-muted",
 };
 
 const SIZE: Record<ButtonSize, string> = {
-  lg: "px-6 py-3.5 text-2xl",
-  md: "px-6 py-3 text-xl",
-  sm: "px-3 py-1.5 text-base",
+  lg: "px-6 py-3.5 text-lg",
+  md: "px-5 py-3 text-base",
+  sm: "px-3 py-2 text-sm",
 };
 
 export function Button({

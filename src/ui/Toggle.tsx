@@ -1,4 +1,3 @@
-// Small brand-styled on/off switch.
 export function Toggle({
   on,
   disabled,
@@ -17,15 +16,19 @@ export function Toggle({
       aria-checked={on}
       disabled={disabled}
       onClick={() => onChange(!on)}
-      className={`relative h-11 w-14 shrink-0 border-2 border-ink transition disabled:opacity-40 ${
-        on ? "bg-orange" : "bg-cream"
-      }`}
+      className="inline-flex h-11 w-14 shrink-0 items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 disabled:opacity-40"
     >
       <span
-        className={`absolute top-2 h-6 w-6 bg-ink transition-all ${
-          on ? "left-6" : "left-1"
+        className={`relative h-7 w-12 rounded-full transition-colors duration-200 ${
+          on ? "bg-accent" : "bg-border-strong"
         }`}
-      />
+      >
+        <span
+          className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-control transition-all duration-200 ${
+            on ? "left-6" : "left-1"
+          }`}
+        />
+      </span>
     </button>
   );
 }

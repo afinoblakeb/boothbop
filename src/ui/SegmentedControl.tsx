@@ -6,11 +6,6 @@ export interface SegmentOption<T> {
   disabled?: boolean;
 }
 
-// A connected pick-one control — the bordered group with the orange "selected"
-// state — used for the format tabs, layout, and countdown. Centralizes the
-// frame, the selected/unselected coloring, and the ARIA wiring; per-context
-// item padding/size is passed via `itemClassName`. `ariaRole="tab"` makes it a
-// tablist; otherwise it's a radio-style group.
 export function SegmentedControl<T extends string | number>({
   options,
   value,
@@ -34,7 +29,7 @@ export function SegmentedControl<T extends string | number>({
     <div
       role={ariaRole === "tab" ? "tablist" : "group"}
       aria-label={label}
-      className={`flex divide-x-2 divide-ink border-2 border-ink bg-paper ${
+      className={`flex gap-1 rounded-lg bg-surface-muted p-1 ${
         fullWidth ? "w-full" : "w-max"
       } ${className}`}
     >
@@ -73,9 +68,13 @@ export function SegmentedControl<T extends string | number>({
               });
             }}
             {...a11y}
-            className={`font-display uppercase tracking-wide transition ${
+            className={`min-h-10 rounded-md px-3 font-sans font-semibold tracking-normal outline-none transition duration-200 focus-visible:ring-2 focus-visible:ring-accent ${
               fullWidth ? "flex-1" : ""
-            } ${selected ? "bg-orange text-ink" : "text-ink"} ${itemClassName}`}
+            } ${
+              selected
+                ? "bg-surface text-text shadow-control"
+                : "text-text-muted active:bg-surface/70"
+            } ${itemClassName}`}
           >
             {o.label}
           </button>

@@ -1224,7 +1224,7 @@ export default function App() {
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col px-4">
+    <div className="mx-auto flex h-full max-w-md flex-col bg-app-canvas px-4 text-text">
       <TopBar
         onHome={cancelToHome}
         onAlbum={() => setShowGallery(true)}

@@ -1,10 +1,7 @@
 import type { ElementType, ReactNode } from "react";
 
-// The one display-type treatment — `font-display uppercase tracking-wide` — at
-// four sizes. Centralizes the brand heading look so every title, section header,
-// and emphatic label reads as one family. Color and spacing are passed via
-// `className`; `as` keeps the right semantic element (h2/h3/p/span).
 export type HeadingSize = "xl" | "lg" | "md" | "sm";
+export type HeadingVariant = "page" | "section" | "brand";
 
 const SIZE: Record<HeadingSize, string> = {
   xl: "text-3xl",
@@ -16,17 +13,25 @@ const SIZE: Record<HeadingSize, string> = {
 export function Heading({
   as: As = "h2",
   size = "lg",
+  variant = "section",
   className = "",
   children,
 }: {
   as?: ElementType;
   size?: HeadingSize;
+  variant?: HeadingVariant;
   className?: string;
   children: ReactNode;
 }) {
   return (
     <As
-      className={`font-display uppercase tracking-wide ${SIZE[size]} ${className}`}
+      className={`${
+        variant === "brand"
+          ? "font-display uppercase tracking-normal"
+          : variant === "page"
+            ? "font-sans font-bold tracking-normal"
+            : "font-sans font-semibold tracking-normal"
+      } ${SIZE[size]} ${className}`}
     >
       {children}
     </As>
