@@ -57,6 +57,12 @@ body {
   height: 100%;
 }
 
+html.native-camera-active,
+html.native-camera-active body,
+html.native-camera-active #root {
+  background: transparent;
+}
+
 @media (max-height: 650px) {
   .camera-screen {
     padding-top: 0.5rem;

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CAMERA_MSG,
   cameraError,
@@ -84,6 +84,13 @@ import {
 } from "./lib/whatsNew";
 import { RenderJob } from "./lib/renderJob";
 import { mediaRenderKey } from "./lib/renderKey";
+import {
+  canUseNativeCamera,
+  captureNativeSquareFrame,
+  setNativePreviewFrame,
+  startNativeCamera,
+  stopNativeCamera,
+} from "./lib/cameraNative";
 
 interface MediaResult {
   url: string;
@@ -125,6 +132,7 @@ export default function App() {
   const [themeKey, setThemeKey] = useState<keyof typeof THEMES>("classic");
   const [error, setError] = useState<string | null>(null);
   const [openingCamera, setOpeningCamera] = useState(false);
+  const [nativeCameraActive, setNativeCameraActive] = useState(false);
 
   const [format, setFormat] = useState<Format>("strip");
   const [generating, setGenerating] = useState<
@@ -416,6 +424,10 @@ export default function App() {
   const galleryOpenRequestRef = useRef(0);
   const nativeLaunchStartedRef = useRef(false);
   const nativeSplashHiddenRef = useRef(false);
+  const nativeCameraActiveRef = useRef(false);
+  const resumeCameraAfterOverlayRef = useRef<number | null | undefined>(
+    undefined,
+  );
   const openCameraRef = useRef<
     ((index?: number | null) => Promise<void>) | null
   >(null);
@@ -443,9 +455,90 @@ export default function App() {
     );
   }
 
+  const stopActiveCamera = useCallback(() => {
+    stopCamera(streamRef.current);
+    streamRef.current = null;
+    if (nativeCameraActiveRef.current) {
+      nativeCameraActiveRef.current = false;
+      setNativeCameraActive(false);
+      void stopNativeCamera();
+    }
+  }, []);
+
+  function suspendCameraForOverlay() {
+    if (phase !== "preview") return;
+    resumeCameraAfterOverlayRef.current = retakeIndexRef.current;
+    abortRef.current = true;
+    cameraRequestRef.current += 1;
+    cameraOpeningRef.current = false;
+    setOpeningCamera(false);
+    stopActiveCamera();
+  }
+
+  function resumeCameraAfterOverlay() {
+    const index = resumeCameraAfterOverlayRef.current;
+    resumeCameraAfterOverlayRef.current = undefined;
+    if (index !== undefined) void openCameraRef.current?.(index);
+  }
+
+  function openGalleryFromTopBar() {
+    suspendCameraForOverlay();
+    setShowGallery(true);
+  }
+
+  function openSettingsFromTopBar() {
+    suspendCameraForOverlay();
+    openSettings();
+  }
+
+  // Retake failures preserve the original four frames; new-shoot failures go home.
+  const failCamera = useCallback(
+    (msg: string) => {
+      const preserveReview =
+        retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
+      abortRef.current = true;
+      cameraRequestRef.current += 1;
+      sequenceOwnerRef.current = null;
+      cameraOpeningRef.current = false;
+      setOpeningCamera(false);
+      setCountdown(null);
+      setFlash(false);
+      stopActiveCamera();
+      if (!preserveReview) setFrames([]);
+      setRetakeIndex(null);
+      retakeIndexRef.current = null;
+      setPhase(preserveReview ? "review" : "idle");
+      setError(msg);
+    },
+    [stopActiveCamera],
+  );
+
+  async function captureActiveCameraFrame(
+    video: HTMLVideoElement | null,
+  ): Promise<HTMLCanvasElement> {
+    if (nativeCameraActiveRef.current) return captureNativeSquareFrame();
+    if (!video) throw new Error("Camera preview unavailable");
+    return captureBestSquareFrame(video);
+  }
+
   // Attach the live stream whenever we are showing the camera.
   useEffect(() => {
     if (phase !== "preview" && phase !== "capturing") return;
+    if (nativeCameraActive) {
+      document.documentElement.classList.add("native-camera-active");
+      const preview = document.querySelector<HTMLElement>(".camera-preview");
+      if (!preview) return;
+      const positionPreview = () =>
+        setNativePreviewFrame(preview.getBoundingClientRect());
+      void positionPreview()
+        .then(() => hideNativeSplash())
+        .catch(() => failCamera("Couldn't start the iPhone camera."));
+      window.addEventListener("resize", positionPreview);
+      return () => {
+        window.removeEventListener("resize", positionPreview);
+        document.documentElement.classList.remove("native-camera-active");
+      };
+    }
     const video = videoRef.current;
     if (video && streamRef.current) {
       video.srcObject = streamRef.current;
@@ -456,34 +549,20 @@ export default function App() {
         })
         .catch(() => {});
     }
-  }, [phase]);
+  }, [failCamera, nativeCameraActive, phase]);
 
   useEffect(() => {
     if (error && isNativeShell()) void hideNativeSplash();
   }, [error]);
 
   // Release the camera when the component goes away.
-  useEffect(() => () => stopCamera(streamRef.current), []);
-
-  // Retake failures preserve the original four frames; new-shoot failures go home.
-  function failCamera(msg: string) {
-    const preserveReview =
-      retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
-    abortRef.current = true;
-    cameraRequestRef.current += 1;
-    sequenceOwnerRef.current = null;
-    cameraOpeningRef.current = false;
-    setOpeningCamera(false);
-    setCountdown(null);
-    setFlash(false);
-    stopCamera(streamRef.current);
-    streamRef.current = null;
-    if (!preserveReview) setFrames([]);
-    setRetakeIndex(null);
-    retakeIndexRef.current = null;
-    setPhase(preserveReview ? "review" : "idle");
-    setError(msg);
-  }
+  useEffect(
+    () => () => {
+      stopCamera(streamRef.current);
+      void stopNativeCamera();
+    },
+    [],
+  );
 
   // If the user revokes camera permission (Settings, site controls, etc.),
   // preserve an in-progress retake or send a new shoot home with a clear message.
@@ -502,7 +581,7 @@ export default function App() {
       if (status) status.onchange = null;
     };
     // failCamera only touches stable setters and refs, so a one-time bind is fine.
-  }, []);
+  }, [failCamera]);
 
   function clearResults() {
     if (prewarmTimer.current !== null) {
@@ -550,15 +629,28 @@ export default function App() {
     setRetakeIndex(index);
     retakeIndexRef.current = index;
     try {
-      const stream = await startCamera();
+      let stream: MediaStream | null = null;
+      let native = false;
+      if (await canUseNativeCamera()) {
+        try {
+          await startNativeCamera();
+          native = true;
+        } catch {
+          await stopNativeCamera();
+        }
+      }
+      if (!native) stream = await startCamera();
       if (request !== cameraRequestRef.current || abortRef.current) {
-        stopCamera(stream);
+        if (native) await stopNativeCamera();
+        else stopCamera(stream);
         return;
       }
+      nativeCameraActiveRef.current = native;
+      setNativeCameraActive(native);
       streamRef.current = stream;
       // If the camera track ends mid-use (revoked, taken by another app),
       // drop the user back home with the permission message.
-      stream.getVideoTracks().forEach((t) => {
+      stream?.getVideoTracks().forEach((t) => {
         t.addEventListener("ended", () => {
           if (
             request === cameraRequestRef.current &&
@@ -608,8 +700,7 @@ export default function App() {
     setOpeningCamera(false);
     setCountdown(null);
     setFlash(false);
-    stopCamera(streamRef.current);
-    streamRef.current = null;
+    stopActiveCamera();
     clearResults();
     setFrames([]);
     activeSessionIdRef.current = null;
@@ -627,8 +718,7 @@ export default function App() {
     sequenceOwnerRef.current = null;
     setCountdown(null);
     setFlash(false);
-    stopCamera(streamRef.current);
-    streamRef.current = null;
+    stopActiveCamera();
     setRetakeIndex(null);
     retakeIndexRef.current = null;
     if (!returnToReview) setFrames([]);
@@ -637,8 +727,7 @@ export default function App() {
 
   async function runSequence() {
     if (sequenceOwnerRef.current) return;
-    const stream = streamRef.current;
-    if (!stream) return;
+    if (!streamRef.current && !nativeCameraActiveRef.current) return;
     abortRef.current = false;
     const owner = Symbol("capture-sequence");
     const cameraRequest = cameraRequestRef.current;
@@ -657,7 +746,10 @@ export default function App() {
       abortRef.current || cameraRequest !== cameraRequestRef.current;
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
-    if (!video || !(await videoReady(video))) {
+    if (
+      !nativeCameraActiveRef.current &&
+      (!video || !(await videoReady(video)))
+    ) {
       failCamera("The camera isn't ready. Check camera access and try again.");
       return;
     }
@@ -681,7 +773,7 @@ export default function App() {
       try {
         void tapHaptic("Medium");
         setFlash(true);
-        const replacement = await captureBestSquareFrame(video);
+        const replacement = await captureActiveCameraFrame(video);
         if (sequenceCancelled()) {
           setFlash(false);
           return;
@@ -691,8 +783,7 @@ export default function App() {
         setFrames(updated);
         await wait(240);
         setFlash(false);
-        stopCamera(streamRef.current);
-        streamRef.current = null;
+        stopActiveCamera();
 
         setRetakeIndex(null);
         retakeIndexRef.current = null;
@@ -744,7 +835,7 @@ export default function App() {
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       setFlash(true);
-      const frame = await captureBestSquareFrame(video);
+      const frame = await captureActiveCameraFrame(video);
       if (sequenceCancelled()) {
         setFlash(false);
         return;
@@ -756,8 +847,7 @@ export default function App() {
       if (shot < SHOTS - 1) await wait(750); // quick "pose!" gap
     }
 
-    stopCamera(streamRef.current);
-    streamRef.current = null;
+    stopActiveCamera();
     framesRef.current = captured;
     setFormat("strip");
     if (sequenceOwnerRef.current === owner) {
@@ -1272,11 +1362,15 @@ export default function App() {
   );
 
   return (
-    <div className="mx-auto flex h-full max-w-md flex-col bg-app-canvas px-4 text-text">
+    <div
+      className={`mx-auto flex h-full max-w-md flex-col px-4 text-text ${
+        nativeCameraActive ? "bg-transparent" : "bg-app-canvas"
+      }`}
+    >
       <TopBar
         onHome={cancelToHome}
-        onAlbum={() => setShowGallery(true)}
-        onSettings={openSettings}
+        onAlbum={openGalleryFromTopBar}
+        onSettings={openSettingsFromTopBar}
         showActions={phase !== "capturing" && !showMigration}
       />
 
@@ -1309,6 +1403,7 @@ export default function App() {
           onStart={runSequence}
           onCancel={cancelCamera}
           retakeIndex={retakeIndex}
+          nativePreview={nativeCameraActive}
         />
       )}
 
@@ -1351,6 +1446,7 @@ export default function App() {
           onClose={() => {
             galleryOpenRequestRef.current += 1;
             setShowGallery(false);
+            resumeCameraAfterOverlay();
           }}
           onOpen={openSession}
         />
@@ -1365,7 +1461,10 @@ export default function App() {
           onDest={changeAutosaveDest}
           onToggle={toggleAutosaveFormat}
           onOpenIosSettings={() => void openIosSettings()}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            resumeCameraAfterOverlay();
+          }}
           branding={branding}
           onBranding={changeBranding}
           features={runtimeFeatures}

@@ -23,6 +23,7 @@ export function CameraScreen({
   onStart,
   onCancel,
   retakeIndex,
+  nativePreview,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
@@ -34,6 +35,7 @@ export function CameraScreen({
   onStart: () => void;
   onCancel: () => void;
   retakeIndex: number | null;
+  nativePreview: boolean;
 }) {
   return (
     <div className="camera-screen flex min-h-0 flex-1 flex-col py-3">
@@ -48,15 +50,23 @@ export function CameraScreen({
       </span>
       <section
         aria-label="Camera preview"
-        className="-mx-4 shrink-0 bg-surface-inverse px-4 py-3 shadow-overlay"
+        className={`-mx-4 shrink-0 px-4 py-3 ${
+          nativePreview ? "bg-transparent" : "bg-surface-inverse shadow-overlay"
+        }`}
       >
-        <div className="camera-preview relative aspect-square w-full shrink-0 overflow-hidden rounded-md border border-editor-border bg-editor shadow-overlay">
+        <div
+          className={`camera-preview relative aspect-square w-full shrink-0 overflow-hidden rounded-md border border-editor-border shadow-overlay ${
+            nativePreview ? "bg-transparent" : "bg-editor"
+          }`}
+        >
           <video
             ref={videoRef}
             playsInline
             muted
             autoPlay
-            className="h-full w-full -scale-x-100 object-cover"
+            className={`h-full w-full -scale-x-100 object-cover ${
+              nativePreview ? "opacity-0" : ""
+            }`}
           />
 
           {phase === "capturing" && (

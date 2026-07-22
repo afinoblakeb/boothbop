@@ -368,7 +368,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
 
             if let connection = output.connection(with: .video) {
-                self.configurePortraitMirroring(connection)
+                self.configurePortrait(connection, mirrored: false)
             }
 
             self.pendingCaptureCall = call
@@ -493,10 +493,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         captureSession.addOutput(readinessOutput)
 
         if let connection = readinessOutput.connection(with: .video) {
-            configurePortraitMirroring(connection)
+            configurePortrait(connection, mirrored: true)
         }
         if let connection = stillOutput.connection(with: .video) {
-            configurePortraitMirroring(connection)
+            configurePortrait(connection, mirrored: false)
         }
         return (captureSession, readinessOutput, stillOutput, device)
     }
@@ -538,7 +538,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
-    private func configurePortraitMirroring(_ connection: AVCaptureConnection) {
+    private func configurePortrait(
+        _ connection: AVCaptureConnection,
+        mirrored: Bool
+    ) {
         if #available(iOS 17.0, *) {
             if connection.isVideoRotationAngleSupported(90) {
                 connection.videoRotationAngle = 90
@@ -548,7 +551,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
         if connection.isVideoMirroringSupported {
             connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = true
+            connection.isVideoMirrored = mirrored
         }
     }
 
@@ -700,7 +703,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
 
         if let connection = previewLayer?.connection {
-            configurePortraitMirroring(connection)
+            configurePortrait(connection, mirrored: true)
         }
         applyPreviewFrame(requestedPreviewFrame)
     }

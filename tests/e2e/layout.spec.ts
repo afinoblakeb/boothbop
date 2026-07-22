@@ -74,6 +74,14 @@ test.describe("compact camera", () => {
       page.getByRole("button", { name: "My Photos" }),
     );
     await expectFullyInViewport(page.getByRole("button", { name: "Settings" }));
+    await page.getByRole("button", { name: "My Photos" }).click();
+    await expect(page.getByRole("dialog", { name: "My Photos" })).toBeVisible();
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(page.locator("video")).toBeVisible();
+    await page.getByRole("button", { name: "Settings" }).click();
+    await expect(page.getByRole("dialog", { name: "Settings" })).toBeVisible();
+    await page.getByRole("button", { name: "Close" }).click();
+    await expect(page.locator("video")).toBeVisible();
     await expectNoHorizontalOverflow(page);
   });
 });

@@ -113,7 +113,7 @@ export async function startCamera(): Promise<MediaStream> {
   }
 }
 
-function drawMirroredSquare(
+export function drawMirroredSquare(
   source: CanvasImageSource,
   sourceWidth: number,
   sourceHeight: number,
