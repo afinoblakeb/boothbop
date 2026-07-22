@@ -67,7 +67,7 @@ import { GalleryScreen } from "./screens/GalleryScreen";
 import { SettingsScreen } from "./screens/SettingsScreen";
 import { useAutosave } from "./hooks/useAutosave";
 import { configureHighQualityScaling, type FilterId } from "./lib/filter";
-import { replaceFrame } from "./lib/session";
+import { replaceFrame, SessionPersistenceQueue } from "./lib/session";
 import {
   boomFrameDelay,
   loadBoomSpeed,
@@ -172,6 +172,7 @@ export default function App() {
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const pendingSessionSaveRef = useRef<Promise<Session | null> | null>(null);
+  const sessionPersistenceRef = useRef(new SessionPersistenceQueue());
 
   const [note, setNote] = useState<string | null>(null);
   const [showGallery, setShowGallery] = useState(false);
@@ -971,10 +972,9 @@ export default function App() {
         if (sequenceOwnerRef.current === owner) {
           sequenceOwnerRef.current = null;
         }
-        setPhase("review");
 
         const pendingSave = pendingSessionSaveRef.current;
-        void (async () => {
+        void sessionPersistenceRef.current.enqueue(async () => {
           const pendingSession = await pendingSave;
           const sessionId =
             activeSessionIdRef.current ?? pendingSession?.id ?? null;
@@ -992,7 +992,8 @@ export default function App() {
               setNote("Photo replaced, but My Photos couldn't be updated.");
             }
           }
-        })();
+        });
+        setPhase("review");
       } catch {
         setFreezeFrame(null);
         failCamera("Couldn't retake that photo. Your original is still here.");
@@ -1029,23 +1030,24 @@ export default function App() {
       if (sequenceOwnerRef.current === owner) {
         sequenceOwnerRef.current = null;
       }
-      setPhase("review");
 
-      // Auto-save this session to the private on-device gallery.
-      const pendingSave = (async (): Promise<Session | null> => {
-        try {
-          const photos = await canvasesToBlobs(captured);
-          const cover = await canvasToCoverBlob(captured[0]);
-          return await saveSession(photos, cover);
-        } catch {
-          if (framesAreCurrent(captured)) {
-            setNote(
-              "Photos captured, but My Photos couldn't save this session.",
-            );
+      // Register persistence before Review can launch a Retake One write.
+      const pendingSave = sessionPersistenceRef.current.enqueue(
+        async (): Promise<Session | null> => {
+          try {
+            const photos = await canvasesToBlobs(captured);
+            const cover = await canvasToCoverBlob(captured[0]);
+            return await saveSession(photos, cover);
+          } catch {
+            if (framesAreCurrent(captured)) {
+              setNote(
+                "Photos captured, but My Photos couldn't save this session.",
+              );
+            }
+            return null;
           }
-          return null;
-        }
-      })();
+        },
+      );
       pendingSessionSaveRef.current = pendingSave;
       void pendingSave.then((session) => {
         if (
@@ -1056,6 +1058,7 @@ export default function App() {
           activeSessionIdRef.current = session.id;
         }
       });
+      setPhase("review");
 
       // Auto-save is best-effort and never blocks the review screen.
       void autoSaveToAlbum(captured, autosave, sessionRevision);

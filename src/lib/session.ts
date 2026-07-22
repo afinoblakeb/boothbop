@@ -18,3 +18,17 @@ export function replaceFrame<T>(
     currentIndex === index ? frame : current,
   );
 }
+
+/** Serializes session writes while keeping each operation's own result. */
+export class SessionPersistenceQueue {
+  private tail: Promise<void> = Promise.resolve();
+
+  enqueue<T>(operation: () => Promise<T>): Promise<T> {
+    const result = this.tail.then(operation);
+    this.tail = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    return result;
+  }
+}
