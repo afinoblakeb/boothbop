@@ -558,6 +558,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             try device.lockForConfiguration()
             defer { device.unlockForConfiguration() }
             if device.isFocusModeSupported(.continuousAutoFocus) {
+                if #available(iOS 15.4, *) {
+                    device.automaticallyAdjustsFaceDrivenAutoFocusEnabled = true
+                }
                 device.focusMode = .continuousAutoFocus
             }
             if device.isFocusPointOfInterestSupported {
@@ -567,6 +570,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 device.isSmoothAutoFocusEnabled = true
             }
             if device.isExposureModeSupported(.continuousAutoExposure) {
+                if #available(iOS 15.4, *) {
+                    device.automaticallyAdjustsFaceDrivenAutoExposureEnabled = true
+                }
                 device.exposureMode = .continuousAutoExposure
             }
             if device.isExposurePointOfInterestSupported {
