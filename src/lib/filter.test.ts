@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { FILTERS, applyFilterToRgba } from "./filter";
+import { FILTERS, applyFilterToRgba, coverCrop } from "./filter";
 
 const pixel = (r: number, g: number, b: number, a = 255) =>
   new Uint8ClampedArray([r, g, b, a]);
 
 describe("photo filters", () => {
+  it("center-crops square captures into landscape strip windows", () => {
+    const crop = coverCrop(1000, 1000, 640, 454);
+    expect(crop.sx).toBe(0);
+    expect(crop.sy).toBeCloseTo(145.3, 1);
+    expect(crop.sw).toBe(1000);
+    expect(crop.sh).toBeCloseTo(709.4, 1);
+  });
+
   it("offers five distinct looks plus the untouched original", () => {
     expect(FILTERS.map((filter) => filter.id)).toEqual([
       "original",

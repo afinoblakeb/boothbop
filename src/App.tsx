@@ -434,7 +434,7 @@ export default function App() {
   const retakeIndexRef = useRef<number | null>(null);
   const cameraRequestRef = useRef(0);
   const cameraOpeningRef = useRef(false);
-  const sequenceRunningRef = useRef(false);
+  const sequenceOwnerRef = useRef<symbol | null>(null);
   const galleryOpenRequestRef = useRef(0);
 
   useEffect(() => {
@@ -467,6 +467,7 @@ export default function App() {
       retakeIndexRef.current !== null && framesRef.current.length === SHOTS;
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    sequenceOwnerRef.current = null;
     cameraOpeningRef.current = false;
     setOpeningCamera(false);
     setCountdown(null);
@@ -539,6 +540,7 @@ export default function App() {
     cameraOpeningRef.current = true;
     setOpeningCamera(true);
     const request = ++cameraRequestRef.current;
+    sequenceOwnerRef.current = null;
     setError(null);
     abortRef.current = false;
     setRetakeIndex(index);
@@ -553,7 +555,14 @@ export default function App() {
       // If the camera track ends mid-use (revoked, taken by another app),
       // drop the user back home with the permission message.
       stream.getVideoTracks().forEach((t) => {
-        t.addEventListener("ended", () => failCamera(CAMERA_MSG));
+        t.addEventListener("ended", () => {
+          if (
+            request === cameraRequestRef.current &&
+            streamRef.current === stream
+          ) {
+            failCamera(CAMERA_MSG);
+          }
+        });
       });
       if (index === null) {
         setFrames([]);
@@ -578,6 +587,7 @@ export default function App() {
   function cancelToHome() {
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    sequenceOwnerRef.current = null;
     cameraOpeningRef.current = false;
     setOpeningCamera(false);
     setCountdown(null);
@@ -598,6 +608,7 @@ export default function App() {
     const returnToReview = retakeIndexRef.current !== null;
     abortRef.current = true;
     cameraRequestRef.current += 1;
+    sequenceOwnerRef.current = null;
     setCountdown(null);
     setFlash(false);
     stopCamera(streamRef.current);
@@ -609,23 +620,32 @@ export default function App() {
   }
 
   async function runSequence() {
-    if (sequenceRunningRef.current) return;
-    sequenceRunningRef.current = true;
+    if (sequenceOwnerRef.current) return;
+    const stream = streamRef.current;
+    if (!stream) return;
+    abortRef.current = false;
+    const owner = Symbol("capture-sequence");
+    const cameraRequest = cameraRequestRef.current;
+    sequenceOwnerRef.current = owner;
     try {
-      await executeSequence();
+      await executeSequence(cameraRequest, owner);
     } finally {
-      sequenceRunningRef.current = false;
+      if (sequenceOwnerRef.current === owner) {
+        sequenceOwnerRef.current = null;
+      }
     }
   }
 
-  async function executeSequence() {
+  async function executeSequence(cameraRequest: number, owner: symbol) {
+    const sequenceCancelled = () =>
+      abortRef.current || cameraRequest !== cameraRequestRef.current;
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
     if (!video || !(await videoReady(video))) {
       failCamera("The camera isn't ready. Check camera access and try again.");
       return;
     }
-    if (abortRef.current) return;
+    if (sequenceCancelled()) return;
 
     setPhase("capturing");
     clearResults();
@@ -635,11 +655,11 @@ export default function App() {
     if (replacing !== null) {
       await wait(400);
       for (let n = delay; n >= 1; n--) {
-        if (abortRef.current) return;
+        if (sequenceCancelled()) return;
         setCountdown(n);
         await wait(1000);
       }
-      if (abortRef.current) return;
+      if (sequenceCancelled()) return;
       setCountdown(null);
 
       try {
@@ -657,7 +677,9 @@ export default function App() {
         setRetakeIndex(null);
         retakeIndexRef.current = null;
         setFormat("strip");
-        sequenceRunningRef.current = false;
+        if (sequenceOwnerRef.current === owner) {
+          sequenceOwnerRef.current = null;
+        }
         setPhase("review");
 
         const pendingSave = pendingSessionSaveRef.current;
@@ -693,11 +715,11 @@ export default function App() {
 
     for (let shot = 0; shot < SHOTS; shot++) {
       for (let n = delay; n >= 1; n--) {
-        if (abortRef.current) return;
+        if (sequenceCancelled()) return;
         setCountdown(n);
         await wait(1000);
       }
-      if (abortRef.current) return;
+      if (sequenceCancelled()) return;
       setCountdown(null);
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
@@ -714,7 +736,9 @@ export default function App() {
     streamRef.current = null;
     framesRef.current = captured;
     setFormat("strip");
-    sequenceRunningRef.current = false;
+    if (sequenceOwnerRef.current === owner) {
+      sequenceOwnerRef.current = null;
+    }
     setPhase("review");
 
     // Auto-save this session to the private on-device gallery.

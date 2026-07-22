@@ -168,9 +168,20 @@ test("captures four camera frames and reaches Share Photo", async ({
       ),
     )
     .toBe(1);
+  const sharedStrip = await page.evaluate(async () => {
+    const file = (window as typeof window & { __sharedFiles?: File[] })
+      .__sharedFiles?.[0];
+    if (!file) return null;
+    const bitmap = await createImageBitmap(file);
+    const dimensions = { width: bitmap.width, height: bitmap.height };
+    bitmap.close();
+    return dimensions;
+  });
+  expect(sharedStrip).not.toBeNull();
+  expect(sharedStrip!.height).toBe(sharedStrip!.width * 3);
 
   await page.getByRole("button", { name: "Retake One" }).click();
-  await page.getByRole("button", { name: "Retake photo 2" }).click();
+  await page.getByRole("button", { name: "Choose photo 2 to retake" }).click();
   await page
     .getByRole("button", { name: "Retake Photo 2" })
     .evaluate((button) => {

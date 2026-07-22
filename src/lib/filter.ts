@@ -27,6 +27,30 @@ export function configureHighQualityScaling(
   ctx.imageSmoothingQuality = "high";
 }
 
+export interface CropRect {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+}
+
+/** Center-crop a source rectangle to fill a target without stretching it. */
+export function coverCrop(
+  sourceWidth: number,
+  sourceHeight: number,
+  targetWidth: number,
+  targetHeight: number,
+): CropRect {
+  const sourceRatio = sourceWidth / sourceHeight;
+  const targetRatio = targetWidth / targetHeight;
+  if (sourceRatio > targetRatio) {
+    const sw = sourceHeight * targetRatio;
+    return { sx: (sourceWidth - sw) / 2, sy: 0, sw, sh: sourceHeight };
+  }
+  const sh = sourceWidth / targetRatio;
+  return { sx: 0, sy: (sourceHeight - sh) / 2, sw: sourceWidth, sh };
+}
+
 /** Apply one deterministic color recipe while preserving every alpha byte. */
 export function applyFilterToRgba(
   input: Uint8ClampedArray,
@@ -93,6 +117,22 @@ export function drawFilteredFrame(
 ): void {
   configureHighQualityScaling(ctx);
   ctx.drawImage(frame, 0, 0, frame.width, frame.height, x, y, width, height);
+  filterCanvasRegion(ctx, x, y, width, height, filter);
+}
+
+/** Aspect-fill a photo window, then apply the selected look. */
+export function drawFilteredFrameCover(
+  ctx: CanvasRenderingContext2D,
+  frame: HTMLCanvasElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  filter: FilterId,
+): void {
+  configureHighQualityScaling(ctx);
+  const crop = coverCrop(frame.width, frame.height, width, height);
+  ctx.drawImage(frame, crop.sx, crop.sy, crop.sw, crop.sh, x, y, width, height);
   filterCanvasRegion(ctx, x, y, width, height, filter);
 }
 

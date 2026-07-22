@@ -458,9 +458,9 @@ test("Retake One picker can enter and cancel a retake without losing review", as
   const picker = page.getByLabel("Choose a photo to retake");
   await expect(picker).toBeVisible();
   await expect(
-    picker.getByRole("button", { name: /Retake photo/ }),
+    picker.getByRole("button", { name: /Choose photo .* to retake/ }),
   ).toHaveCount(4);
-  await page.getByRole("button", { name: "Retake photo 2" }).click();
+  await page.getByRole("button", { name: "Choose photo 2 to retake" }).click();
   await expect(
     page.getByRole("button", { name: "Retake Photo 2" }),
   ).toBeVisible();

@@ -400,7 +400,7 @@ function RetakePicker({
             <button
               key={index}
               onClick={() => onSelect(index)}
-              aria-label={`Retake photo ${index + 1}`}
+              aria-label={`Choose photo ${index + 1} to retake`}
               className="relative aspect-square min-h-11 overflow-hidden border-2 border-ink bg-paper"
             >
               <img src={thumb} alt="" className="h-full w-full object-cover" />

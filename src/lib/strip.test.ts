@@ -27,10 +27,16 @@ describe("stripGeometry", () => {
     expect(g.rows).toBe(4);
     // gap + 1*(cell+gap)
     expect(g.width).toBe(STRIP.gap + STRIP.cell + STRIP.gap);
-    // gap + 4*(cell+gap) + footer
-    expect(g.height).toBe(
-      STRIP.gap + 4 * (STRIP.cell + STRIP.gap) + STRIP.footer,
-    );
+    expect(g.height).toBe(g.width * 3);
+    expect(g.photoWidth).toBe(STRIP.cell);
+    expect(g.photoHeight).toBeLessThan(g.photoWidth);
+  });
+
+  it("makes the complete classic strip exactly 2 by 6 at every quality", () => {
+    for (const cell of [PREVIEW_CELL, STRIP.cell, 900, 1440]) {
+      const geometry = stripGeometry("4x1", cell);
+      expect(geometry.height).toBe(geometry.width * 3);
+    }
   });
 
   it("lays a 2x2 grid out as two columns and two rows", () => {
@@ -56,8 +62,8 @@ describe("stripGeometry", () => {
     for (const layout of ["4x1", "2x2"] as Layout[]) {
       const g = stripGeometry(layout);
       for (const { x, y } of g.cells) {
-        expect(x + STRIP.cell).toBeLessThanOrEqual(g.width);
-        expect(y + STRIP.cell).toBeLessThanOrEqual(g.height - STRIP.footer);
+        expect(x + g.photoWidth).toBeLessThanOrEqual(g.width);
+        expect(y + g.photoHeight).toBeLessThanOrEqual(g.height - g.footer);
       }
     }
   });

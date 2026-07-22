@@ -1,6 +1,6 @@
 // Compose the 4 captured frames into a downloadable photo strip.
 import { loadWatermark } from "./watermark";
-import { drawFilteredFrame, type FilterId } from "./filter";
+import { drawFilteredFrameCover, type FilterId } from "./filter";
 
 export type Layout = "4x1" | "2x2";
 
@@ -52,6 +52,9 @@ export interface StripGeometry {
   height: number;
   cols: number;
   rows: number;
+  photoWidth: number;
+  photoHeight: number;
+  footer: number;
   /** Top-left pixel position of each of the 4 photo cells, in order. */
   cells: { x: number; y: number }[];
 }
@@ -80,15 +83,33 @@ export function stripGeometry(
   const rows = layout === "2x2" ? 2 : 4;
 
   const width = gap + cols * (cell + gap);
-  const height = gap + rows * (cell + gap) + footer;
+  const height =
+    layout === "4x1" ? width * 3 : gap + rows * (cell + gap) + footer;
+  const photoWidth = cell;
+  const photoHeight =
+    layout === "4x1"
+      ? Math.floor((height - footer - gap * (rows + 1)) / rows)
+      : cell;
 
   const cells = Array.from({ length: 4 }, (_, i) => {
     const col = layout === "2x2" ? i % 2 : 0;
     const row = layout === "2x2" ? Math.floor(i / 2) : i;
-    return { x: gap + col * (cell + gap), y: gap + row * (cell + gap) };
+    return {
+      x: gap + col * (photoWidth + gap),
+      y: gap + row * (photoHeight + gap),
+    };
   });
 
-  return { width, height, cols, rows, cells };
+  return {
+    width,
+    height,
+    cols,
+    rows,
+    photoWidth,
+    photoHeight,
+    footer,
+    cells,
+  };
 }
 
 /**
@@ -111,8 +132,8 @@ export function composeStrip(
   }: StripOptions = {},
 ): HTMLCanvasElement {
   const scale = cell / STRIP.cell;
-  const footer = Math.round(STRIP.footer * scale);
-  const { width, height, cells } = stripGeometry(layout, cell);
+  const { width, height, photoWidth, photoHeight, footer, cells } =
+    stripGeometry(layout, cell);
 
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -124,7 +145,7 @@ export function composeStrip(
 
   frames.slice(0, 4).forEach((frame, i) => {
     const { x, y } = cells[i];
-    drawFilteredFrame(ctx, frame, x, y, cell, cell, filter);
+    drawFilteredFrameCover(ctx, frame, x, y, photoWidth, photoHeight, filter);
   });
 
   const footerY = height - footer;
