@@ -296,6 +296,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var pendingCaptureID: Int64?
     private var pendingPhoto: CapturedPhoto?
     private var latestFrameSize: (width: Int, height: Int)?
+    private var photoPreparationComplete = false
 
     // These properties are owned by sampleQueue. Retaining one pixel buffer is
     // enough to freeze the exact visible moment without continuously encoding
@@ -312,6 +313,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var requestedPreviewCornerRadius: CGFloat = 0
     private var faceOverlayLayers: [Int: CAShapeLayer] = [:]
     private var faceLastSeen: [Int: CFTimeInterval] = [:]
+    private var faceCueStartedAt: [Int: CFTimeInterval] = [:]
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         sessionQueue.async {
@@ -323,6 +325,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         sessionQueue.async {
             if let size = self.latestFrameSize,
                self.session?.isRunning == true,
+               self.photoPreparationComplete,
                self.pendingStartCall == nil {
                 return call.resolve(["width": size.width, "height": size.height])
             }
@@ -376,24 +379,12 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
             guard let session = self.session, session.isRunning,
                   self.latestFrameSize != nil,
+                  self.photoPreparationComplete,
                   let output = self.photoOutput else {
                 return call.reject("Camera is not ready", "notStarted")
             }
-            guard output.availablePhotoCodecTypes.contains(.jpeg) else {
+            guard let settings = self.makePhotoSettings(for: output) else {
                 return call.reject("JPEG capture is unavailable", "unavailable")
-            }
-
-            let settings = AVCapturePhotoSettings(
-                format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
-            settings.photoQualityPrioritization = .quality
-            settings.flashMode = .off
-            if #available(iOS 16.0, *) {
-                let dimensions = output.maxPhotoDimensions
-                if dimensions.width > 0, dimensions.height > 0 {
-                    settings.maxPhotoDimensions = dimensions
-                }
-            } else {
-                settings.isHighResolutionPhotoEnabled = true
             }
 
             if let connection = output.connection(with: .video) {
@@ -460,6 +451,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             metadataOutput = configured.metadataOutput
             activeDevice = configured.device
             latestFrameSize = nil
+            photoPreparationComplete = false
             sampleQueue.sync {
                 latestPreviewPixelBuffer = nil
                 reportedFirstFrame = false
@@ -467,6 +459,19 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
             DispatchQueue.main.async {
                 self.installPreviewIfNeeded(session: configured.session)
+            }
+
+            guard let preparationSettings = makePhotoSettings(
+                for: configured.photoOutput) else {
+                throw CameraError.configuration("JPEG capture is unavailable")
+            }
+            configured.photoOutput.setPreparedPhotoSettingsArray(
+                [preparationSettings]) { [weak self] _, _ in
+                self?.sessionQueue.async {
+                    guard let self = self, self.pendingStartID == id else { return }
+                    self.photoPreparationComplete = true
+                    self.finishStartIfReady()
+                }
             }
 
             configured.session.startRunning()
@@ -481,6 +486,34 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         } catch {
             failStart(error, code: "configurationError", id: id)
         }
+    }
+
+    private func makePhotoSettings(
+        for output: AVCapturePhotoOutput
+    ) -> AVCapturePhotoSettings? {
+        guard output.availablePhotoCodecTypes.contains(.jpeg) else { return nil }
+        let settings = AVCapturePhotoSettings(
+            format: [AVVideoCodecKey: AVVideoCodecType.jpeg])
+        settings.photoQualityPrioritization = .quality
+        settings.flashMode = .off
+        if #available(iOS 16.0, *) {
+            let dimensions = output.maxPhotoDimensions
+            if dimensions.width > 0, dimensions.height > 0 {
+                settings.maxPhotoDimensions = dimensions
+            }
+        } else {
+            settings.isHighResolutionPhotoEnabled = true
+        }
+        return settings
+    }
+
+    private func finishStartIfReady() {
+        guard photoPreparationComplete,
+              let size = latestFrameSize,
+              let call = pendingStartCall else { return }
+        pendingStartCall = nil
+        pendingStartID = nil
+        call.resolve(["width": size.width, "height": size.height])
     }
 
     private func makeSession() throws -> (
@@ -526,6 +559,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
         } else {
             stillOutput.isHighResolutionCaptureEnabled = true
+        }
+        if #available(iOS 17.0, *) {
+            if stillOutput.isZeroShutterLagSupported {
+                stillOutput.isZeroShutterLagEnabled = true
+            }
+            if stillOutput.isResponsiveCaptureSupported {
+                stillOutput.isResponsiveCaptureEnabled = true
+            }
         }
 
         let readinessOutput = AVCaptureVideoDataOutput()
@@ -658,15 +699,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         latestPreviewPixelBuffer = pixelBuffer
         guard !reportedFirstFrame else { return }
+        // Prime Core Image before the shutter is enabled. Otherwise the first
+        // sequence pays this conversion cost while trying to freeze shot one.
+        _ = makeLatestPreviewImage()
         reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         sessionQueue.async {
-            guard let call = self.pendingStartCall else { return }
             self.latestFrameSize = (width, height)
-            self.pendingStartCall = nil
-            self.pendingStartID = nil
-            call.resolve(["width": width, "height": height])
+            self.finishStartIfReady()
         }
     }
 
@@ -690,16 +731,36 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
 
         let now = CACurrentMediaTime()
-        var visibleFaceIDs = Set<Int>()
+        let cueDuration: CFTimeInterval = 1.2
+        let redetectionDelay: CFTimeInterval = 0.45
+        var detectedFaceIDs = Set<Int>()
         let clippingBounds = previewView.bounds.insetBy(dx: 4, dy: 4)
 
         for face in faces {
             guard let transformed = previewLayer.transformedMetadataObject(
                 for: face) as? AVMetadataFaceObject else { continue }
             let bounds = transformed.bounds
-                .insetBy(dx: -6, dy: -6)
+                .insetBy(dx: 8, dy: 8)
                 .intersection(clippingBounds)
             guard bounds.width >= 24, bounds.height >= 24 else { continue }
+
+            detectedFaceIDs.insert(face.faceID)
+            faceLastSeen[face.faceID] = now
+            let cueStartedAt = faceCueStartedAt[face.faceID] ?? now
+            faceCueStartedAt[face.faceID] = cueStartedAt
+
+            if now - cueStartedAt >= cueDuration {
+                if let overlay = faceOverlayLayers[face.faceID],
+                   overlay.opacity > 0 {
+                    let fade = CABasicAnimation(keyPath: "opacity")
+                    fade.fromValue = overlay.presentation()?.opacity ?? 1
+                    fade.toValue = 0
+                    fade.duration = 0.18
+                    overlay.opacity = 0
+                    overlay.add(fade, forKey: "faceFadeOut")
+                }
+                continue
+            }
 
             let overlay: CAShapeLayer
             if let existing = faceOverlayLayers[face.faceID] {
@@ -707,12 +768,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             } else {
                 let created = CAShapeLayer()
                 created.fillColor = UIColor.clear.cgColor
-                created.strokeColor = UIColor.boothBopAccent.cgColor
-                created.lineWidth = 2.5
+                created.strokeColor = UIColor.boothBopAccent
+                    .withAlphaComponent(0.5).cgColor
+                created.lineWidth = 2
                 created.lineJoin = .round
                 created.shadowColor = UIColor.black.cgColor
-                created.shadowOpacity = 0.45
-                created.shadowRadius = 2
+                created.shadowOpacity = 0.15
+                created.shadowRadius = 1.5
                 created.shadowOffset = .zero
                 previewView.layer.addSublayer(created)
                 faceOverlayLayers[face.faceID] = created
@@ -739,18 +801,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
             overlay.path = nextPath
             overlay.opacity = 1
-            visibleFaceIDs.insert(face.faceID)
-            faceLastSeen[face.faceID] = now
         }
 
         let staleFaceIDs = faceOverlayLayers.keys.filter { faceID in
-            !visibleFaceIDs.contains(faceID) &&
-                now - (faceLastSeen[faceID] ?? 0) > 0.25
+            !detectedFaceIDs.contains(faceID) &&
+                now - (faceLastSeen[faceID] ?? 0) > redetectionDelay
         }
         for faceID in staleFaceIDs {
             faceOverlayLayers[faceID]?.removeFromSuperlayer()
             faceOverlayLayers.removeValue(forKey: faceID)
             faceLastSeen.removeValue(forKey: faceID)
+            faceCueStartedAt.removeValue(forKey: faceID)
         }
     }
 
@@ -759,6 +820,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         faceOverlayLayers.values.forEach { $0.removeFromSuperlayer() }
         faceOverlayLayers.removeAll()
         faceLastSeen.removeAll()
+        faceCueStartedAt.removeAll()
     }
 
     private func makeLatestPreviewImage() -> UIImage? {
@@ -857,6 +919,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureID = nil
         pendingPhoto = nil
         latestFrameSize = nil
+        photoPreparationComplete = false
 
         videoOutput?.setSampleBufferDelegate(nil, queue: nil)
         metadataOutput?.setMetadataObjectsDelegate(nil, queue: nil)

@@ -4,6 +4,8 @@ import { isNativeShell } from "./platform";
 
 const START_TIMEOUT_MS = 12_000;
 const CAPTURE_TIMEOUT_MS = 15_000;
+const WARMUP_JPEG =
+  "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q==";
 let pendingStop: Promise<void> = Promise.resolve();
 
 function withTimeout<T>(
@@ -40,7 +42,10 @@ export async function canUseNativeCamera(): Promise<boolean> {
 
 export async function startNativeCamera(): Promise<void> {
   await pendingStop;
-  await withTimeout(BoothBopCamera.start(), START_TIMEOUT_MS, "native camera");
+  await Promise.all([
+    withTimeout(BoothBopCamera.start(), START_TIMEOUT_MS, "native camera"),
+    warmWebImagePipeline(),
+  ]);
 }
 
 export async function setNativePreviewFrame(
@@ -74,6 +79,23 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
     bytes[index] = binary.charCodeAt(index);
   }
   return new Blob([bytes], { type: mimeType });
+}
+
+async function warmWebImagePipeline(): Promise<void> {
+  if (typeof createImageBitmap !== "function") return;
+  let bitmap: ImageBitmap | undefined;
+  try {
+    bitmap = await createImageBitmap(base64ToBlob(WARMUP_JPEG, "image/jpeg"));
+    const canvas = document.createElement("canvas");
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0);
+  } catch {
+    // This is a startup optimization. Native capture remains available if an
+    // older WebKit build cannot pre-decode the tiny local JPEG.
+  } finally {
+    bitmap?.close();
+  }
 }
 
 export async function captureNativeSquareFrame(

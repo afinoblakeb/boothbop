@@ -72,6 +72,41 @@ describe("native camera bridge", () => {
     });
   });
 
+  it("warms the JPEG decode path before reporting the native camera ready", async () => {
+    cameraPlugin.start.mockResolvedValue({ width: 3024, height: 4032 });
+    let finishDecode: ((bitmap: ImageBitmap) => void) | undefined;
+    const close = vi.fn();
+    const createImageBitmap = vi.fn().mockReturnValue(
+      new Promise<ImageBitmap>((resolve) => {
+        finishDecode = resolve;
+      }),
+    );
+    vi.stubGlobal("createImageBitmap", createImageBitmap);
+    const drawImage = vi.fn();
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      drawImage,
+    } as unknown as CanvasRenderingContext2D);
+
+    let ready = false;
+    const starting = startNativeCamera().then(() => {
+      ready = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(cameraPlugin.start).toHaveBeenCalledOnce();
+    expect(createImageBitmap).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "image/jpeg" }),
+    );
+    expect(ready).toBe(false);
+
+    finishDecode?.({ width: 2, height: 2, close } as unknown as ImageBitmap);
+    await starting;
+
+    expect(drawImage).toHaveBeenCalledOnce();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("waits for a previous native session to stop before starting again", async () => {
     let finishStop: (() => void) | undefined;
     cameraPlugin.stop.mockReturnValue(
