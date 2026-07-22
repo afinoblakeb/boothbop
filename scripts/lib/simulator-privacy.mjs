@@ -3,5 +3,6 @@ export function simulatorCameraPrivacyArgs(udid, bundleId, decision) {
     throw new Error("Camera privacy decision must be grant or deny.");
   }
 
-  return ["simctl", "privacy", udid, decision, "camera", bundleId];
+  const action = decision === "deny" ? "revoke" : "grant";
+  return ["simctl", "privacy", udid, action, "camera", bundleId];
 }

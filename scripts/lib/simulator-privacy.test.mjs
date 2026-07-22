@@ -15,14 +15,14 @@ describe("simulator camera privacy", () => {
     ]);
   });
 
-  it("builds an explicit denial for the recoverable error journey", () => {
+  it("maps denial to simctl's revoke action for the recoverable error journey", () => {
     expect(
       simulatorCameraPrivacyArgs("DEVICE-2", "com.boothbop.app", "deny"),
     ).toEqual([
       "simctl",
       "privacy",
       "DEVICE-2",
-      "deny",
+      "revoke",
       "camera",
       "com.boothbop.app",
     ]);
