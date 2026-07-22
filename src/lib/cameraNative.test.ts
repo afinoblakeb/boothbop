@@ -60,7 +60,7 @@ describe("native camera bridge", () => {
     cameraPlugin.stop.mockResolvedValue({ stopped: true });
 
     await startNativeCamera();
-    await setNativePreviewFrame(new DOMRect(12, 84, 366, 366));
+    await setNativePreviewFrame(new DOMRect(12, 84, 366, 366), 8);
     await stopNativeCamera();
 
     expect(cameraPlugin.setPreviewFrame).toHaveBeenCalledWith({
@@ -68,6 +68,7 @@ describe("native camera bridge", () => {
       y: 84,
       width: 366,
       height: 366,
+      cornerRadius: 8,
     });
   });
 

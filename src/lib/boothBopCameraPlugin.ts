@@ -5,6 +5,7 @@ export interface NativeCameraFrame {
   y: number;
   width: number;
   height: number;
+  cornerRadius: number;
 }
 
 export interface NativePhoto {

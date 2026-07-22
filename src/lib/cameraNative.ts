@@ -43,12 +43,16 @@ export async function startNativeCamera(): Promise<void> {
   await withTimeout(BoothBopCamera.start(), START_TIMEOUT_MS, "native camera");
 }
 
-export async function setNativePreviewFrame(rect: DOMRect): Promise<void> {
+export async function setNativePreviewFrame(
+  rect: DOMRect,
+  cornerRadius: number,
+): Promise<void> {
   await BoothBopCamera.setPreviewFrame({
     x: rect.x,
     y: rect.y,
     width: rect.width,
     height: rect.height,
+    cornerRadius,
   });
 }
 

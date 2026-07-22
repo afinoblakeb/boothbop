@@ -300,6 +300,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
     private var requestedPreviewFrame: CGRect = .zero
+    private var requestedPreviewCornerRadius: CGFloat = 0
 
     @objc func isAvailable(_ call: CAPPluginCall) {
         sessionQueue.async {
@@ -337,6 +338,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
               width > 0, height > 0 else {
             return call.reject("A finite, positive preview frame is required", "argumentError")
         }
+        let cornerRadius = call.getDouble("cornerRadius") ?? 0
+        guard cornerRadius.isFinite, cornerRadius >= 0 else {
+            return call.reject("A finite, nonnegative corner radius is required", "argumentError")
+        }
         let cssFrame = CGRect(x: x, y: y, width: width, height: height)
 
         sessionQueue.async {
@@ -346,7 +351,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             DispatchQueue.main.async {
                 self.installPreviewIfNeeded(session: session)
                 self.requestedPreviewFrame = cssFrame
-                self.applyPreviewFrame(cssFrame)
+                self.requestedPreviewCornerRadius = CGFloat(cornerRadius)
+                self.applyPreviewFrame(cssFrame, cornerRadius: CGFloat(cornerRadius))
                 call.resolve()
             }
         }
@@ -769,7 +775,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 previewLayer: previewLayer,
                 mirrored: true)
         }
-        applyPreviewFrame(requestedPreviewFrame)
+        applyPreviewFrame(
+            requestedPreviewFrame,
+            cornerRadius: requestedPreviewCornerRadius)
     }
 
     private func showShutterFreeze(_ image: UIImage) {
@@ -807,12 +815,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         shutterFreezeView?.image = nil
     }
 
-    private func applyPreviewFrame(_ cssFrame: CGRect) {
+    private func applyPreviewFrame(_ cssFrame: CGRect, cornerRadius: CGFloat) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let webView = bridge?.webView,
               let previewView = previewView,
               let previewHost = previewView.superview else { return }
         previewView.frame = webView.convert(cssFrame, to: previewHost)
+        previewView.layer.cornerRadius = cornerRadius
+        previewView.layer.cornerCurve = .continuous
         previewLayer?.frame = previewView.bounds
         shutterFreezeView?.frame = previewView.bounds
     }
@@ -828,6 +838,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewLayer = nil
         previewView = nil
         requestedPreviewFrame = .zero
+        requestedPreviewCornerRadius = 0
 
         bridge?.viewController?.view.backgroundColor = .boothBopCanvas
         bridge?.webView?.isOpaque = false

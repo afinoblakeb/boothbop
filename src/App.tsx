@@ -558,8 +558,14 @@ export default function App() {
       document.documentElement.classList.add("native-camera-active");
       const preview = document.querySelector<HTMLElement>(".camera-preview");
       if (!preview) return;
-      const positionPreview = () =>
-        setNativePreviewFrame(preview.getBoundingClientRect());
+      const positionPreview = () => {
+        const cornerRadius =
+          Number.parseFloat(getComputedStyle(preview).borderTopLeftRadius) || 0;
+        return setNativePreviewFrame(
+          preview.getBoundingClientRect(),
+          cornerRadius,
+        );
+      };
       void positionPreview()
         .then(() => hideNativeSplash())
         .catch(() => failCamera("Couldn't start the iPhone camera."));
