@@ -1,6 +1,6 @@
 # BoothBop 0.0.5 iPhone Review
 
-Candidate: App Store version `0.0.4`, build `0.0.5`, commit `7228bb9`.
+Candidate: App Store version `0.0.4`, build `0.0.5`, commit `1b64582`.
 
 This is the short physical-device gate. Simulator, browser, unit, layout, and
 fresh/update launch checks already pass. Do not upload to Apple until every
@@ -19,15 +19,19 @@ blocker below passes on the owner's iPhone.
    logo. The wordmark has no visible rectangular background.
 2. **Camera quality:** In ordinary indoor light, confirm the preview is sharp,
    correctly oriented, naturally colored, and adjusts focus/exposure when the
-   subject distance and lighting change. A stable orange frame should follow a
-   detected face, disappear shortly after the face leaves, remain clipped to
-   the preview, and stay hidden behind the shutter freeze. Its rounded corners
-   match the four photo slots during live preview and the shutter freeze.
+   subject distance and lighting change. A small translucent orange frame
+   should follow a newly detected face, fade after about 1.2 seconds, remain
+   hidden while that face stays continuously present, and return after the face
+   leaves and is re-detected. It remains clipped to the preview and hidden
+   behind the shutter freeze. Its rounded corners match the four photo slots
+   during live preview and the shutter freeze.
 3. **Shutter:** Select the 1-second delay and take four photos. The first photo
    always receives a complete 3-2-1. The camera freezes at the exact shutter
    moment for about 400ms with no backward/forward jump or white screen, returns
    live for about 50ms, then gives the complete selected 1-second countdown
    before the next shot.
+   Force-quit, cold-launch, and repeat once: the first sequence should be as
+   smooth as the second, with no delayed first freeze or live-preview jump.
 4. **Retake One:** Replace one photo. The other three remain unchanged and the
    replacement is sharp and correctly oriented.
 5. **Edit:** Apply Warm, Cool, B&W, Sepia, and Inverse. Each is visibly distinct,
