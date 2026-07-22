@@ -49,6 +49,25 @@ describe("native camera source contract", () => {
     expect(firstFrameDelegate).toContain("photoProcessingQueue.async");
   });
 
+  it("commits camera topology and starts running before asynchronous prewarming", () => {
+    const makeSession = cameraSource
+      .split("private func makeSession() throws")[1]
+      .split("private func frontCamera()")[0];
+    expect(makeSession.indexOf("commitConfiguration()")).toBeGreaterThan(
+      makeSession.indexOf("beginConfiguration()"),
+    );
+    expect(makeSession.indexOf("commitConfiguration()")).toBeLessThan(
+      makeSession.indexOf("return ("),
+    );
+
+    const startFlow = cameraSource
+      .split("private func configureAndStart(id: UUID)")[1]
+      .split("private func makePhotoSettings(")[0];
+    expect(startFlow.indexOf("startRunning()")).toBeLessThan(
+      startFlow.indexOf("setPreparedPhotoSettingsArray"),
+    );
+  });
+
   it("rejects false preview readiness and watches for lost native captures", () => {
     expect(cameraSource).toContain(
       "The native camera preview could not be installed",

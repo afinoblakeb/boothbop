@@ -501,6 +501,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
             observeSession(configured.session)
 
+            configured.session.startRunning()
+            guard configured.session.isRunning else {
+                throw CameraError.configuration("The camera session could not start")
+            }
+
             DispatchQueue.main.async {
                 _ = self.installPreviewIfNeeded(session: configured.session)
             }
@@ -524,11 +529,6 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                     self.photoPreparationComplete = true
                     self.finishStartIfReady()
                 }
-            }
-
-            configured.session.startRunning()
-            guard configured.session.isRunning else {
-                throw CameraError.configuration("The camera session could not start")
             }
 
             sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
@@ -646,8 +646,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         configure(device: device)
 
         let captureSession = AVCaptureSession()
+        var configurationCommitted = false
         captureSession.beginConfiguration()
-        defer { captureSession.commitConfiguration() }
+        defer {
+            if !configurationCommitted {
+                captureSession.commitConfiguration()
+            }
+        }
         guard captureSession.canSetSessionPreset(.photo) else {
             throw CameraError.configuration("Full-resolution photo capture is unavailable")
         }
@@ -727,6 +732,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 previewLayer: nil,
                 mirrored: false)
         }
+        captureSession.commitConfiguration()
+        configurationCommitted = true
         return (
             captureSession,
             readinessOutput,
