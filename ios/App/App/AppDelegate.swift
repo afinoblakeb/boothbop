@@ -304,6 +304,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var captureCompletionReceived = false
     private var latestFrameSize: (width: Int, height: Int)?
     private var photoPreparationComplete = false
+    private var previewInstalled = false
     private var startupWarmupFileURL: URL?
     private var temporaryPhotoURLs = Set<URL>()
     private var sessionObservers: [NSObjectProtocol] = []
@@ -370,14 +371,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let cssFrame = CGRect(x: x, y: y, width: width, height: height)
 
         sessionQueue.async {
-            guard let session = self.session else {
+            guard self.session != nil, self.previewInstalled else {
                 return call.reject("Camera is not started", "notStarted")
             }
             DispatchQueue.main.async {
                 self.requestedPreviewFrame = cssFrame
                 self.requestedPreviewCornerRadius = CGFloat(cornerRadius)
-                guard self.installPreviewIfNeeded(session: session),
-                      self.applyPreviewFrame(
+                guard self.applyPreviewFrame(
                           cssFrame, cornerRadius: CGFloat(cornerRadius)) else {
                     return call.reject(
                         "The native camera preview could not be installed",
@@ -492,6 +492,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             activeDevice = configured.device
             latestFrameSize = nil
             photoPreparationComplete = false
+            previewInstalled = false
             startupWarmupFileURL = nil
             sampleQueue.sync {
                 latestPreviewPixelBuffer = nil
@@ -506,8 +507,24 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 throw CameraError.configuration("The camera session could not start")
             }
 
-            DispatchQueue.main.async {
-                _ = self.installPreviewIfNeeded(session: configured.session)
+            DispatchQueue.main.async { [weak self] in
+                guard let self = self else { return }
+                let installed = self.installPreviewIfNeeded(
+                    session: configured.session,
+                    device: configured.device)
+                self.sessionQueue.async {
+                    guard self.pendingStartID == id,
+                          self.session === configured.session else { return }
+                    guard installed else {
+                        return self.failStart(
+                            CameraError.configuration(
+                                "The native camera preview could not be installed"),
+                            code: "previewUnavailable",
+                            id: id)
+                    }
+                    self.previewInstalled = true
+                    self.finishStartIfReady()
+                }
             }
 
             guard let preparationSettings = makePhotoSettings(
@@ -561,6 +578,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func finishStartIfReady() {
         guard photoPreparationComplete,
+              previewInstalled,
               let size = latestFrameSize,
               let call = pendingStartCall else { return }
         var result: [String: Any] = ["width": size.width, "height": size.height]
@@ -1146,6 +1164,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         captureCompletionReceived = false
         latestFrameSize = nil
         photoPreparationComplete = false
+        previewInstalled = false
         startupWarmupFileURL = nil
 
         removeTemporaryPhotos(Array(temporaryPhotoURLs))
@@ -1175,7 +1194,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     }
 
     @discardableResult
-    private func installPreviewIfNeeded(session: AVCaptureSession) -> Bool {
+    private func installPreviewIfNeeded(
+        session: AVCaptureSession,
+        device: AVCaptureDevice
+    ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
               let webView = bridge?.webView,
@@ -1197,14 +1219,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             nativePreview.layer.addSublayer(layer)
             previewView = nativePreview
             previewLayer = layer
-        } else {
-            previewLayer?.session = session
+        } else if previewLayer?.session !== session {
+            return false
         }
 
         if let connection = previewLayer?.connection {
             configurePortrait(
                 connection,
-                device: activeDevice,
+                device: device,
                 previewLayer: previewLayer,
                 mirrored: true)
         }
@@ -1237,7 +1259,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         freezeView.image = image
         freezeView.isHidden = false
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(400)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(600)) {
             guard self.shutterFreezeGeneration == generation else { return }
             self.hideShutterFreeze()
         }
@@ -1300,15 +1322,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             if activeSession?.isRunning == true {
                 activeSession?.stopRunning()
             }
-        }
-        DispatchQueue.main.async {
-            nativePreviewLayer?.session = nil
-            nativePreviewLayer?.removeFromSuperlayer()
-            nativePreview?.removeFromSuperview()
-            rootView?.backgroundColor = .boothBopCanvas
-            webView?.isOpaque = false
-            webView?.backgroundColor = .boothBopCanvas
-            webView?.scrollView.backgroundColor = .boothBopCanvas
+            DispatchQueue.main.async {
+                nativePreviewLayer?.session = nil
+                nativePreviewLayer?.removeFromSuperlayer()
+                nativePreview?.removeFromSuperview()
+                rootView?.backgroundColor = .boothBopCanvas
+                webView?.isOpaque = false
+                webView?.backgroundColor = .boothBopCanvas
+                webView?.scrollView.backgroundColor = .boothBopCanvas
+            }
         }
     }
 }

@@ -53,19 +53,40 @@ describe("native camera source contract", () => {
     const makeSession = cameraSource
       .split("private func makeSession() throws")[1]
       .split("private func frontCamera()")[0];
-    expect(makeSession.indexOf("commitConfiguration()")).toBeGreaterThan(
-      makeSession.indexOf("beginConfiguration()"),
-    );
-    expect(makeSession.indexOf("commitConfiguration()")).toBeLessThan(
-      makeSession.indexOf("return ("),
-    );
+    const beginIndex = makeSession.indexOf("beginConfiguration()");
+    const commitIndex = makeSession.indexOf("commitConfiguration()");
+    const returnIndex = makeSession.indexOf("return (");
+    expect(beginIndex).toBeGreaterThanOrEqual(0);
+    expect(commitIndex).toBeGreaterThanOrEqual(0);
+    expect(returnIndex).toBeGreaterThanOrEqual(0);
+    expect(commitIndex).toBeGreaterThan(beginIndex);
+    expect(commitIndex).toBeLessThan(returnIndex);
 
     const startFlow = cameraSource
       .split("private func configureAndStart(id: UUID)")[1]
       .split("private func makePhotoSettings(")[0];
-    expect(startFlow.indexOf("startRunning()")).toBeLessThan(
-      startFlow.indexOf("setPreparedPhotoSettingsArray"),
+    const startIndex = startFlow.indexOf("startRunning()");
+    const preparationIndex = startFlow.indexOf("setPreparedPhotoSettingsArray");
+    const previewIndex = startFlow.indexOf("installPreviewIfNeeded");
+    expect(startIndex).toBeGreaterThanOrEqual(0);
+    expect(preparationIndex).toBeGreaterThanOrEqual(0);
+    expect(previewIndex).toBeGreaterThanOrEqual(0);
+    expect(startIndex).toBeLessThan(preparationIndex);
+    expect(startIndex).toBeLessThan(previewIndex);
+  });
+
+  it("keeps preview positioning geometry-only and detaches after stopping", () => {
+    const previewInstall = cameraSource
+      .split("private func installPreviewIfNeeded")[1]
+      .split("private func showShutterFreeze")[0];
+    expect(previewInstall).not.toContain("previewLayer?.session = session");
+
+    const deinitFlow = cameraSource.split("deinit {")[1];
+    expect(deinitFlow).toMatch(
+      /sessionQueue\.async \{[\s\S]*stopRunning\(\)[\s\S]*DispatchQueue\.main\.async \{/,
     );
+    expect(cameraSource).toContain("previewInstalled");
+    expect(cameraSource).toContain(".milliseconds(600)");
   });
 
   it("rejects false preview readiness and watches for lost native captures", () => {
