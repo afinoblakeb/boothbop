@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
+  REMOTE_CONFIG_CACHE_MS,
   REMOTE_CONFIG_DEFAULTS,
   applyRemoteConfig,
   loadCachedRemoteConfig,
@@ -92,7 +93,7 @@ describe("remote configuration delivery", () => {
     expect(loadCachedRemoteConfig({ now: 10_001 }).features.video).toBe(false);
   });
 
-  it("uses a fresh cache offline and expires it back to binary defaults", async () => {
+  it("keeps an expired cached kill switch fail-closed while offline", async () => {
     const success = vi.fn(
       async () => new Response(JSON.stringify(validDocument), { status: 200 }),
     );
@@ -102,12 +103,58 @@ describe("remote configuration delivery", () => {
       throw new TypeError("offline");
     });
     expect(
-      (await refreshRemoteConfig({ fetcher: offline, now: 20_000 })).features
-        .editor,
+      (
+        await refreshRemoteConfig({
+          fetcher: offline,
+          now: 10_000 + REMOTE_CONFIG_CACHE_MS + 1,
+        })
+      ).features.editor,
     ).toBe(false);
     expect(
-      loadCachedRemoteConfig({ now: 10_000 + 8 * 24 * 60 * 60 * 1000 }),
-    ).toEqual(REMOTE_CONFIG_DEFAULTS);
+      loadCachedRemoteConfig({ now: 10_000 + REMOTE_CONFIG_CACHE_MS + 1 }),
+    ).toEqual(applyRemoteConfig(validDocument));
+  });
+
+  it("applies a valid response even when persistence fails", async () => {
+    const storage = {
+      getItem: vi.fn(() => null),
+      setItem: vi.fn(() => {
+        throw new DOMException("Storage is unavailable", "QuotaExceededError");
+      }),
+    } as unknown as Storage;
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify(validDocument), { status: 200 }),
+    );
+
+    await expect(
+      refreshRemoteConfig({ fetcher, storage, now: 10_000 }),
+    ).resolves.toEqual(applyRemoteConfig(validDocument));
+  });
+
+  it("does not replace an expired cached revision with an older response", async () => {
+    const newerDocument: RemoteConfigDocument = {
+      ...validDocument,
+      revision: 5,
+      features: { ...validDocument.features, gif: false },
+    };
+    localStorage.setItem(
+      "bb.remoteConfig.v1",
+      JSON.stringify({ document: newerDocument, fetchedAt: 10_000 }),
+    );
+    const fetcher = vi.fn(
+      async () => new Response(JSON.stringify(validDocument), { status: 200 }),
+    );
+
+    await expect(
+      refreshRemoteConfig({
+        fetcher,
+        now: 10_000 + REMOTE_CONFIG_CACHE_MS + 1,
+      }),
+    ).resolves.toEqual(applyRemoteConfig(newerDocument));
+    expect(
+      JSON.parse(localStorage.getItem("bb.remoteConfig.v1") ?? "{}").document
+        .revision,
+    ).toBe(5);
   });
 
   it("ignores malformed network documents without replacing a valid cache", async () => {

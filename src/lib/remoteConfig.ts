@@ -130,7 +130,6 @@ export function loadCachedRemoteConfig({
     if (
       !document ||
       typeof cached.fetchedAt !== "number" ||
-      now - cached.fetchedAt > REMOTE_CONFIG_CACHE_MS ||
       cached.fetchedAt > now + 60_000
     ) {
       return binaryCapabilities;
@@ -161,11 +160,19 @@ export async function refreshRemoteConfig({
     if (!response.ok) return cached;
     const document = parseRemoteConfig(await response.json());
     if (!document || cached.revision > document.revision) return cached;
-    storage.setItem(
-      REMOTE_CONFIG_CACHE_KEY,
-      JSON.stringify({ document, fetchedAt: now } satisfies CachedRemoteConfig),
-    );
-    return applyRemoteConfig(document, binaryCapabilities);
+    const resolved = applyRemoteConfig(document, binaryCapabilities);
+    try {
+      storage.setItem(
+        REMOTE_CONFIG_CACHE_KEY,
+        JSON.stringify({
+          document,
+          fetchedAt: now,
+        } satisfies CachedRemoteConfig),
+      );
+    } catch {
+      // The fetched controls still apply for this session when storage fails.
+    }
+    return resolved;
   } catch {
     return cached;
   } finally {
