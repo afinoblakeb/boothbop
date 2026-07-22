@@ -53,6 +53,7 @@ import {
   type PermissionResult,
 } from "./lib/photosAlbum";
 import { loadWatermark } from "./lib/watermark";
+import { onceAfterSuccess } from "./lib/onceAfterSuccess";
 import { nativeShareFile } from "./lib/nativeShare";
 import { SHOTS } from "./constants";
 import type { Format, InstallPromptEvent, Phase } from "./types";
@@ -88,6 +89,7 @@ import { mediaRenderKey } from "./lib/renderKey";
 import {
   canUseNativeCamera,
   captureNativeSquareFrame,
+  observeNativeCameraFailures,
   setNativePreviewFrame,
   startNativeCamera,
   stopNativeCamera,
@@ -436,9 +438,12 @@ export default function App() {
   const sequenceOwnerRef = useRef<symbol | null>(null);
   const galleryOpenRequestRef = useRef(0);
   const nativeLaunchStartedRef = useRef(false);
-  const nativeSplashHiddenRef = useRef(false);
+  const hideNativeSplashRef = useRef<(() => Promise<void>) | null>(null);
   const nativeCameraActiveRef = useRef(false);
   const resumeCameraAfterOverlayRef = useRef<number | null | undefined>(
+    undefined,
+  );
+  const resumeCameraAfterVisibilityRef = useRef<number | null | undefined>(
     undefined,
   );
   const openCameraRef = useRef<
@@ -446,14 +451,16 @@ export default function App() {
   >(null);
 
   async function hideNativeSplash() {
-    if (!isNativeShell() || nativeSplashHiddenRef.current) return;
-    nativeSplashHiddenRef.current = true;
-    await afterPaint();
-    try {
+    if (!isNativeShell()) return;
+    hideNativeSplashRef.current ??= onceAfterSuccess(async () => {
+      await afterPaint();
       const { SplashScreen } = await import("@capacitor/splash-screen");
       await SplashScreen.hide();
+    });
+    try {
+      await hideNativeSplashRef.current();
     } catch {
-      // The web test shell has no native splash implementation.
+      // A later visible camera frame or error surface retries the bridge call.
     }
   }
 
@@ -643,6 +650,22 @@ export default function App() {
     // failCamera only touches stable setters and refs, so a one-time bind is fine.
   }, [failCamera]);
 
+  useEffect(() => {
+    if (!isNativeShell()) return;
+    let disposed = false;
+    let removeListener: (() => void) | undefined;
+    void observeNativeCameraFailures((message) => failCamera(message)).then(
+      (remove) => {
+        if (disposed) remove();
+        else removeListener = remove;
+      },
+    );
+    return () => {
+      disposed = true;
+      removeListener?.();
+    };
+  }, [failCamera]);
+
   function clearResults() {
     if (prewarmTimer.current !== null) {
       window.clearTimeout(prewarmTimer.current);
@@ -777,6 +800,50 @@ export default function App() {
     openCameraRef.current = openCamera;
   });
 
+  useEffect(() => {
+    if (!isNativeShell()) return;
+
+    const reconcileVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        if (phase === "capturing" && !showGallery && !showSettings) {
+          resumeCameraAfterVisibilityRef.current = undefined;
+          failCamera(
+            "Photo session paused. Try again when BoothBop is active.",
+          );
+          return;
+        }
+        if (phase !== "preview" || showGallery || showSettings) return;
+
+        resumeCameraAfterVisibilityRef.current = retakeIndexRef.current;
+        abortRef.current = true;
+        cameraRequestRef.current += 1;
+        pendingCameraOpenRef.current = null;
+        sequenceOwnerRef.current = null;
+        setCountdown(null);
+        setFreezeFrame(null);
+        stopActiveCamera();
+        return;
+      }
+
+      const index = resumeCameraAfterVisibilityRef.current;
+      if (
+        index === undefined ||
+        phase !== "preview" ||
+        showGallery ||
+        showSettings
+      ) {
+        return;
+      }
+      resumeCameraAfterVisibilityRef.current = undefined;
+      void openCameraRef.current?.(index);
+    };
+
+    document.addEventListener("visibilitychange", reconcileVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", reconcileVisibility);
+    };
+  }, [failCamera, phase, showGallery, showSettings, stopActiveCamera]);
+
   // Native launches proceed directly into a single camera request. The iOS
   // launch view remains in place until the video element has real pixels, so
   // a cold WebKit startup can never expose a black or empty frame.
@@ -847,15 +914,20 @@ export default function App() {
 
   async function executeSequence(cameraRequest: number, owner: symbol) {
     const sequenceCancelled = () =>
-      abortRef.current || cameraRequest !== cameraRequestRef.current;
+      abortRef.current ||
+      cameraRequest !== cameraRequestRef.current ||
+      sequenceOwnerRef.current !== owner;
     const video = videoRef.current;
     // Don't count down onto a dead/black stream — make sure we have real pixels.
-    if (
-      !nativeCameraActiveRef.current &&
-      (!video || !(await videoReady(video)))
-    ) {
-      failCamera("The camera isn't ready. Check camera access and try again.");
-      return;
+    if (!nativeCameraActiveRef.current) {
+      const ready = Boolean(video && (await videoReady(video)));
+      if (sequenceCancelled()) return;
+      if (!ready) {
+        failCamera(
+          "The camera isn't ready. Check camera access and try again.",
+        );
+        return;
+      }
     }
     if (sequenceCancelled()) return;
 
@@ -927,62 +999,70 @@ export default function App() {
       return;
     }
 
-    const captured: HTMLCanvasElement[] = [];
-    setFrames([]);
-    await wait(400);
+    try {
+      const captured: HTMLCanvasElement[] = [];
+      setFrames([]);
+      await wait(400);
 
-    for (let shot = 0; shot < SHOTS; shot++) {
-      const countdownSeconds =
-        shot === 0 ? FIRST_SHOT_COUNTDOWN_SECONDS : delay;
-      if (!(await runCountdown(countdownSeconds))) return;
+      for (let shot = 0; shot < SHOTS; shot++) {
+        const countdownSeconds =
+          shot === 0 ? FIRST_SHOT_COUNTDOWN_SECONDS : delay;
+        if (!(await runCountdown(countdownSeconds))) return;
 
-      void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
-      const shutterFreeze = beginShutterFreeze(video);
-      const frame = await captureActiveCameraFrame(video);
-      await shutterFreeze;
-      if (sequenceCancelled()) {
-        setFreezeFrame(null);
-        return;
-      }
-      captured.push(frame);
-      setFrames([...captured]);
-      if (shot < SHOTS - 1) await wait(LIVE_PREVIEW_RECOVERY_MS);
-    }
-
-    stopActiveCamera();
-    framesRef.current = captured;
-    setFormat("strip");
-    if (sequenceOwnerRef.current === owner) {
-      sequenceOwnerRef.current = null;
-    }
-    setPhase("review");
-
-    // Auto-save this session to the private on-device gallery.
-    const pendingSave = (async (): Promise<Session | null> => {
-      try {
-        const photos = await canvasesToBlobs(captured);
-        const cover = await canvasToCoverBlob(captured[0]);
-        return await saveSession(photos, cover);
-      } catch {
-        if (framesAreCurrent(captured)) {
-          setNote("Photos captured, but My Photos couldn't save this session.");
+        void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
+        const shutterFreeze = beginShutterFreeze(video);
+        const frame = await captureActiveCameraFrame(video);
+        await shutterFreeze;
+        if (sequenceCancelled()) {
+          setFreezeFrame(null);
+          return;
         }
-        return null;
+        captured.push(frame);
+        setFrames([...captured]);
+        if (shot < SHOTS - 1) await wait(LIVE_PREVIEW_RECOVERY_MS);
       }
-    })();
-    pendingSessionSaveRef.current = pendingSave;
-    void pendingSave.then((session) => {
-      if (
-        session &&
-        pendingSessionSaveRef.current === pendingSave &&
-        framesAreCurrent(captured)
-      ) {
-        activeSessionIdRef.current = session.id;
-      }
-    });
 
-    // Auto-save is best-effort and never blocks the review screen.
-    void autoSaveToAlbum(captured, autosave, sessionRevision);
+      stopActiveCamera();
+      framesRef.current = captured;
+      setFormat("strip");
+      if (sequenceOwnerRef.current === owner) {
+        sequenceOwnerRef.current = null;
+      }
+      setPhase("review");
+
+      // Auto-save this session to the private on-device gallery.
+      const pendingSave = (async (): Promise<Session | null> => {
+        try {
+          const photos = await canvasesToBlobs(captured);
+          const cover = await canvasToCoverBlob(captured[0]);
+          return await saveSession(photos, cover);
+        } catch {
+          if (framesAreCurrent(captured)) {
+            setNote(
+              "Photos captured, but My Photos couldn't save this session.",
+            );
+          }
+          return null;
+        }
+      })();
+      pendingSessionSaveRef.current = pendingSave;
+      void pendingSave.then((session) => {
+        if (
+          session &&
+          pendingSessionSaveRef.current === pendingSave &&
+          framesAreCurrent(captured)
+        ) {
+          activeSessionIdRef.current = session.id;
+        }
+      });
+
+      // Auto-save is best-effort and never blocks the review screen.
+      void autoSaveToAlbum(captured, autosave, sessionRevision);
+    } catch {
+      if (sequenceCancelled()) return;
+      setFreezeFrame(null);
+      failCamera("Couldn't take that photo. Try again.");
+    }
   }
 
   function retake() {
@@ -1022,6 +1102,7 @@ export default function App() {
         session.photos.map((blob) => blobToCanvas(blob)),
       );
       if (request !== galleryOpenRequestRef.current) return;
+      resumeCameraAfterOverlayRef.current = undefined;
       setFrames(canvases);
       activeSessionIdRef.current = session.id;
       pendingSessionSaveRef.current = null;

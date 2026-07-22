@@ -7,6 +7,7 @@ const cameraPlugin = vi.hoisted(() => ({
   capture: vi.fn(),
   release: vi.fn(),
   stop: vi.fn(),
+  addListener: vi.fn(),
 }));
 
 vi.mock("./boothBopCameraPlugin", () => ({ BoothBopCamera: cameraPlugin }));
@@ -14,6 +15,7 @@ vi.mock("./boothBopCameraPlugin", () => ({ BoothBopCamera: cameraPlugin }));
 import {
   canUseNativeCamera,
   captureNativeSquareFrame,
+  observeNativeCameraFailures,
   setNativePreviewFrame,
   startNativeCamera,
   stopNativeCamera,
@@ -211,6 +213,28 @@ describe("native camera bridge", () => {
     await Promise.all([firstStart, stopping, secondStart]);
 
     expect(events).toEqual(["start-1", "start-1-ready", "stop", "start-2"]);
+  });
+
+  it("forwards native session failures and removes the listener", async () => {
+    let listener: ((event: { message: string }) => void) | undefined;
+    const remove = vi.fn().mockResolvedValue(undefined);
+    cameraPlugin.addListener.mockImplementation(
+      async (
+        _eventName: string,
+        callback: (event: { message: string }) => void,
+      ) => {
+        listener = callback;
+        return { remove };
+      },
+    );
+    const onFailure = vi.fn();
+
+    const unsubscribe = await observeNativeCameraFailures(onFailure);
+    listener?.({ message: "Camera was interrupted" });
+    unsubscribe();
+
+    expect(onFailure).toHaveBeenCalledWith("Camera was interrupted");
+    expect(remove).toHaveBeenCalledOnce();
   });
 
   it("loads the native square from a temporary file without a base64 bridge", async () => {

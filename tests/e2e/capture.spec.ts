@@ -107,15 +107,32 @@ test("rapid settings transitions cannot strand the native camera black", async (
         {
           name: "BoothBopCamera",
           methods: [
-            "isAvailable",
-            "start",
-            "setPreviewFrame",
-            "capture",
-            "release",
-            "stop",
-          ].map((name) => ({ name, rtype: "promise" })),
+            ...[
+              "isAvailable",
+              "start",
+              "setPreviewFrame",
+              "capture",
+              "release",
+              "stop",
+              "removeListener",
+            ].map((name) => ({ name, rtype: "promise" })),
+            { name: "addListener", rtype: "callback" },
+          ],
         },
       ],
+      nativeCallback: async (
+        pluginName: string,
+        methodName: string,
+        _options: Record<string, unknown>,
+        _callback: (result: Record<string, unknown>) => void,
+      ) => {
+        if (pluginName !== "BoothBopCamera" || methodName !== "addListener") {
+          throw new Error(
+            `Unexpected native callback: ${pluginName}.${methodName}`,
+          );
+        }
+        return "camera-state-listener";
+      },
       nativePromise: async (
         pluginName: string,
         methodName: string,
@@ -147,6 +164,7 @@ test("rapid settings transitions cannot strand the native camera black", async (
           camera.previewVisible = true;
           return { visible: true };
         }
+        if (methodName === "removeListener") return { removed: true };
         if (methodName === "release") return { released: true };
         throw new Error(`Unexpected camera method: ${methodName}`);
       },
@@ -189,6 +207,76 @@ test("rapid settings transitions cannot strand the native camera black", async (
     )
     .toBe(true);
   await expect(page.getByRole("button", { name: "Take Photos" })).toBeEnabled();
+
+  const startsBeforeBackground = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __nativeCamera?: { starts: number };
+        }
+      ).__nativeCamera?.starts ?? 0,
+  );
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          !(
+            window as typeof window & {
+              __nativeCamera?: { running: boolean };
+            }
+          ).__nativeCamera?.running,
+      ),
+    )
+    .toBe(true);
+
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      value: "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect
+    .poll(
+      () =>
+        page.evaluate(
+          () =>
+            (
+              window as typeof window & {
+                __nativeCamera?: {
+                  running: boolean;
+                  previewVisible: boolean;
+                  starts: number;
+                };
+              }
+            ).__nativeCamera,
+        ),
+      { timeout: 5_000 },
+    )
+    .toMatchObject({
+      running: true,
+      previewVisible: true,
+      starts: startsBeforeBackground + 1,
+    });
+
+  await page
+    .getByRole("group", { name: "Countdown seconds" })
+    .getByRole("button", { name: "1s" })
+    .click();
+  await page.getByRole("button", { name: "Take Photos" }).click();
+  await expect(
+    page.getByText("Couldn't take that photo. Try again."),
+  ).toBeVisible({ timeout: 5_000 });
+  await expect(
+    page.getByRole("button", { name: "Try Camera Again" }),
+  ).toBeVisible();
 });
 
 test("camera opening is visible and duplicate-proof", async ({ page }) => {
@@ -429,10 +517,18 @@ test("two synchronous shutter taps create one photo session", async ({
   await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible({
     timeout: 20_000,
   });
+  await page.getByRole("button", { name: "Camera" }).click();
+  await expect(page.locator("video")).toBeVisible();
   await page.getByRole("button", { name: "My Photos" }).click();
   await expect(
     page.getByRole("button", { name: "Open photo set" }),
   ).toHaveCount(1);
+  await page.getByRole("button", { name: "Open photo set" }).click();
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible();
+  await page.getByRole("button", { name: "Settings" }).click();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible();
+  await page.getByRole("button", { name: "My Photos" }).click();
   await expect(page.getByRole("button", { name: "Delete" })).toHaveCount(0);
   await page.getByRole("button", { name: "Select" }).click();
   await page.getByRole("button", { name: "Select photo set" }).click();

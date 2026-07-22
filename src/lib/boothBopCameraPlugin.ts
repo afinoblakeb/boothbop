@@ -1,4 +1,4 @@
-import { registerPlugin } from "@capacitor/core";
+import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
 
 export interface NativeCameraFrame {
   x: number;
@@ -22,6 +22,11 @@ export interface NativeCameraStart {
   warmupPath?: string;
 }
 
+export interface NativeCameraStateChange {
+  state: "interrupted" | "failed";
+  message: string;
+}
+
 export interface BoothBopCameraPlugin {
   isAvailable(): Promise<{ available: boolean }>;
   start(): Promise<NativeCameraStart>;
@@ -29,6 +34,10 @@ export interface BoothBopCameraPlugin {
   capture(options: { size: number }): Promise<NativePhoto>;
   release(options: { path: string }): Promise<{ released: boolean }>;
   stop(): Promise<{ stopped: boolean }>;
+  addListener(
+    eventName: "stateChanged",
+    listenerFunc: (event: NativeCameraStateChange) => void,
+  ): Promise<PluginListenerHandle>;
 }
 
 export const BoothBopCamera =

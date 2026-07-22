@@ -84,6 +84,22 @@ export async function stopNativeCamera(): Promise<void> {
   });
 }
 
+export async function observeNativeCameraFailures(
+  onFailure: (message: string) => void,
+): Promise<() => void> {
+  try {
+    const listener = await BoothBopCamera.addListener(
+      "stateChanged",
+      ({ message }) => onFailure(message),
+    );
+    return () => {
+      void listener.remove();
+    };
+  } catch {
+    return () => {};
+  }
+}
+
 function base64ToBlob(base64: string, mimeType: string): Blob {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);

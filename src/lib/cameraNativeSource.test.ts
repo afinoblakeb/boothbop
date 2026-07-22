@@ -28,4 +28,20 @@ describe("native camera source contract", () => {
     expect(cameraSource).toContain('"path": photo.fileURL.absoluteString');
     expect(cameraSource).not.toContain("base64EncodedString()");
   });
+
+  it("rejects false preview readiness and watches for lost native captures", () => {
+    expect(cameraSource).toContain(
+      "The native camera preview could not be installed",
+    );
+    expect(cameraSource).toContain("captureTimedOut");
+    expect(cameraSource).toContain("self.videoOutput === output");
+  });
+
+  it("reports iOS capture interruptions and runtime errors to the app", () => {
+    expect(cameraSource).toContain(
+      "AVCaptureSession.wasInterruptedNotification",
+    );
+    expect(cameraSource).toContain("AVCaptureSession.runtimeErrorNotification");
+    expect(cameraSource).toContain('notifyListeners("stateChanged"');
+  });
 });

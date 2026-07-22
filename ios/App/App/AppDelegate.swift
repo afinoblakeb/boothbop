@@ -301,11 +301,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var photoPreparationComplete = false
     private var startupWarmupFileURL: URL?
     private var temporaryPhotoURLs = Set<URL>()
+    private var sessionObservers: [NSObjectProtocol] = []
 
     // These properties are owned by sampleQueue. Retaining one pixel buffer is
     // enough to freeze the exact visible moment without continuously encoding
     // preview frames.
     private var latestPreviewPixelBuffer: CVPixelBuffer?
+    private var sampleVideoOutput: AVCaptureVideoDataOutput?
     private var reportedFirstFrame = false
 
     // Preview properties are accessed only on the main thread.
@@ -367,10 +369,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 return call.reject("Camera is not started", "notStarted")
             }
             DispatchQueue.main.async {
-                self.installPreviewIfNeeded(session: session)
                 self.requestedPreviewFrame = cssFrame
                 self.requestedPreviewCornerRadius = CGFloat(cornerRadius)
-                self.applyPreviewFrame(cssFrame, cornerRadius: CGFloat(cornerRadius))
+                guard self.installPreviewIfNeeded(session: session),
+                      self.applyPreviewFrame(
+                          cssFrame, cornerRadius: CGFloat(cornerRadius)) else {
+                    return call.reject(
+                        "The native camera preview could not be installed",
+                        "previewUnavailable")
+                }
                 call.resolve()
             }
         }
@@ -413,6 +420,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 }
             }
             output.capturePhoto(with: settings, delegate: self)
+            let captureID = settings.uniqueID
+            self.sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
+                guard let self = self,
+                      self.pendingCaptureID == captureID else { return }
+                self.failCapture(
+                    "The camera did not return a photo in time",
+                    code: "captureTimedOut")
+            }
         }
     }
 
@@ -474,11 +489,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             startupWarmupFileURL = nil
             sampleQueue.sync {
                 latestPreviewPixelBuffer = nil
+                sampleVideoOutput = configured.videoOutput
                 reportedFirstFrame = false
             }
 
+            observeSession(configured.session)
+
             DispatchQueue.main.async {
-                self.installPreviewIfNeeded(session: configured.session)
+                _ = self.installPreviewIfNeeded(session: configured.session)
             }
 
             guard let preparationSettings = makePhotoSettings(
@@ -486,9 +504,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 throw CameraError.configuration("JPEG capture is unavailable")
             }
             configured.photoOutput.setPreparedPhotoSettingsArray(
-                [preparationSettings]) { [weak self] _, _ in
+                [preparationSettings]) { [weak self] prepared, error in
                 self?.sessionQueue.async {
                     guard let self = self, self.pendingStartID == id else { return }
+                    guard prepared else {
+                        let preparationError = error ?? CameraError.configuration(
+                            "The camera could not prepare its first photo")
+                        return self.failStart(
+                            preparationError,
+                            code: "preparationError",
+                            id: id)
+                    }
                     self.photoPreparationComplete = true
                     self.finishStartIfReady()
                 }
@@ -539,6 +565,61 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingStartCall = nil
         pendingStartID = nil
         call.resolve(result)
+    }
+
+    private func observeSession(_ captureSession: AVCaptureSession) {
+        removeSessionObservers()
+        let center = NotificationCenter.default
+        sessionObservers = [
+            center.addObserver(
+                forName: AVCaptureSession.wasInterruptedNotification,
+                object: captureSession,
+                queue: nil
+            ) { [weak self, weak captureSession] _ in
+                guard let captureSession else { return }
+                self?.sessionQueue.async {
+                    guard let self = self,
+                          self.session === captureSession else { return }
+                    if self.pendingCaptureCall != nil {
+                        self.failCapture(
+                            "The camera was interrupted",
+                            code: "interrupted")
+                    }
+                    self.notifyListeners("stateChanged", data: [
+                        "state": "interrupted",
+                        "message": "The camera was interrupted. Try Camera Again.",
+                    ])
+                }
+            },
+            center.addObserver(
+                forName: AVCaptureSession.runtimeErrorNotification,
+                object: captureSession,
+                queue: nil
+            ) { [weak self, weak captureSession] notification in
+                guard let captureSession else { return }
+                let error = notification.userInfo?[AVCaptureSessionErrorKey]
+                    as? NSError
+                self?.sessionQueue.async {
+                    guard let self = self,
+                          self.session === captureSession else { return }
+                    if self.pendingCaptureCall != nil {
+                        self.failCapture(
+                            error?.localizedDescription ?? "The camera stopped unexpectedly",
+                            code: "runtimeError")
+                    }
+                    self.notifyListeners("stateChanged", data: [
+                        "state": "failed",
+                        "message": "The camera stopped unexpectedly. Try Camera Again.",
+                    ])
+                }
+            },
+        ]
+    }
+
+    private func removeSessionObservers() {
+        let center = NotificationCenter.default
+        sessionObservers.forEach(center.removeObserver)
+        sessionObservers.removeAll()
     }
 
     private func makeSession() throws -> (
@@ -721,6 +802,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         didOutput sampleBuffer: CMSampleBuffer,
         from connection: AVCaptureConnection
     ) {
+        guard output === sampleVideoOutput else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         latestPreviewPixelBuffer = pixelBuffer
         guard !reportedFirstFrame else { return }
@@ -738,7 +820,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
         sessionQueue.async {
-            guard self.pendingStartCall != nil else {
+            guard self.videoOutput === output,
+                  self.pendingStartCall != nil else {
                 if let warmupFileURL {
                     try? FileManager.default.removeItem(at: warmupFileURL)
                 }
@@ -1019,6 +1102,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
         temporaryPhotoURLs.removeAll()
 
+        removeSessionObservers()
         videoOutput?.setSampleBufferDelegate(nil, queue: nil)
         metadataOutput?.setMetadataObjectsDelegate(nil, queue: nil)
         if session?.isRunning == true {
@@ -1026,6 +1110,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
         sampleQueue.sync {
             latestPreviewPixelBuffer = nil
+            sampleVideoOutput = nil
             reportedFirstFrame = false
         }
         session = nil
@@ -1040,11 +1125,12 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
     }
 
-    private func installPreviewIfNeeded(session: AVCaptureSession) {
+    @discardableResult
+    private func installPreviewIfNeeded(session: AVCaptureSession) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
               let webView = bridge?.webView,
-              let previewHost = webView.superview else { return }
+              let previewHost = webView.superview else { return false }
 
         rootView.backgroundColor = .boothBopCanvas
         webView.isOpaque = false
@@ -1073,9 +1159,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 previewLayer: previewLayer,
                 mirrored: true)
         }
-        applyPreviewFrame(
+        _ = applyPreviewFrame(
             requestedPreviewFrame,
             cornerRadius: requestedPreviewCornerRadius)
+        return previewView != nil && previewLayer?.session === session
     }
 
     private func showShutterFreeze(_ image: UIImage) {
@@ -1113,16 +1200,21 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         shutterFreezeView?.image = nil
     }
 
-    private func applyPreviewFrame(_ cssFrame: CGRect, cornerRadius: CGFloat) {
+    @discardableResult
+    private func applyPreviewFrame(
+        _ cssFrame: CGRect,
+        cornerRadius: CGFloat
+    ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let webView = bridge?.webView,
               let previewView = previewView,
-              let previewHost = previewView.superview else { return }
+              let previewHost = previewView.superview else { return false }
         previewView.frame = webView.convert(cssFrame, to: previewHost)
         previewView.layer.cornerRadius = cornerRadius
         previewView.layer.cornerCurve = .continuous
         previewLayer?.frame = previewView.bounds
         shutterFreezeView?.frame = previewView.bounds
+        return previewLayer != nil && !previewView.frame.isEmpty
     }
 
     private func removePreview() {
