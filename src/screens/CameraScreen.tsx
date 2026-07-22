@@ -180,7 +180,7 @@ export function CameraScreen({
       <div className="camera-controls mt-auto pt-3 text-center">
         {cameraError ? null : phase === "preview" ? (
           <>
-            <div className="camera-countdown mb-2 flex items-center justify-center gap-2">
+            <div className="camera-countdown mb-2 flex flex-col items-center justify-center gap-1">
               <span className="flex items-center gap-1.5 font-sans text-sm font-medium text-text-muted">
                 <Timer className="h-4 w-4" aria-hidden="true" />
                 Countdown

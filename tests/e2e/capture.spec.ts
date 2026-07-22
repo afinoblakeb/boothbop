@@ -189,6 +189,8 @@ test("a slow full-resolution capture freezes the photo without a white flash", a
     )
     .toBe(true);
   await page.waitForTimeout(300);
+  await expect(frozenPreview).toBeVisible();
+  await page.waitForTimeout(150);
   await expect(frozenPreview).toHaveCount(0);
   await expect
     .poll(() =>
@@ -239,6 +241,7 @@ test("every shot gets the full selected countdown after freeze recovery", async 
     .getByRole("group", { name: "Countdown seconds" })
     .getByRole("button", { name: "1s" })
     .click();
+  const sequenceStartedAt = await page.evaluate(() => performance.now());
   await page.getByRole("button", { name: "Take Photos" }).click();
 
   await expect
@@ -253,14 +256,19 @@ test("every shot gets the full selected countdown after freeze recovery", async 
     )
     .toBeGreaterThanOrEqual(2);
 
-  const interval = await page.evaluate(() => {
+  const timing = await page.evaluate((startedAt) => {
     const times = (window as typeof window & { __shutterTimes?: number[] })
       .__shutterTimes;
     if (!times || times.length < 2) throw new Error("Missing shutter times");
-    return times[1] - times[0];
-  });
-  expect(interval).toBeGreaterThanOrEqual(1_200);
-  expect(interval).toBeLessThan(1_750);
+    return {
+      firstShutter: times[0] - startedAt,
+      interval: times[1] - times[0],
+    };
+  }, sequenceStartedAt);
+  expect(timing.firstShutter).toBeGreaterThanOrEqual(3_200);
+  expect(timing.firstShutter).toBeLessThan(4_200);
+  expect(timing.interval).toBeGreaterThanOrEqual(1_400);
+  expect(timing.interval).toBeLessThan(1_950);
   await page.getByRole("button", { name: "Cancel" }).click();
 });
 

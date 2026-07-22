@@ -803,7 +803,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         freezeView.image = image
         freezeView.isHidden = false
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(200)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(400)) {
             guard self.shutterFreezeGeneration == generation else { return }
             self.hideShutterFreeze()
         }

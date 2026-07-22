@@ -94,6 +94,29 @@ test.describe("compact camera", () => {
     await expectFullyInViewport(
       page.getByRole("button", { name: "Take Photos" }),
     );
+    const countdownLabel = page.getByText("Countdown", { exact: true });
+    const delaySwitch = page.getByRole("group", {
+      name: "Countdown seconds",
+    });
+    const [labelBounds, switchBounds] = await Promise.all([
+      countdownLabel.boundingBox(),
+      delaySwitch.boundingBox(),
+    ]);
+    expect(labelBounds).not.toBeNull();
+    expect(switchBounds).not.toBeNull();
+    expect(labelBounds!.y + labelBounds!.height).toBeLessThanOrEqual(
+      switchBounds!.y,
+    );
+    expect(
+      Math.abs(
+        labelBounds!.x +
+          labelBounds!.width / 2 -
+          (switchBounds!.x + switchBounds!.width / 2),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(switchBounds!.x + switchBounds!.width / 2 - 320 / 2),
+    ).toBeLessThanOrEqual(1);
     await expectFullyInViewport(page.getByRole("button", { name: "Cancel" }));
     await expectFullyInViewport(
       page.getByRole("button", { name: "My Photos" }),

@@ -101,8 +101,9 @@ interface MediaResult {
 
 const wait = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
-const SHUTTER_FREEZE_MS = 200;
+const SHUTTER_FREEZE_MS = 400;
 const LIVE_PREVIEW_RECOVERY_MS = 50;
+const FIRST_SHOT_COUNTDOWN_SECONDS = 3;
 const afterPaint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -807,16 +808,20 @@ export default function App() {
     clearResults();
     const sessionRevision = renderRevision.current;
     const replacing = retakeIndexRef.current;
-
-    if (replacing !== null) {
-      await wait(400);
-      for (let n = delay; n >= 1; n--) {
-        if (sequenceCancelled()) return;
+    const runCountdown = async (seconds: number): Promise<boolean> => {
+      for (let n = seconds; n >= 1; n--) {
+        if (sequenceCancelled()) return false;
         setCountdown(n);
         await wait(1000);
       }
-      if (sequenceCancelled()) return;
+      if (sequenceCancelled()) return false;
       setCountdown(null);
+      return true;
+    };
+
+    if (replacing !== null) {
+      await wait(400);
+      if (!(await runCountdown(FIRST_SHOT_COUNTDOWN_SECONDS))) return;
 
       try {
         void tapHaptic("Medium");
@@ -872,13 +877,9 @@ export default function App() {
     await wait(400);
 
     for (let shot = 0; shot < SHOTS; shot++) {
-      for (let n = delay; n >= 1; n--) {
-        if (sequenceCancelled()) return;
-        setCountdown(n);
-        await wait(1000);
-      }
-      if (sequenceCancelled()) return;
-      setCountdown(null);
+      const countdownSeconds =
+        shot === 0 ? FIRST_SHOT_COUNTDOWN_SECONDS : delay;
+      if (!(await runCountdown(countdownSeconds))) return;
 
       void tapHaptic("Medium"); // light native shutter feel; never awaited (timing-sensitive)
       const shutterFreeze = beginShutterFreeze(video);
