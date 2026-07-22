@@ -315,13 +315,22 @@ async function waitForSimulatorUI(device) {
   );
 }
 
-async function captureVisibleScreenshot(device, screenshot) {
+function assertProcessAlive(device, pid) {
+  try {
+    process.kill(pid, 0);
+  } catch {
+    throw new Error(`${device.name} app process ${pid} exited during launch.`);
+  }
+}
+
+async function captureVisibleScreenshot(device, screenshot, pid) {
   const started = Date.now();
   const deadline = started + 90000;
   let consecutiveBlackFrames = 0;
   let blackTransitionFrames = 0;
 
   while (Date.now() < deadline) {
+    assertProcessAlive(device, pid);
     await run(
       "xcrun",
       ["simctl", "io", device.udid, "screenshot", screenshot],
@@ -362,9 +371,15 @@ async function recentNativeLog(device) {
     'eventMessage CONTAINS[c] "Could not load NIB"',
     'eventMessage CONTAINS[c] "NSInvalidUnarchiveOperationException"',
     'eventMessage CONTAINS[c] "Terminating app due to uncaught exception"',
+    'eventMessage CONTAINS[c] "NSGenericException"',
+    'eventMessage CONTAINS[c] "startRunning may not be called"',
     'eventMessage CONTAINS[c] "Fatal error"',
+    'eventMessage CONTAINS[c] "abort() called"',
+    'eventMessage CONTAINS[c] "SIGABRT"',
   ].join(" OR ");
-  const predicate = `process == "App" AND (${failureEvents})`;
+  const appCrash = `process == "App" AND (${failureEvents})`;
+  const systemCrash = `(process == "ReportCrash" OR process == "runningboardd") AND eventMessage CONTAINS[c] "${bundleId}" AND (${failureEvents})`;
+  const predicate = `(${appCrash}) OR (${systemCrash})`;
 
   const { stdout, stderr } = await run(
     "xcrun",
@@ -375,7 +390,7 @@ async function recentNativeLog(device) {
       "log",
       "show",
       "--last",
-      "60s",
+      "5m",
       "--style",
       "compact",
       "--predicate",
@@ -392,7 +407,7 @@ async function assertNoNativeLaunchFailures(device) {
   if (!log) return;
 
   const failurePattern =
-    /Unknown class|BridgeViewController|customModule|Could not load NIB|NSInvalidUnarchiveOperationException|Terminating app due to uncaught exception|Fatal error/i;
+    /Unknown class|BridgeViewController|customModule|Could not load NIB|NSInvalidUnarchiveOperationException|Terminating app due to uncaught exception|NSGenericException|startRunning may not be called|Fatal error|abort\(\) called|SIGABRT/i;
   if (failurePattern.test(log)) {
     throw new Error(
       `${device.name} emitted native launch failure logs:\n${log}`,
@@ -426,7 +441,10 @@ async function launchApp(device, label = "launching") {
         );
       }
       process.stdout.write("done\n");
-      return;
+      const match = launched.stdout.match(
+        new RegExp(`${bundleId.replaceAll(".", "\\.")}:\\s*(\\d+)`),
+      );
+      return Number(match[1]);
     } catch (error) {
       launchError = error;
       process.stdout.write("failed\n");
@@ -502,10 +520,10 @@ async function testDevice(device) {
 
     const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
     const screenshot = path.join(screenshotDir, `${safeName}.png`);
-    await launchApp(device);
+    const pid = await launchApp(device);
 
     const { blackTransitionFrames, elapsedMs, stats } =
-      await captureVisibleScreenshot(device, screenshot);
+      await captureVisibleScreenshot(device, screenshot, pid);
     await assertNoNativeLaunchFailures(device);
 
     console.log(
@@ -528,12 +546,16 @@ async function testDevice(device) {
         timeoutMs: 120000,
       });
       process.stdout.write("done\n");
-      await launchApp(device, "launching updated app");
+      const updatePid = await launchApp(device, "launching updated app");
       const updateScreenshot = path.join(
         screenshotDir,
         `${safeName}-update.png`,
       );
-      const update = await captureVisibleScreenshot(device, updateScreenshot);
+      const update = await captureVisibleScreenshot(
+        device,
+        updateScreenshot,
+        updatePid,
+      );
       await assertNoNativeLaunchFailures(device);
       console.log(
         `update visible transitionBlack=${update.blackTransitionFrames} home=${(
@@ -541,6 +563,12 @@ async function testDevice(device) {
         ).toFixed(1)}s screenshot=${updateScreenshot}`,
       );
     }
+  } catch (error) {
+    const log = await recentNativeLog(device);
+    if (log) {
+      throw new Error(`${error.message}\n\nNative crash log:\n${log}`);
+    }
+    throw error;
   } finally {
     await run("xcrun", ["simctl", "terminate", device.udid, bundleId], {
       allowFailure: true,
