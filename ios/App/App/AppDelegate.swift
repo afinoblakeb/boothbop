@@ -299,6 +299,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     // All capture state below is owned by sessionQueue.
     private var session: AVCaptureSession?
+    private var nextSessionGeneration: UInt64 = 0
+    private var sessionGeneration: UInt64?
     private var videoOutput: AVCaptureVideoDataOutput?
     private var photoOutput: AVCapturePhotoOutput?
     private var metadataOutput: AVCaptureMetadataOutput?
@@ -328,6 +330,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     // Preview properties are accessed only on the main thread.
     private var previewView: UIView?
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var previewGeneration: UInt64?
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
     private var requestedPreviewFrame: CGRect = .zero
@@ -364,9 +367,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         sessionQueue.async {
             if let size = self.latestFrameSize,
                self.session?.isRunning == true,
+               let generation = self.sessionGeneration,
                self.photoPreparationComplete,
                self.pendingStartCall == nil {
-                return call.resolve(["width": size.width, "height": size.height])
+                return call.resolve([
+                    "width": size.width,
+                    "height": size.height,
+                    "generation": generation,
+                ])
             }
             guard self.pendingStartCall == nil else {
                 return call.reject("Camera start is already in progress", "busy")
@@ -512,6 +520,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard pendingStartID == id else { return }
         do {
             let configured = try makeSession()
+            nextSessionGeneration &+= 1
+            let generation = nextSessionGeneration
+            sessionGeneration = generation
             session = configured.session
             videoOutput = configured.videoOutput
             photoOutput = configured.photoOutput
@@ -527,7 +538,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 reportedFirstFrame = false
             }
 
-            observeSession(configured.session)
+            observeSession(configured.session, generation: generation)
 
             configured.session.startRunning()
             guard configured.session.isRunning else {
@@ -538,7 +549,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 guard let self = self else { return }
                 let installed = self.installPreviewIfNeeded(
                     session: configured.session,
-                    device: configured.device)
+                    device: configured.device,
+                    generation: generation)
                 self.sessionQueue.async {
                     guard self.pendingStartID == id,
                           self.session === configured.session else { return }
@@ -609,6 +621,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
               let size = latestFrameSize,
               let call = pendingStartCall else { return }
         var result: [String: Any] = ["width": size.width, "height": size.height]
+        guard let generation = sessionGeneration else { return }
+        result["generation"] = generation
         if let warmupFileURL = startupWarmupFileURL {
             result["warmupPath"] = warmupFileURL.absoluteString
         }
@@ -618,7 +632,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         call.resolve(result)
     }
 
-    private func observeSession(_ captureSession: AVCaptureSession) {
+    private func observeSession(
+        _ captureSession: AVCaptureSession,
+        generation: UInt64
+    ) {
         removeSessionObservers()
         let center = NotificationCenter.default
         sessionObservers = [
@@ -635,6 +652,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                         self.notifyListeners("stateChanged", data: [
                             "state": "interrupted",
                             "message": "The camera was interrupted. Try Camera Again.",
+                            "generation": generation,
                         ])
                         return self.failStart(
                             CameraError.configuration("The camera was interrupted"),
@@ -649,6 +667,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                     self.notifyListeners("stateChanged", data: [
                         "state": "interrupted",
                         "message": "The camera was interrupted. Try Camera Again.",
+                        "generation": generation,
                     ])
                     self.tearDownSession(rejectPending: true)
                 }
@@ -668,6 +687,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                         self.notifyListeners("stateChanged", data: [
                             "state": "failed",
                             "message": "The camera stopped unexpectedly. Try Camera Again.",
+                            "generation": generation,
                         ])
                         return self.failStart(
                             error ?? CameraError.configuration(
@@ -683,6 +703,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                     self.notifyListeners("stateChanged", data: [
                         "state": "failed",
                         "message": "The camera stopped unexpectedly. Try Camera Again.",
+                        "generation": generation,
                     ])
                     self.tearDownSession(rejectPending: true)
                 }
@@ -929,8 +950,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         from connection: AVCaptureConnection
     ) {
         let faces = metadataObjects.compactMap { $0 as? AVMetadataFaceObject }
-        DispatchQueue.main.async {
-            self.renderFaceOverlays(faces)
+        sessionQueue.async {
+            guard self.metadataOutput === output,
+                  let generation = self.sessionGeneration else { return }
+            DispatchQueue.main.async {
+                guard self.previewGeneration == generation else { return }
+                self.renderFaceOverlays(faces)
+            }
         }
     }
 
@@ -1243,6 +1269,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             reportedFirstFrame = false
         }
         session = nil
+        sessionGeneration = nil
         videoOutput = nil
         photoOutput = nil
         metadataOutput = nil
@@ -1257,7 +1284,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     @discardableResult
     private func installPreviewIfNeeded(
         session: AVCaptureSession,
-        device: AVCaptureDevice
+        device: AVCaptureDevice,
+        generation: UInt64
     ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
@@ -1280,8 +1308,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             nativePreview.layer.addSublayer(layer)
             previewView = nativePreview
             previewLayer = layer
+            previewGeneration = generation
         } else if previewLayer?.session !== session {
             return false
+        } else {
+            previewGeneration = generation
         }
 
         if let connection = previewLayer?.connection {
@@ -1359,6 +1390,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewLayer?.removeFromSuperlayer()
         previewView?.removeFromSuperview()
         previewLayer = nil
+        previewGeneration = nil
         previewView = nil
         requestedPreviewFrame = .zero
         requestedPreviewCornerRadius = 0

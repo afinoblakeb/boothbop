@@ -122,6 +122,15 @@ describe("native camera source contract", () => {
     );
     expect(cameraSource).toContain("pendingStartID");
     expect(cameraSource).toContain("failStart(");
+    expect(cameraSource).toContain('"generation": generation');
+  });
+
+  it("rejects stale face metadata before drawing on a newer preview", () => {
+    const metadataDelegate = cameraSource
+      .split("public func metadataOutput(")[1]
+      .split("private func renderFaceOverlays")[0];
+    expect(metadataDelegate).toContain("self.metadataOutput === output");
+    expect(metadataDelegate).toContain("previewGeneration == generation");
   });
 
   it("bounds photo processing and preserves published files until release", () => {

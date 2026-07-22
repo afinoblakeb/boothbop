@@ -19,12 +19,14 @@ export interface NativePhoto {
 export interface NativeCameraStart {
   width: number;
   height: number;
+  generation: number;
   warmupPath?: string;
 }
 
 export interface NativeCameraStateChange {
   state: "interrupted" | "failed";
   message: string;
+  generation: number;
 }
 
 export interface BoothBopCameraPlugin {

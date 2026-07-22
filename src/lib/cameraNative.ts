@@ -10,6 +10,7 @@ const STOP_TIMEOUT_MS = 3_000;
 const WARMUP_JPEG =
   "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q==";
 let lifecycleQueue: Promise<void> = Promise.resolve();
+let activeGeneration = 0;
 
 function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
   const result = lifecycleQueue.then(operation);
@@ -54,11 +55,13 @@ export async function canUseNativeCamera(): Promise<boolean> {
 
 export async function startNativeCamera(): Promise<void> {
   await enqueueLifecycle(async () => {
+    activeGeneration = 0;
     const started = await withTimeout(
       BoothBopCamera.start(),
       START_TIMEOUT_MS,
       "native camera",
     );
+    activeGeneration = started.generation;
     await warmWebImagePipeline(started.warmupPath);
   });
 }
@@ -81,6 +84,7 @@ export async function setNativePreviewFrame(
 }
 
 export async function stopNativeCamera(): Promise<void> {
+  activeGeneration = 0;
   await enqueueLifecycle(async () => {
     try {
       await withTimeout(
@@ -100,7 +104,11 @@ export async function observeNativeCameraFailures(
   try {
     const listener = await BoothBopCamera.addListener(
       "stateChanged",
-      ({ message }) => onFailure(message),
+      ({ message, generation }) => {
+        if (activeGeneration !== 0 && generation === activeGeneration) {
+          onFailure(message);
+        }
+      },
     );
     return () => {
       void listener.remove();

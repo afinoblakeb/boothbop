@@ -242,12 +242,20 @@ describe("native camera bridge", () => {
   });
 
   it("forwards native session failures and removes the listener", async () => {
-    let listener: ((event: { message: string }) => void) | undefined;
+    cameraPlugin.start.mockResolvedValue({
+      width: 3024,
+      height: 4032,
+      generation: 2,
+    });
+    await startNativeCamera();
+    let listener:
+      | ((event: { message: string; generation: number }) => void)
+      | undefined;
     const remove = vi.fn().mockResolvedValue(undefined);
     cameraPlugin.addListener.mockImplementation(
       async (
         _eventName: string,
-        callback: (event: { message: string }) => void,
+        callback: (event: { message: string; generation: number }) => void,
       ) => {
         listener = callback;
         return { remove };
@@ -256,9 +264,11 @@ describe("native camera bridge", () => {
     const onFailure = vi.fn();
 
     const unsubscribe = await observeNativeCameraFailures(onFailure);
-    listener?.({ message: "Camera was interrupted" });
+    listener?.({ message: "Old camera was interrupted", generation: 1 });
+    listener?.({ message: "Camera was interrupted", generation: 2 });
     unsubscribe();
 
+    expect(onFailure).toHaveBeenCalledOnce();
     expect(onFailure).toHaveBeenCalledWith("Camera was interrupted");
     expect(remove).toHaveBeenCalledOnce();
   });

@@ -21,6 +21,7 @@ green, and the owner accepts a signed iPhone build.
 | CAM-06      | P0       | Preview-layer connection creation can overlap `startRunning()` while session configuration is open.                               | Physical-device `NSGenericException`, source contract, build, and analyze. | Fixed in `9c30c46` and `8e06f84`; topology commits before start, preview attaches after start, and later positioning is geometry-only. |
 | CAM-07      | P1       | Backgrounding or opening an overlay while native startup is pending can leave a camera under stale UI.                            | Deferred-start and simultaneous-overlay Playwright races.                  | Fixed in `370a871`; pending starts are cancellable, lifecycle work is serialized, and overlays are mutually exclusive.                 |
 | CAM-08      | P1       | WebKit suspension can prevent JavaScript from stopping AVFoundation, while stale processing and file cleanup outlive the session. | Swift source contracts and Release build/analyze.                          | Fixed in `dd987a9`; UIKit-owned background teardown, interruption settlement, bounded processing, and explicit file ownership.         |
+| CAM-09      | P1       | Delayed interruption or face-metadata callbacks from an old session can affect a newly opened preview.                            | Generation-filter unit and native source-contract tests.                   | Fixed in the final reliability pass; starts, events, and preview metadata share a monotonic session generation.                        |
 | LAUNCH-01   | P1       | A transient splash bridge failure can permanently latch the launch cover.                                                         | Retry and startup-boundary tests.                                          | Fixed in `fbd7e4d` and `370a871`; bounded automatic retry plus error-boundary splash release.                                          |
 | LAUNCH-02   | P1       | A React startup exception or legacy native service worker can leave stale or blank UI.                                            | Startup boundary and native cleanup tests.                                 | Fixed in `694fa9d` and `370a871`.                                                                                                      |
 | LAUNCH-03   | P1       | Unavailable WKWebView preference storage can abort initial React rendering.                                                       | Storage-throwing native launch journey.                                    | Fixed in `f68d954`; launch preferences use guarded storage.                                                                            |
@@ -52,7 +53,7 @@ These are remaining limitations to resolve or explicitly accept before release:
 
 ## Verification Record
 
-- `npm run check`: 31 files and 204 tests passed; zero lint/type/format warnings.
+- `npm run check`: 31 files and 206 tests passed; zero lint/type/format warnings.
 - `npm run check:e2e`: all 32 production journeys passed.
 - Release simulator build: passed with zero app warnings.
 - Xcode Release static analysis: passed with zero app warnings.
