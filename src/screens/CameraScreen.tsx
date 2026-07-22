@@ -1,6 +1,6 @@
 import type { RefObject } from "react";
-import { BrandIcon } from "../icons";
-import { Button, Heading, SegmentedControl } from "../ui";
+import { Timer, X } from "lucide-react";
+import { Heading, SegmentedControl } from "../ui";
 import { SHOTS } from "../constants";
 import type { Phase } from "../types";
 
@@ -36,7 +36,7 @@ export function CameraScreen({
   retakeIndex: number | null;
 }) {
   return (
-    <div className="camera-screen flex min-h-0 flex-1 flex-col py-4">
+    <div className="camera-screen flex min-h-0 flex-1 flex-col py-3">
       <span role="status" aria-live="assertive" className="sr-only">
         {countdown !== null
           ? `${countdown}`
@@ -46,76 +46,95 @@ export function CameraScreen({
               : `Retaking photo ${retakeIndex + 1}`
             : "Camera ready"}
       </span>
-      <div className="camera-preview relative aspect-square w-full shrink-0 overflow-hidden border-2 border-ink bg-ink">
-        <video
-          ref={videoRef}
-          playsInline
-          muted
-          autoPlay
-          className="h-full w-full -scale-x-100 object-cover"
-        />
+      <section
+        aria-label="Camera preview"
+        className="-mx-4 shrink-0 bg-surface-inverse px-4 py-3 shadow-overlay"
+      >
+        <div className="camera-preview relative aspect-square w-full shrink-0 overflow-hidden rounded-md border border-editor-border bg-editor shadow-overlay">
+          <video
+            ref={videoRef}
+            playsInline
+            muted
+            autoPlay
+            className="h-full w-full -scale-x-100 object-cover"
+          />
 
-        {phase === "capturing" && (
-          <Heading
-            as="div"
-            size="sm"
-            className="absolute left-2 top-2 flex items-center gap-2 border-2 border-ink bg-cream px-2 py-1 text-ink"
+          {phase === "capturing" && (
+            <div className="absolute left-2 top-2 flex min-h-9 items-center gap-2 rounded-full bg-editor/80 px-3 font-sans text-xs font-semibold text-text-inverse shadow-control backdrop-blur-md">
+              <span className="pulse inline-block h-2 w-2 rounded-full bg-accent" />
+              {retakeIndex === null
+                ? `${thumbs.length} of ${SHOTS}`
+                : `Retaking ${retakeIndex + 1} of ${SHOTS}`}
+            </div>
+          )}
+
+          <button
+            type="button"
+            aria-label="Cancel"
+            title="Cancel"
+            onClick={onCancel}
+            className="absolute right-2 top-2 flex h-11 w-11 items-center justify-center rounded-full bg-editor/80 text-text-inverse shadow-control outline-none backdrop-blur-md transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-editor active:bg-editor"
           >
-            <span className="pulse inline-block h-2.5 w-2.5 rounded-full bg-orange" />
-            {retakeIndex === null
-              ? `${thumbs.length}/${SHOTS}`
-              : `Retake ${retakeIndex + 1}/${SHOTS}`}
-          </Heading>
-        )}
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
 
-        {countdown !== null && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span
-              key={countdown}
-              className="countpop font-display text-[14rem] leading-none"
-              style={{
-                color: COUNTDOWN_COLOR[countdown] ?? "var(--color-orange)",
-                WebkitTextStroke: "5px var(--color-ink)",
-                paintOrder: "stroke fill",
-              }}
+          {countdown !== null && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <span
+                key={countdown}
+                className="countpop font-display text-[10rem] leading-none"
+                style={{
+                  color: COUNTDOWN_COLOR[countdown] ?? "var(--color-orange)",
+                  WebkitTextStroke: "4px var(--color-ink)",
+                  paintOrder: "stroke fill",
+                }}
+              >
+                {countdown}
+              </span>
+            </div>
+          )}
+
+          {flash && <div className="flash absolute inset-0 bg-white" />}
+        </div>
+
+        {/* Filling photo slots */}
+        <div className="camera-thumbs mt-2 grid shrink-0 grid-cols-4 gap-2">
+          {Array.from({ length: SHOTS }).map((_, i) => (
+            <div
+              key={i}
+              className={`relative aspect-square overflow-hidden rounded-md border bg-editor-surface ${
+                retakeIndex === i
+                  ? "border-accent ring-2 ring-accent ring-offset-2 ring-offset-editor"
+                  : "border-editor-border"
+              }`}
             >
-              {countdown}
-            </span>
-          </div>
-        )}
+              {thumbs[i] ? (
+                <img
+                  src={thumbs[i]}
+                  alt={`Shot ${i + 1}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 flex items-center justify-center font-sans text-xs font-semibold text-editor-muted"
+                >
+                  {i + 1}
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      </section>
 
-        {flash && <div className="flash absolute inset-0 bg-white" />}
-      </div>
-
-      {/* Filling photo slots */}
-      <div className="camera-thumbs mt-4 grid shrink-0 grid-cols-4 gap-2">
-        {Array.from({ length: SHOTS }).map((_, i) => (
-          <div
-            key={i}
-            className={`aspect-square overflow-hidden border-2 bg-paper ${
-              retakeIndex === i
-                ? "border-orange ring-2 ring-orange ring-offset-2 ring-offset-cream"
-                : "border-ink"
-            }`}
-          >
-            {thumbs[i] && (
-              <img
-                src={thumbs[i]}
-                alt={`Shot ${i + 1}`}
-                className="h-full w-full object-cover"
-              />
-            )}
-          </div>
-        ))}
-      </div>
-
-      <div className="camera-controls mt-auto pt-4 text-center">
+      <div className="camera-controls mt-auto pt-3 text-center">
         {phase === "preview" ? (
           <>
-            <div className="camera-countdown mb-3 flex items-center justify-center gap-2">
-              <Heading as="span" size="sm" className="text-brown">
+            <div className="camera-countdown mb-2 flex items-center justify-center gap-2">
+              <span className="flex items-center gap-1.5 font-sans text-sm font-medium text-text-muted">
+                <Timer className="h-4 w-4" aria-hidden="true" />
                 Countdown
-              </Heading>
+              </span>
               <SegmentedControl
                 label="Countdown seconds"
                 value={delay}
@@ -125,27 +144,29 @@ export function CameraScreen({
                   { value: 2, label: "2s" },
                   { value: 3, label: "3s" },
                 ]}
-                itemClassName="flex min-h-[44px] items-center justify-center px-4 py-2.5 text-lg"
+                itemClassName="flex min-h-[44px] items-center justify-center px-3 py-2 text-sm"
               />
             </div>
-            <Button variant="primary" size="lg" fullWidth onClick={onStart}>
-              <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
+            <button
+              type="button"
+              onClick={onStart}
+              aria-label={
+                retakeIndex === null
+                  ? "Take Photos"
+                  : `Retake Photo ${retakeIndex + 1}`
+              }
+              className="mx-auto flex h-[68px] w-[68px] items-center justify-center rounded-full border-4 border-surface bg-transparent p-1 shadow-overlay outline-none ring-1 ring-border-strong transition focus-visible:ring-4 focus-visible:ring-accent/40 active:scale-95"
+            >
+              <span className="h-full w-full rounded-full bg-accent transition active:bg-accent-strong" />
+            </button>
+            <p className="mt-1 font-sans text-sm font-semibold text-text">
               {retakeIndex === null
                 ? "Take Photos"
                 : `Retake Photo ${retakeIndex + 1}`}
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              fullWidth
-              onClick={onCancel}
-              className="mt-2"
-            >
-              Cancel
-            </Button>
+            </p>
           </>
         ) : (
-          <Heading as="p" size="xl" className="text-orange">
+          <Heading as="p" size="xl" variant="brand" className="text-accent">
             Strike a pose!
           </Heading>
         )}
