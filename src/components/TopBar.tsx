@@ -19,7 +19,7 @@ export function TopBar({
       <button
         onClick={onHome}
         aria-label="Home"
-        className="inline-flex min-h-[44px] items-center rounded-lg px-1 outline-none transition focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-app-canvas active:opacity-60"
+        className="inline-flex min-h-[44px] items-center rounded-lg px-1 outline-none transition focus-visible:bg-surface-muted active:opacity-60"
       >
         <img
           src={LOGO}

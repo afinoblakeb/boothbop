@@ -436,7 +436,7 @@ function ReviewAction({
       onClick={onClick}
       disabled={disabled}
       aria-pressed={pressed}
-      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 font-sans text-[11px] font-semibold leading-tight outline-none transition focus-visible:ring-2 focus-visible:ring-accent disabled:opacity-40 ${
+      className={`flex min-h-16 min-w-0 flex-col items-center justify-center gap-1 rounded-md px-1 font-sans text-[11px] font-semibold leading-tight outline-none transition focus-visible:bg-surface focus-visible:text-accent disabled:opacity-40 ${
         primary
           ? "bg-accent text-on-accent shadow-control active:bg-accent-strong"
           : pressed
@@ -490,7 +490,7 @@ function PhotoEditor({
           data-autofocus
           type="button"
           onClick={onDone}
-          className="absolute bottom-2 right-3 min-h-11 rounded-md px-2 font-sans text-base font-semibold text-accent outline-none focus-visible:ring-2 focus-visible:ring-accent"
+          className="absolute bottom-2 right-3 min-h-11 rounded-md px-2 font-sans text-base font-semibold text-accent outline-none focus-visible:underline focus-visible:underline-offset-4"
         >
           Done
         </button>
