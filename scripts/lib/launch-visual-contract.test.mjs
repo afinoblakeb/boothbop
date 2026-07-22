@@ -3,6 +3,7 @@ import {
   assertNoSustainedBlackLaunch,
   isBlackLaunchFrame,
   isBoothBopReadyFrame,
+  isSimulatorBootFrameReady,
 } from "./launch-visual-contract.mjs";
 
 describe("native launch visual contract", () => {
@@ -60,5 +61,14 @@ describe("native launch visual contract", () => {
         maxOrangeRowRatio: 0.13,
       }),
     ).toBe(true);
+  });
+
+  it("waits past the simulator boot spinner before launching the app", () => {
+    expect(isSimulatorBootFrameReady({ average: 1, brightRatio: 0.002 })).toBe(
+      false,
+    );
+    expect(isSimulatorBootFrameReady({ average: 146, brightRatio: 0.72 })).toBe(
+      true,
+    );
   });
 });

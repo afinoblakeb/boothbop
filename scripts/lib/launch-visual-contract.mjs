@@ -2,6 +2,10 @@ export function isBlackLaunchFrame(stats) {
   return stats.average < 12 && stats.brightRatio < 0.02;
 }
 
+export function isSimulatorBootFrameReady(stats) {
+  return !isBlackLaunchFrame(stats) && stats.brightRatio >= 0.1;
+}
+
 export function assertNoSustainedBlackLaunch(deviceName, blackFrameCount) {
   if (blackFrameCount >= 2) {
     throw new Error(

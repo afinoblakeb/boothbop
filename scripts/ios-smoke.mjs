@@ -7,6 +7,7 @@ import {
   assertNoSustainedBlackLaunch,
   isBlackLaunchFrame,
   isBoothBopReadyFrame,
+  isSimulatorBootFrameReady,
 } from "./lib/launch-visual-contract.mjs";
 import { simulatorCameraGrantArgs } from "./lib/simulator-privacy.mjs";
 
@@ -212,6 +213,8 @@ async function bootDevice(device) {
     quiet: true,
     timeoutMs: 120000,
   });
+
+  await waitForSimulatorUI(device);
 }
 
 async function screenshotStats(filePath) {
@@ -285,6 +288,31 @@ async function screenshotStats(filePath) {
 
 async function sleep(ms) {
   await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function waitForSimulatorUI(device) {
+  const safeName = device.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase();
+  const screenshot = path.join(screenshotDir, `${safeName}-boot.png`);
+  const deadline = Date.now() + 90000;
+  let consecutiveReadyFrames = 0;
+
+  while (Date.now() < deadline) {
+    await run(
+      "xcrun",
+      ["simctl", "io", device.udid, "screenshot", screenshot],
+      { quiet: true, timeoutMs: 30000 },
+    );
+    const stats = await screenshotStats(screenshot);
+    consecutiveReadyFrames = isSimulatorBootFrameReady(stats)
+      ? consecutiveReadyFrames + 1
+      : 0;
+    if (consecutiveReadyFrames >= 2) return;
+    await sleep(500);
+  }
+
+  throw new Error(
+    `${device.name} did not finish rendering the simulator system UI within 90 seconds.`,
+  );
 }
 
 async function captureVisibleScreenshot(device, screenshot) {
