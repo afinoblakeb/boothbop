@@ -6,3 +6,8 @@ want.
 Photos saved in My Photos keep their original detail, and every new export uses
 BoothBop's best quality automatically. A small in-app update card highlights
 major improvements after automatic updates without asking for notifications.
+
+The iPhone app now opens straight into a sharper native camera, classic strips
+use a print-ready 2x6 shape with square photos, and the refreshed future-retro
+design keeps My Photos, Settings, editing, saving, and sharing easier to reach.
+You can jump straight from My Photos back into the camera in one tap.

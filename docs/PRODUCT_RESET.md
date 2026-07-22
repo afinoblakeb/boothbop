@@ -131,16 +131,20 @@ It is waiting for review, not publicly released. Its evidence is recorded in
 `docs/QUALITY_AUDIT_0.0.4.md` and
 `docs/features/0.0.4-social-sharing.md`.
 
-## Build 0.0.5: Media Quality Candidate (In Progress)
+## Build 0.0.5: Quality Candidate (Owner Review Pending)
 
 Build `0.0.5` keeps App Store version `0.0.4` and is a quality correction, not
-a feature release. It makes best quality automatic, uses bounded previews,
-preserves gallery masters, moves GIF work off the UI thread, deduplicates and
-invalidates render jobs, and improves native video inputs and encoding.
+a creative-feature release. It makes best quality automatic, uses bounded
+previews, preserves gallery masters, moves GIF work off the UI thread,
+deduplicates and invalidates render jobs, improves native media encoding, adds
+full-resolution native iPhone capture, makes launch camera-first, modernizes the
+shared visual system, makes classic strips exact 2x6 outputs with square photos,
+and replaces per-thumbnail trash buttons with Select-then-Delete.
 
-The candidate is not shipped. The current source gate passes, but production
-browser, native simulator, archive, upload, TestFlight, and physical-device
-validation remain release gates. Exact evidence and open work are recorded in
+The candidate is not shipped. Source, production-browser, Release compile, and
+native simulator launch/update gates pass. Signed archive validation and owner
+iPhone review remain; upload, active-submission replacement, and App Review are
+explicitly blocked until approval. Exact evidence and open work are recorded in
 `docs/features/0.0.4-build-0.0.5-media-quality.md`.
 
 ## Feature Selection Rules

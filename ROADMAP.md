@@ -53,7 +53,7 @@ social-compatible H.264 MP4 while the original GIF remains available. It is
 waiting for review as of 2026-07-21 and is not the public production version. See
 `docs/features/0.0.4-social-sharing.md` and `docs/QUALITY_AUDIT_0.0.4.md`.
 
-## Active Candidate: 0.0.4 Build 0.0.5
+## Owner Review Candidate: 0.0.4 Build 0.0.5
 
 Build `0.0.5` is a replacement binary for App Store version `0.0.4`, not a new
 feature release. Its scope is media quality, responsiveness, and lifecycle
@@ -68,13 +68,18 @@ correctness:
    invalidate render jobs safely.
 5. Improve native video frame fidelity, H.264 configuration, progress, and
    failure cleanup.
-6. Re-run production-browser and simulator matrices, then archive, validate,
-   upload, and TestFlight-test only after all earlier gates pass.
+6. Prefer a full-resolution native iPhone camera with WebKit fallback, launch
+   directly into capture, and retain camera access to My Photos and Settings.
+7. Apply the future-retro design system, exact 2x6 classic geometry with square
+   photos, and Select-then-Delete gallery interaction as quality corrections.
+8. Re-run production-browser and simulator matrices, then archive and validate.
+   Upload and submission remain blocked until owner review.
 
-The source quality gate currently passes. Production-browser startup timed out
-before tests ran in the latest verification attempt, and native, archive,
-upload, TestFlight, and physical-device gates are not complete. The release
-decision therefore remains **Revise**. See
+Source, all 23 production-browser journeys, zero-warning Release compilation,
+and the compact/standard/Pro-Max simulator launch matrix pass. Fresh and
+overwrite-update launches recorded zero black transition frames. Signed archive
+validation and owner iPhone review remain; upload and submission are not
+authorized. See
 `docs/features/0.0.4-build-0.0.5-media-quality.md` for exact evidence.
 
 After this quality-only replacement, the one-feature monthly cadence resumes.
