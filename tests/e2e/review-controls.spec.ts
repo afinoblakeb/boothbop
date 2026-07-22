@@ -85,6 +85,49 @@ test("Edit mode follows the Photos toolbar pattern", async ({ page }) => {
   await expect(editor).toHaveCount(0);
 });
 
+test("high-quality masters keep the editor responsive", async ({ page }) => {
+  await page.addInitScript(() => {
+    const state = window as typeof window & { __longTasks?: number[] };
+    state.__longTasks = [];
+    if (!PerformanceObserver.supportedEntryTypes.includes("longtask")) return;
+    new PerformanceObserver((list) => {
+      const current = (window as typeof window & { __longTasks?: number[] })
+        .__longTasks;
+      current?.push(...list.getEntries().map((entry) => entry.duration));
+    }).observe({ entryTypes: ["longtask"] });
+  });
+
+  await openDemoReview(page);
+  const preview = page.getByRole("img", { name: "Your strip" });
+  const previewPayload = await preview.evaluate((image) => ({
+    width: image.naturalWidth,
+    sourceLength: image.src.length,
+  }));
+  expect(previewPayload.width).toBeLessThan(500);
+  expect(previewPayload.sourceLength).toBeLessThan(1_000_000);
+
+  await page.evaluate(() => {
+    (window as typeof window & { __longTasks?: number[] }).__longTasks = [];
+  });
+  await page.getByRole("button", { name: "Edit" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit photos" });
+  for (const look of ["Warm", "Cool", "B&W", "Sepia", "Inverse"]) {
+    const button = editor.getByRole("button", { name: look, exact: true });
+    await button.click();
+    await expect(button).toHaveAttribute("aria-pressed", "true");
+  }
+  await page.waitForTimeout(150);
+
+  const longestTask = await page.evaluate(() =>
+    Math.max(
+      0,
+      ...((window as typeof window & { __longTasks?: number[] }).__longTasks ??
+        []),
+    ),
+  );
+  expect(longestTask).toBeLessThanOrEqual(100);
+});
+
 test("GIF Boom toggle updates and persists", async ({ page }) => {
   await openDemoReview(page);
   await expect(
@@ -105,7 +148,7 @@ test("GIF Boom toggle updates and persists", async ({ page }) => {
   await expect(gif).toBeVisible();
   await expect
     .poll(() => gif.evaluate((image) => image.naturalWidth))
-    .toBe(900);
+    .toBe(1080);
   await expect
     .poll(() => page.evaluate(() => localStorage.getItem("bb.boom")))
     .toBe("1");
@@ -130,7 +173,7 @@ test("GIF sharing creates a compatible MP4 and preserves the original GIF", asyn
     page.getByRole("button", { name: "Preparing..." }),
   ).toBeVisible();
   await expect(page.getByRole("status")).toHaveText(
-    "Preparing a social video to share",
+    "Preparing high-quality share…",
   );
 
   await expect
