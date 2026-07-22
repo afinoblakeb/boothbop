@@ -1,7 +1,5 @@
-import { X } from "lucide-react";
-import { BrandIcon } from "../icons";
-import { Button, Callout, IconButton } from "../ui";
-import { LOGO } from "../constants";
+import { Camera, X } from "lucide-react";
+import { Button, Callout, Heading, IconButton } from "../ui";
 import { InstallCard } from "../components/InstallCard";
 import { LegalFooter } from "../components/LegalFooter";
 import type { InstallPromptEvent } from "../types";
@@ -25,16 +23,21 @@ export function IdleScreen({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
-      <div className="flex flex-1 flex-col items-center justify-center px-1 text-center">
-        <img
-          src={LOGO}
-          alt="BoothBop"
-          className="mx-auto max-h-32 h-auto w-full max-w-xs object-contain"
-        />
-
-        <p className="mt-2 max-w-xs text-pretty font-sans text-base text-brown">
-          Your phone is the photo booth. Tap the button, strike four poses, and
-          grab your photo strip!
+      <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center px-2 py-5 text-left">
+        <p className="font-sans text-sm font-semibold text-accent">
+          Four shots. One classic strip.
+        </p>
+        <Heading
+          as="h1"
+          size="xl"
+          variant="page"
+          className="mt-1 text-balance text-text"
+        >
+          The photo booth, reimagined.
+        </Heading>
+        <p className="mt-2 max-w-xs text-pretty font-sans text-base leading-6 text-text-muted">
+          Strike four poses and get a print-ready strip worth saving, sharing,
+          and putting on the fridge.
         </p>
 
         <Button
@@ -43,12 +46,12 @@ export function IdleScreen({
           fullWidth
           onClick={onStart}
           disabled={openingCamera}
-          className="mt-4 max-w-xs"
+          className="mt-5 max-w-xs"
         >
           {openingCamera ? (
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-cream/40 border-t-cream" />
+            <span className="h-5 w-5 animate-spin rounded-full border-2 border-on-accent/40 border-t-on-accent" />
           ) : (
-            <BrandIcon name="camera" className="h-8 w-8 -translate-y-1" />
+            <Camera className="h-6 w-6" aria-hidden="true" />
           )}
           {openingCamera ? "Opening Camera…" : "Take Photos"}
         </Button>
@@ -56,25 +59,25 @@ export function IdleScreen({
         {releaseAnnouncement && (
           <Callout
             tone="info"
-            className="mt-4 flex w-full max-w-xs items-start gap-3 px-3 py-2 text-left"
+            className="mt-4 flex w-full max-w-xs items-start gap-3 px-3 py-2.5 text-left"
           >
             <div role="status" className="min-w-0 flex-1">
-              <p className="font-sans text-[10px] font-semibold uppercase text-teal">
+              <p className="font-sans text-xs font-semibold text-positive">
                 New in BoothBop
               </p>
-              <p className="font-sans text-sm font-semibold text-ink">
+              <p className="font-sans text-sm font-semibold text-text">
                 {releaseAnnouncement.title}
               </p>
-              <p className="mt-0.5 text-pretty font-sans text-xs text-brown">
+              <p className="mt-0.5 text-pretty font-sans text-xs leading-5 text-text-muted">
                 {releaseAnnouncement.body}
               </p>
             </div>
             <IconButton
               aria-label="Dismiss update"
               onClick={onDismissReleaseAnnouncement}
-              className="h-11 w-11 shrink-0 text-brown"
+              className="h-11 w-11 shrink-0 text-text-muted"
             >
-              <X className="h-5 w-5" />
+              <X className="h-5 w-5" aria-hidden="true" />
             </IconButton>
           </Callout>
         )}
@@ -85,14 +88,14 @@ export function IdleScreen({
           <Callout
             as="p"
             tone="error"
-            className="mt-6 max-w-xs px-4 py-3 font-sans text-sm text-orange-dark"
+            className="mt-5 max-w-xs px-4 py-3 font-sans text-sm text-critical"
           >
             {error}
           </Callout>
         )}
       </div>
 
-      <LegalFooter className="pb-[calc(env(safe-area-inset-bottom)+0.75rem)] pt-4 text-center" />
+      <LegalFooter className="pb-[calc(env(safe-area-inset-bottom)+0.5rem)] pt-2" />
     </div>
   );
 }

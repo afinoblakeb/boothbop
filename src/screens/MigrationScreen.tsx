@@ -1,6 +1,6 @@
-import { LOGO } from "../constants";
+import { ArrowRight } from "lucide-react";
 import { InstallSteps } from "../components/InstallCard";
-import { Callout, Heading } from "../ui";
+import { Button, Callout, Heading } from "../ui";
 
 /**
  * Dedicated landing for users arriving from the retired PhotoBlast app
@@ -11,29 +11,37 @@ import { Callout, Heading } from "../ui";
  */
 export function MigrationScreen({ onContinue }: { onContinue: () => void }) {
   return (
-    <div className="flex flex-1 flex-col items-center justify-center text-center">
-      <img src={LOGO} alt="BoothBop" className="w-full max-w-xs" />
-      <Callout tone="warning" className="mt-4 w-full max-w-xs p-4 text-left">
-        <Heading as="p" size="lg" className="text-ink">
+    <div className="flex flex-1 flex-col items-center justify-center overflow-y-auto px-1 py-6 text-center">
+      <p className="font-sans text-sm font-semibold text-accent">
+        PhotoBlast has moved
+      </p>
+      <Heading as="h1" size="xl" variant="page" className="mt-1 text-text">
+        Meet BoothBop.
+      </Heading>
+      <Callout tone="neutral" className="mt-5 w-full max-w-xs p-4 text-left">
+        <Heading as="p" size="md" variant="page" className="text-text">
           Welcome back!
         </Heading>
-        <p className="mt-1 font-sans text-sm text-brown">
+        <p className="mt-1 font-sans text-sm leading-5 text-text-muted">
           PhotoBlast is now{" "}
-          <span className="font-bold text-orange">BoothBop</span> — same booth,
-          new name. To keep it on your phone:
+          <span className="font-semibold text-accent">BoothBop</span> — same
+          booth, new name. To keep it on your phone:
         </p>
         <InstallSteps />
-        <p className="mt-3 font-sans text-sm text-brown">
+        <p className="mt-3 font-sans text-sm leading-5 text-text-muted">
           Then <strong>delete the old PhotoBlast icon</strong> — it's retired
           and won't update.
         </p>
       </Callout>
-      <button
+      <Button
+        variant="quiet"
+        size="sm"
         onClick={onContinue}
-        className="mt-6 font-sans text-xs uppercase tracking-widest text-warmgray underline"
+        className="mt-4 text-text-muted"
       >
         Continue to BoothBop
-      </button>
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
     </div>
   );
 }

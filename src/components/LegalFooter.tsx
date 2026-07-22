@@ -17,24 +17,30 @@ async function openLegalPage(slug: "privacy" | "terms" | "support") {
 // page footer on Home, the end of the scroll on Settings) via `className`.
 export function LegalFooter({ className = "" }: { className?: string }) {
   return (
-    <footer className={`font-sans text-xs text-warmgray ${className}`}>
+    <footer
+      className={`flex flex-wrap items-center justify-center gap-x-1 border-t border-border font-sans text-xs text-text-muted ${className}`}
+    >
       <button
         onClick={() => openLegalPage("privacy")}
-        className="min-h-[44px] px-1 underline"
+        className="min-h-[44px] rounded-lg px-2 font-medium outline-none transition hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
       >
         Privacy
-      </button>{" "}
-      ·{" "}
+      </button>
+      <span aria-hidden="true" className="text-border-strong">
+        ·
+      </span>
       <button
         onClick={() => openLegalPage("terms")}
-        className="min-h-[44px] px-1 underline"
+        className="min-h-[44px] rounded-lg px-2 font-medium outline-none transition hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
       >
         Terms
-      </button>{" "}
-      ·{" "}
+      </button>
+      <span aria-hidden="true" className="text-border-strong">
+        ·
+      </span>
       <button
         onClick={() => openLegalPage("support")}
-        className="min-h-[44px] px-1 underline"
+        className="min-h-[44px] rounded-lg px-2 font-medium outline-none transition hover:text-text focus-visible:ring-2 focus-visible:ring-accent"
       >
         Support
       </button>

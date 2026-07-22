@@ -1,6 +1,6 @@
 import { useState } from "react";
+import { Download, Share } from "lucide-react";
 import { isIOS, isNativeShell } from "../lib/platform";
-import { BrandIcon, ShareIcon } from "../icons";
 import { Button, Callout, Heading } from "../ui";
 import type { InstallPromptEvent } from "../types";
 
@@ -37,37 +37,37 @@ export function InstallCard({
   }
 
   return (
-    <Callout tone="highlight" className="mt-8 w-full max-w-xs p-4 text-left">
-      <Heading as="p" size="lg" className="flex items-center gap-2 text-ink">
-        <BrandIcon name="install" className="h-7 w-7" />
+    <Callout tone="neutral" className="mt-6 w-full max-w-xs p-4 text-left">
+      <Heading as="p" size="sm" className="flex items-center gap-2 text-text">
+        <Download className="h-5 w-5 text-accent" aria-hidden="true" />
         Get the full app
       </Heading>
-      <p className="mt-1 font-sans text-sm text-brown">
-        Add BoothBop to your home screen — it opens full-screen, loads
-        instantly, and works with no signal. No app store, free.
+      <p className="mt-1 font-sans text-sm leading-5 text-text-muted">
+        Add BoothBop to your home screen. It opens full-screen, loads instantly,
+        and works with no signal. No app store, free.
       </p>
 
       {installPrompt ? (
         <Button
-          variant="primary"
+          variant="secondary"
           size="md"
           fullWidth
           onClick={oneTapInstall}
           className="mt-3"
         >
-          <BrandIcon name="install" className="h-6 w-6" />
+          <Download className="h-5 w-5" aria-hidden="true" />
           Add to Home Screen
         </Button>
       ) : (
         <>
           <Button
-            variant="primary"
+            variant="secondary"
             size="md"
             fullWidth
             onClick={() => setShowSteps((v) => !v)}
             className="mt-3"
           >
-            <BrandIcon name="install" className="h-6 w-6" />
+            <Download className="h-5 w-5" aria-hidden="true" />
             Add to Home Screen
           </Button>
           {showSteps && <InstallSteps />}
@@ -81,13 +81,13 @@ export function InstallCard({
 export function InstallSteps() {
   const ios = isIOS();
   return (
-    <ol className="mt-3 space-y-1.5 font-sans text-sm text-brown">
+    <ol className="mt-3 space-y-1.5 font-sans text-sm leading-5 text-text-muted">
       {ios ? (
         <>
           <li className="flex items-center gap-1">
             <span>1. Tap the</span>
             <strong>Share</strong>
-            <ShareIcon className="inline h-4 w-4" />
+            <Share className="inline h-4 w-4" aria-hidden="true" />
             <span>icon in Safari's toolbar.</span>
           </li>
           <li>
