@@ -67,6 +67,18 @@ function openDB(): Promise<IDBDatabase> {
   });
 }
 
+function handleTransaction(
+  transaction: IDBTransaction,
+  oncomplete: () => void,
+  reject: (reason?: unknown) => void,
+): void {
+  const rejectTransaction = () =>
+    reject(transaction.error ?? new Error("IndexedDB transaction failed"));
+  transaction.oncomplete = oncomplete;
+  transaction.onerror = rejectTransaction;
+  transaction.onabort = rejectTransaction;
+}
+
 /** Ask the browser to keep our data through storage pressure (best effort). */
 export function requestPersistence(): void {
   navigator.storage?.persist?.().catch(() => {});
@@ -97,8 +109,7 @@ export async function saveSession(
         id: session.id,
         photos,
       } satisfies PhotoRecord);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+      handleTransaction(transaction, resolve, reject);
     });
   } finally {
     db.close();
@@ -116,20 +127,23 @@ export async function loadSession(id: string): Promise<Session> {
       );
       const metadataRequest = transaction.objectStore(META_STORE).get(id);
       const photosRequest = transaction.objectStore(PHOTOS_STORE).get(id);
-      transaction.oncomplete = () => {
-        const metadata = metadataRequest.result as SessionSummary | undefined;
-        const photoRecord = photosRequest.result as PhotoRecord | undefined;
-        if (!metadata || !photoRecord) {
-          reject(new Error("Session not found"));
-          return;
-        }
-        resolve({
-          id: metadata.id,
-          createdAt: metadata.createdAt,
-          photos: photoRecord.photos,
-        });
-      };
-      transaction.onerror = () => reject(transaction.error);
+      handleTransaction(
+        transaction,
+        () => {
+          const metadata = metadataRequest.result as SessionSummary | undefined;
+          const photoRecord = photosRequest.result as PhotoRecord | undefined;
+          if (!metadata || !photoRecord) {
+            reject(new Error("Session not found"));
+            return;
+          }
+          resolve({
+            id: metadata.id,
+            createdAt: metadata.createdAt,
+            photos: photoRecord.photos,
+          });
+        },
+        reject,
+      );
     });
   } finally {
     db.close();
@@ -168,10 +182,13 @@ export async function updateSessionPhotos(
         updated = { id, createdAt: metadata.createdAt, photos };
       };
       metadataRequest.onerror = () => reject(metadataRequest.error);
-      transaction.oncomplete = () => {
-        if (updated) resolve(updated);
-      };
-      transaction.onerror = () => reject(transaction.error);
+      handleTransaction(
+        transaction,
+        () => {
+          if (updated) resolve(updated);
+        },
+        reject,
+      );
     });
   } finally {
     db.close();
@@ -182,12 +199,14 @@ export async function listSessionSummaries(): Promise<SessionSummary[]> {
   const db = await openDB();
   try {
     const items = await new Promise<SessionSummary[]>((resolve, reject) => {
-      const request = db
-        .transaction(META_STORE, "readonly")
-        .objectStore(META_STORE)
-        .getAll();
-      request.onsuccess = () => resolve(request.result as SessionSummary[]);
+      const transaction = db.transaction(META_STORE, "readonly");
+      const request = transaction.objectStore(META_STORE).getAll();
       request.onerror = () => reject(request.error);
+      handleTransaction(
+        transaction,
+        () => resolve(request.result as SessionSummary[]),
+        reject,
+      );
     });
     return items.sort((left, right) => right.createdAt - left.createdAt);
   } finally {
@@ -205,8 +224,7 @@ export async function deleteSession(id: string): Promise<void> {
       );
       transaction.objectStore(META_STORE).delete(id);
       transaction.objectStore(PHOTOS_STORE).delete(id);
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+      handleTransaction(transaction, resolve, reject);
     });
   } finally {
     db.close();
@@ -221,8 +239,7 @@ export async function clearSessions(): Promise<void> {
       if (db.objectStoreNames.contains(LEGACY_STORE)) stores.push(LEGACY_STORE);
       const transaction = db.transaction(stores, "readwrite");
       for (const store of stores) transaction.objectStore(store).clear();
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
+      handleTransaction(transaction, resolve, reject);
     });
   } finally {
     db.close();
@@ -300,19 +317,24 @@ export function blobToCanvas(
     const url = URL.createObjectURL(blob);
     const image = new Image();
     image.onload = () => {
-      const canvas = document.createElement("canvas");
-      const dimensions = galleryCanvasSize(
-        image.naturalWidth || image.width,
-        image.naturalHeight || image.height,
-        size,
-      );
-      canvas.width = dimensions.width;
-      canvas.height = dimensions.height;
-      const context = canvas.getContext("2d")!;
-      configureHighQualityScaling(context);
-      context.drawImage(image, 0, 0, dimensions.width, dimensions.height);
-      URL.revokeObjectURL(url);
-      resolve(canvas);
+      try {
+        const canvas = document.createElement("canvas");
+        const dimensions = galleryCanvasSize(
+          image.naturalWidth || image.width,
+          image.naturalHeight || image.height,
+          size,
+        );
+        canvas.width = dimensions.width;
+        canvas.height = dimensions.height;
+        const context = canvas.getContext("2d")!;
+        configureHighQualityScaling(context);
+        context.drawImage(image, 0, 0, dimensions.width, dimensions.height);
+        resolve(canvas);
+      } catch (error) {
+        reject(error);
+      } finally {
+        URL.revokeObjectURL(url);
+      }
     };
     image.onerror = (error) => {
       URL.revokeObjectURL(url);

@@ -1,7 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // Reset the in-memory IndexedDB between tests for isolation.
 import { IDBFactory } from "fake-indexeddb";
 import {
+  blobToCanvas,
   clearSessions,
   deleteSession,
   galleryCanvasSize,
@@ -12,6 +13,71 @@ import {
   type Session,
 } from "./gallery";
 
+type Settlement =
+  | { status: "fulfilled" }
+  | { status: "rejected"; reason: unknown }
+  | { status: "pending" };
+
+async function settlement(
+  promise: Promise<unknown>,
+  timeout = 25,
+): Promise<Settlement> {
+  return Promise.race([
+    promise.then<Settlement, Settlement>(
+      () => ({ status: "fulfilled" }),
+      (reason: unknown) => ({ status: "rejected", reason }),
+    ),
+    new Promise<Settlement>((resolve) =>
+      setTimeout(() => resolve({ status: "pending" }), timeout),
+    ),
+  ]);
+}
+
+function abortOnlyIndexedDB(error: DOMException): IDBFactory {
+  return {
+    open: vi.fn(() => {
+      const request = {
+        error: null,
+        result: undefined as unknown,
+        onerror: null as ((event: Event) => void) | null,
+        onsuccess: null as ((event: Event) => void) | null,
+        onupgradeneeded: null as ((event: Event) => void) | null,
+      };
+      const database = {
+        close: vi.fn(),
+        objectStoreNames: { contains: () => false },
+        transaction: vi.fn(() => {
+          const storeRequest = {
+            error: null,
+            result: undefined,
+            onerror: null,
+            onsuccess: null,
+          };
+          const store = {
+            clear: vi.fn(() => storeRequest),
+            delete: vi.fn(() => storeRequest),
+            get: vi.fn(() => storeRequest),
+            getAll: vi.fn(() => storeRequest),
+            put: vi.fn(() => storeRequest),
+          };
+          const transaction = {
+            error,
+            objectStore: vi.fn(() => store),
+            onabort: null as ((event: Event) => void) | null,
+            oncomplete: null as ((event: Event) => void) | null,
+            onerror: null as ((event: Event) => void) | null,
+          };
+          queueMicrotask(() => transaction.onabort?.(new Event("abort")));
+          return transaction;
+        }),
+      };
+      request.result = database;
+      queueMicrotask(() => request.onsuccess?.(new Event("success")));
+      return request;
+    }),
+  } as unknown as IDBFactory;
+}
+
 const photo = (byte: number) =>
   new Blob([new Uint8Array([byte])], { type: "image/jpeg" });
 const fourPhotos = () => [photo(1), photo(2), photo(3), photo(4)];
@@ -20,6 +86,9 @@ beforeEach(() => {
   globalThis.indexedDB = new IDBFactory();
 });
 afterEach(async () => {
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  globalThis.indexedDB = new IDBFactory();
   await clearSessions();
 });
 
@@ -133,5 +202,69 @@ describe("gallery sessions", () => {
     await expect(updateSessionPhotos("missing", fourPhotos())).rejects.toThrow(
       "Session not found",
     );
+  });
+
+  it("rejects every operation when its IndexedDB transaction aborts", async () => {
+    const abortError = new DOMException("Transaction aborted", "AbortError");
+    globalThis.indexedDB = abortOnlyIndexedDB(abortError);
+
+    const results = await Promise.all(
+      [
+        saveSession(fourPhotos()),
+        loadSession("session"),
+        updateSessionPhotos("session", fourPhotos()),
+        listSessionSummaries(),
+        deleteSession("session"),
+        clearSessions(),
+      ].map((operation) => settlement(operation)),
+    );
+
+    expect(results).toEqual(
+      Array.from({ length: 6 }, () => ({
+        status: "rejected",
+        reason: abortError,
+      })),
+    );
+  });
+});
+
+describe("blobToCanvas", () => {
+  it("rejects when canvas setup throws during image load", async () => {
+    const setupError = new Error("canvas setup failed");
+    let triggerLoad: (() => void) | undefined;
+    class TestImage {
+      height = 100;
+      naturalHeight = 100;
+      naturalWidth = 100;
+      onerror: ((error: unknown) => void) | null = null;
+      onload: (() => void) | null = null;
+      src = "";
+      width = 100;
+
+      constructor() {
+        triggerLoad = () => this.onload?.();
+      }
+    }
+    vi.stubGlobal("Image", TestImage);
+    vi.stubGlobal("URL", {
+      createObjectURL: vi.fn(() => "blob:gallery-test"),
+      revokeObjectURL: vi.fn(),
+    });
+    vi.spyOn(document, "createElement").mockImplementation(() => {
+      throw setupError;
+    });
+
+    const resultPromise = blobToCanvas(photo(1));
+    try {
+      triggerLoad?.();
+    } catch {
+      // Browser event dispatch reports callback errors instead of rethrowing them.
+    }
+
+    await expect(settlement(resultPromise)).resolves.toEqual({
+      status: "rejected",
+      reason: setupError,
+    });
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:gallery-test");
   });
 });
