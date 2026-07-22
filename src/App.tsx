@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   CAMERA_MSG,
   cameraError,
@@ -112,11 +119,35 @@ const wait = (ms: number) =>
   new Promise<void>((resolve) => setTimeout(resolve, ms));
 const SHUTTER_FREEZE_MS = 600;
 const LIVE_PREVIEW_RECOVERY_MS = 50;
+const FINAL_CAPTURE_CONFIRMATION_MS = 150;
+const REVIEW_PRELOAD_TIMEOUT_MS = 1_500;
 const FIRST_SHOT_COUNTDOWN_SECONDS = 3;
 const afterPaint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
   );
+
+async function prepareImageForPaint(src: string): Promise<void> {
+  const image = new Image();
+  if (typeof image.decode === "function") {
+    image.src = src;
+    try {
+      await Promise.race([image.decode(), wait(REVIEW_PRELOAD_TIMEOUT_MS)]);
+    } catch {
+      // Review still has its normal image loading path if pre-decoding fails.
+    }
+    return;
+  }
+  await new Promise<void>((resolve) => {
+    const finish = () => resolve();
+    image.onload = finish;
+    image.onerror = finish;
+    image.src = src;
+    if (image.complete) {
+      queueMicrotask(finish);
+    }
+  });
+}
 
 function thumbnailUrl(frame: HTMLCanvasElement, size = 160): string {
   const canvas = document.createElement("canvas");
@@ -178,6 +209,7 @@ export default function App() {
   const [retakeIndex, setRetakeIndex] = useState<number | null>(null);
   const activeSessionIdRef = useRef<string | null>(null);
   const pendingSessionSaveRef = useRef<Promise<Session | null> | null>(null);
+  const stripPreviewRef = useRef<string | null>(null);
   const sessionPersistenceRef = useRef(new SessionPersistenceQueue());
 
   const [note, setNote] = useState<string | null>(null);
@@ -1097,6 +1129,14 @@ export default function App() {
           await wait(LIVE_PREVIEW_RECOVERY_MS);
         } else {
           releaseFinalFreeze = releaseFreeze;
+          // React batches state updates in one async turn. Force the completed
+          // fourth slot to paint, then decode Review's strip while the snapped
+          // frame is still covering the camera.
+          await afterPaint();
+          if (stripPreviewRef.current) {
+            await prepareImageForPaint(stripPreviewRef.current);
+          }
+          await wait(FINAL_CAPTURE_CONFIRMATION_MS);
         }
       }
 
@@ -1210,6 +1250,9 @@ export default function App() {
       filter,
     }).toDataURL("image/png");
   }, [frames, layout, themeKey, brandLogo, branding, filter]);
+  useLayoutEffect(() => {
+    stripPreviewRef.current = stripUrl;
+  }, [stripUrl]);
 
   const thumbs = useMemo(
     () => frames.map((frame) => thumbnailUrl(frame)),

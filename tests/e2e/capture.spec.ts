@@ -514,6 +514,21 @@ test("the fourth photo stays frozen through slow capture processing", async ({
     .getByRole("group", { name: "Countdown seconds" })
     .getByRole("button", { name: "1s" })
     .click();
+  await page.evaluate(() => {
+    const state = window as typeof window & {
+      __fourthShotPaintedBeforeReview?: boolean;
+    };
+    state.__fourthShotPaintedBeforeReview = false;
+    const observer = new MutationObserver(() => {
+      const fourthShot = document.querySelector('img[alt="Shot 4"]');
+      const review = document.querySelector('img[alt="Your strip"]');
+      if (fourthShot && !review) {
+        state.__fourthShotPaintedBeforeReview = true;
+        observer.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+  });
   await page.getByRole("button", { name: "Take Photos" }).click();
 
   await expect
@@ -535,6 +550,18 @@ test("the fourth photo stays frozen through slow capture processing", async ({
   await expect(
     page.getByRole("button", { name: /Share Photo|Save Photo/ }),
   ).toBeVisible({ timeout: 3_000 });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __fourthShotPaintedBeforeReview?: boolean;
+            }
+          ).__fourthShotPaintedBeforeReview,
+      ),
+    )
+    .toBe(true);
 });
 
 test("slow gallery persistence never delays the review screen", async ({
