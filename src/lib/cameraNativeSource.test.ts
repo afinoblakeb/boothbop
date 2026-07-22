@@ -29,6 +29,26 @@ describe("native camera source contract", () => {
     expect(cameraSource).not.toContain("base64EncodedString()");
   });
 
+  it("keeps JPEG scaling and file work off capture lifecycle queues", () => {
+    expect(cameraSource).toContain("photoProcessingQueue.async");
+    expect(cameraSource).toContain("finishCaptureIfReady");
+    expect(cameraSource).toContain("captureCompletionReceived");
+
+    const processingDelegate = cameraSource
+      .split("didFinishProcessingPhoto photo: AVCapturePhoto")[1]
+      .split("didFinishCaptureFor resolvedSettings")[0];
+    const sessionWork = processingDelegate.split(
+      "photoProcessingQueue.async",
+    )[0];
+    expect(sessionWork).not.toContain("renderSquareJPEG");
+    expect(sessionWork).not.toContain("writeTemporaryPhoto");
+
+    const firstFrameDelegate = cameraSource
+      .split("didOutput sampleBuffer: CMSampleBuffer")[1]
+      .split("public func metadataOutput")[0];
+    expect(firstFrameDelegate).toContain("photoProcessingQueue.async");
+  });
+
   it("rejects false preview readiness and watches for lost native captures", () => {
     expect(cameraSource).toContain(
       "The native camera preview could not be installed",

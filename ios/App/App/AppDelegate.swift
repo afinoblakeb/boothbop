@@ -279,6 +279,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         label: "com.boothbop.camera.session", qos: .userInitiated)
     private let sampleQueue = DispatchQueue(
         label: "com.boothbop.camera.samples", qos: .userInitiated)
+    private let photoProcessingQueue = DispatchQueue(
+        label: "com.boothbop.camera.photo-processing",
+        qos: .userInitiated,
+        attributes: .concurrent)
     private let metadataQueue = DispatchQueue(
         label: "com.boothbop.camera.metadata", qos: .userInteractive)
     private let previewImageContext = CIContext(options: [
@@ -297,6 +301,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var pendingCaptureID: Int64?
     private var pendingCaptureSize = 1920
     private var pendingPhoto: CapturedPhoto?
+    private var captureCompletionReceived = false
     private var latestFrameSize: (width: Int, height: Int)?
     private var photoPreparationComplete = false
     private var startupWarmupFileURL: URL?
@@ -410,6 +415,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.pendingCaptureID = settings.uniqueID
             self.pendingCaptureSize = min(1920, max(640, call.getInt("size") ?? 1920))
             self.pendingPhoto = nil
+            self.captureCompletionReceived = false
 
             let shutterImage = self.sampleQueue.sync {
                 self.makeLatestPreviewImage()
@@ -440,7 +446,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             guard self.temporaryPhotoURLs.remove(fileURL) != nil else {
                 return call.resolve(["released": false])
             }
-            try? FileManager.default.removeItem(at: fileURL)
+            self.removeTemporaryPhotos([fileURL])
             call.resolve(["released": true])
         }
     }
@@ -806,33 +812,35 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         latestPreviewPixelBuffer = pixelBuffer
         guard !reportedFirstFrame else { return }
-        // Exercise the exact 1920px crop, mirror, JPEG, file, and WebKit-load
-        // path before the shutter is enabled. This moves every cold allocation
-        // out of the first user-visible capture.
-        var warmupFileURL: URL?
-        if let previewImage = makeLatestPreviewImage(),
-           let warmupData = try? renderSquareJPEG(
-               previewImage, size: 1920),
-           let fileURL = try? writeTemporaryPhoto(warmupData) {
-            warmupFileURL = fileURL
-        }
         reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
-        sessionQueue.async {
-            guard self.videoOutput === output,
-                  self.pendingStartCall != nil else {
-                if let warmupFileURL {
-                    try? FileManager.default.removeItem(at: warmupFileURL)
+        let previewImage = makeLatestPreviewImage()
+        // Exercise the exact 1920px crop, mirror, JPEG, file, and WebKit-load
+        // path before the shutter is enabled, without holding the sample or
+        // session queue behind image scaling and filesystem work.
+        photoProcessingQueue.async {
+            let warmupFileURL: URL? = autoreleasepool {
+                guard let previewImage,
+                      let warmupData = try? self.renderSquareJPEG(
+                          previewImage, size: 1920) else { return nil }
+                return try? self.writeTemporaryPhoto(warmupData)
+            }
+            self.sessionQueue.async {
+                guard self.videoOutput === output,
+                      self.pendingStartCall != nil else {
+                    if let warmupFileURL {
+                        self.removeTemporaryPhotos([warmupFileURL])
+                    }
+                    return
                 }
-                return
+                if let warmupFileURL {
+                    self.temporaryPhotoURLs.insert(warmupFileURL)
+                    self.startupWarmupFileURL = warmupFileURL
+                }
+                self.latestFrameSize = (width, height)
+                self.finishStartIfReady()
             }
-            if let warmupFileURL {
-                self.temporaryPhotoURLs.insert(warmupFileURL)
-                self.startupWarmupFileURL = warmupFileURL
-            }
-            self.latestFrameSize = (width, height)
-            self.finishStartIfReady()
         }
     }
 
@@ -1000,32 +1008,61 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         return fileURL
     }
 
+    private func removeTemporaryPhotos(_ fileURLs: [URL]) {
+        photoProcessingQueue.async {
+            for fileURL in fileURLs {
+                try? FileManager.default.removeItem(at: fileURL)
+            }
+        }
+    }
+
     public func photoOutput(
         _ output: AVCapturePhotoOutput,
         didFinishProcessingPhoto photo: AVCapturePhoto,
         error: Error?
     ) {
+        let captureID = photo.resolvedSettings.uniqueID
         sessionQueue.async {
-            guard self.pendingCaptureID == photo.resolvedSettings.uniqueID else { return }
+            guard self.pendingCaptureID == captureID else { return }
             if let error = error {
                 return self.failCapture(error.localizedDescription, code: "captureError")
             }
-            guard let data = photo.fileDataRepresentation(),
-                  let image = UIImage(data: data) else {
-                return self.failCapture("The captured photo could not be encoded", code: "captureError")
-            }
-            do {
-                let squareData = try self.renderSquareJPEG(
-                    image, size: self.pendingCaptureSize)
-                let fileURL = try self.writeTemporaryPhoto(squareData)
-                self.temporaryPhotoURLs.insert(fileURL)
-                self.pendingPhoto = CapturedPhoto(
-                    fileURL: fileURL,
-                    width: self.pendingCaptureSize,
-                    height: self.pendingCaptureSize)
-            } catch {
-                return self.failCapture(
-                    "The captured photo could not be prepared", code: "captureError")
+            let captureSize = self.pendingCaptureSize
+            self.photoProcessingQueue.async {
+                let result: Result<CapturedPhoto, Error> = autoreleasepool {
+                    Result {
+                        guard let data = photo.fileDataRepresentation(),
+                              let image = UIImage(data: data) else {
+                            throw CameraError.configuration(
+                                "The captured photo could not be encoded")
+                        }
+                        let squareData = try self.renderSquareJPEG(
+                            image, size: captureSize)
+                        let fileURL = try self.writeTemporaryPhoto(squareData)
+                        return CapturedPhoto(
+                            fileURL: fileURL,
+                            width: captureSize,
+                            height: captureSize)
+                    }
+                }
+                self.sessionQueue.async {
+                    guard self.pendingCaptureID == captureID else {
+                        if case .success(let stalePhoto) = result {
+                            self.removeTemporaryPhotos([stalePhoto.fileURL])
+                        }
+                        return
+                    }
+                    switch result {
+                    case .success(let processedPhoto):
+                        self.temporaryPhotoURLs.insert(processedPhoto.fileURL)
+                        self.pendingPhoto = processedPhoto
+                        self.finishCaptureIfReady()
+                    case .failure:
+                        self.failCapture(
+                            "The captured photo could not be prepared",
+                            code: "captureError")
+                    }
+                }
             }
         }
     }
@@ -1036,26 +1073,31 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         error: Error?
     ) {
         sessionQueue.async {
-            guard self.pendingCaptureID == resolvedSettings.uniqueID,
-                  let call = self.pendingCaptureCall else { return }
+            guard self.pendingCaptureID == resolvedSettings.uniqueID else { return }
             if let error = error {
                 return self.failCapture(error.localizedDescription, code: "captureError")
             }
-            guard let photo = self.pendingPhoto else {
-                return self.failCapture("The camera returned no photo data", code: "captureError")
-            }
-
-            self.pendingCaptureCall = nil
-            self.pendingCaptureID = nil
-            self.pendingPhoto = nil
-            call.resolve([
-                "path": photo.fileURL.absoluteString,
-                "mimeType": "image/jpeg",
-                "width": photo.width,
-                "height": photo.height,
-                "mirrored": true,
-            ])
+            self.captureCompletionReceived = true
+            self.finishCaptureIfReady()
         }
+    }
+
+    private func finishCaptureIfReady() {
+        guard captureCompletionReceived,
+              let photo = pendingPhoto,
+              let call = pendingCaptureCall else { return }
+        pendingCaptureCall = nil
+        pendingCaptureID = nil
+        pendingCaptureSize = 1920
+        pendingPhoto = nil
+        captureCompletionReceived = false
+        call.resolve([
+            "path": photo.fileURL.absoluteString,
+            "mimeType": "image/jpeg",
+            "width": photo.width,
+            "height": photo.height,
+            "mirrored": true,
+        ])
     }
 
     private func failStart(_ error: Error, code: String, id: UUID) {
@@ -1070,12 +1112,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard let call = pendingCaptureCall else { return }
         if let fileURL = pendingPhoto?.fileURL {
             temporaryPhotoURLs.remove(fileURL)
-            try? FileManager.default.removeItem(at: fileURL)
+            removeTemporaryPhotos([fileURL])
         }
         pendingCaptureCall = nil
         pendingCaptureID = nil
         pendingCaptureSize = 1920
         pendingPhoto = nil
+        captureCompletionReceived = false
         call.reject(message, code)
     }
 
@@ -1093,13 +1136,12 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureID = nil
         pendingCaptureSize = 1920
         pendingPhoto = nil
+        captureCompletionReceived = false
         latestFrameSize = nil
         photoPreparationComplete = false
         startupWarmupFileURL = nil
 
-        for fileURL in temporaryPhotoURLs {
-            try? FileManager.default.removeItem(at: fileURL)
-        }
+        removeTemporaryPhotos(Array(temporaryPhotoURLs))
         temporaryPhotoURLs.removeAll()
 
         removeSessionObservers()
