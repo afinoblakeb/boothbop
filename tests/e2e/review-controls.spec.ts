@@ -29,6 +29,20 @@ test("release announcement appears once and stays dismissed", async ({
     .toBe("0.0.4");
 });
 
+test("demo mode seeds three real photo sessions for App Store screenshots", async ({
+  page,
+}) => {
+  await installDemoImages(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Demo Gallery" }).click();
+
+  await expect(
+    page.getByRole("button", { name: "Open photo set" }),
+  ).toHaveCount(3);
+  await page.getByRole("button", { name: "Open photo set" }).first().click();
+  await expect(page.getByRole("img", { name: "Your strip" })).toBeVisible();
+});
+
 test("Edit mode follows the Photos toolbar pattern", async ({ page }) => {
   await openDemoReview(page);
   await page.getByRole("button", { name: "Edit" }).click();
@@ -143,6 +157,50 @@ test("format tabs support arrow keys and background prep stays scoped", async ({
   await expect(
     page.getByRole("status").filter({ hasText: /Making|Recording/ }),
   ).toHaveCount(0);
+});
+
+test("changing Boom does not abort the visible GIF preview", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const state = window as typeof window & {
+      __revokedWhileReferenced?: string[];
+    };
+    state.__revokedWhileReferenced = [];
+    const revoke = URL.revokeObjectURL.bind(URL);
+    URL.revokeObjectURL = (url) => {
+      const referenced = Array.from(
+        document.querySelectorAll<HTMLImageElement | HTMLVideoElement>(
+          "img[src], video[src]",
+        ),
+      ).some((element) => element.src === url);
+      if (referenced) state.__revokedWhileReferenced?.push(url);
+      revoke(url);
+    };
+  });
+  await openDemoReview(page);
+  await page.getByRole("tab", { name: "GIF" }).click();
+  await expect(page.getByRole("img", { name: "Your gif" })).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.getByRole("switch", { name: "Boom" }).click();
+  await expect(page.getByRole("img", { name: "Your gif" })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.waitForTimeout(250);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __revokedWhileReferenced?: string[];
+            }
+          ).__revokedWhileReferenced,
+      ),
+    )
+    .toEqual([]);
 });
 
 test("high-quality masters keep the editor responsive", async ({ page }) => {

@@ -37,6 +37,7 @@ import {
   blobToCanvas,
   canvasToCoverBlob,
   canvasesToBlobs,
+  clearSessions,
   requestPersistence,
   saveSession,
   updateSessionPhotos,
@@ -765,11 +766,17 @@ export default function App() {
     setGenerating(null);
     setSocialPreparation("idle");
     socialMediaRef.current = null;
-    for (const url of mediaUrls.current) URL.revokeObjectURL(url);
+    const urlsToRevoke = [...mediaUrls.current];
     mediaUrls.current.clear();
     setGifResult(null);
     setVideoResult(null);
     setSocialVideoResult(null);
+    // React removes the old media elements during this state update. Revoking
+    // their blob URLs synchronously can abort an animated image that the DOM
+    // still references, so release them after the next committed paint.
+    requestAnimationFrame(() => {
+      for (const url of urlsToRevoke) URL.revokeObjectURL(url);
+    });
   }
 
   useEffect(
@@ -1209,6 +1216,24 @@ export default function App() {
       setPhase("review");
     } catch {
       setError(`Add public/demo/set${setNum}-1.jpg … set${setNum}-4.jpg`);
+    }
+  }
+
+  async function loadSampleGallery() {
+    setError(null);
+    try {
+      const { loadSampleFrames } = await import("./lib/demo");
+      await clearSessions();
+      for (const setNum of [1, 2, 3]) {
+        const canvases = await loadSampleFrames(setNum, PHOTO_CAPTURE.high);
+        const photos = await canvasesToBlobs(canvases);
+        const cover = await canvasToCoverBlob(canvases[0]);
+        await saveSession(photos, cover);
+      }
+      setShowSettings(false);
+      setShowGallery(true);
+    } catch {
+      setError("Couldn't prepare the demo gallery.");
     }
   }
 
@@ -1806,7 +1831,10 @@ export default function App() {
       )}
 
       {DEMO && phase === "idle" && !showMigration && (
-        <div className="fixed bottom-2 left-2 z-50 flex gap-1">
+        <div
+          data-testid="demo-controls"
+          className="fixed bottom-2 left-2 z-50 flex gap-1"
+        >
           {[1, 2, 3].map((n) => (
             <button
               key={n}
@@ -1816,6 +1844,12 @@ export default function App() {
               Demo {n}
             </button>
           ))}
+          <button
+            onClick={() => void loadSampleGallery()}
+            className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
+          >
+            Demo Gallery
+          </button>
         </div>
       )}
     </div>

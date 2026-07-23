@@ -133,3 +133,20 @@ test.describe("compact camera", () => {
     await expectNoHorizontalOverflow(page);
   });
 });
+
+test.describe("5.5-inch camera", () => {
+  test.use({ viewport: { width: 414, height: 736 } });
+
+  test("the complete shutter control stays on screen", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("button", { name: "Take Photos" }).click();
+
+    await expectFullyInViewport(page.locator("video"));
+    await expectFullyInViewport(
+      page.getByRole("group", { name: "Countdown seconds" }),
+    );
+    await expectFullyInViewport(
+      page.getByText("Take Photos", { exact: true }).last(),
+    );
+  });
+});

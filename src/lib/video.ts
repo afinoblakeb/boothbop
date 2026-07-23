@@ -158,6 +158,10 @@ export async function encodeVideo(
       stop();
     };
   });
+  // Abort/visibility events can stop the recorder while the frame loop is
+  // sleeping. Attach a rejection observer immediately; the original promise
+  // is still awaited below so callers receive the terminal error.
+  void done.catch(() => undefined);
 
   recorder.start();
 
@@ -193,7 +197,10 @@ export async function encodeVideo(
       if (stopped) break;
       draw(frame);
       await wait(frameMs);
-      signal?.throwIfAborted();
+      // The abort listener stops the recorder and makes `done` reject. Keep
+      // control in this function so that terminal promise is awaited exactly
+      // once instead of throwing here and leaving its rejection unhandled.
+      if (signal?.aborted) break;
     }
     stop();
     return await done;

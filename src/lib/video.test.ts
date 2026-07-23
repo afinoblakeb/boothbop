@@ -159,4 +159,27 @@ describe("encodeVideo", () => {
       expect(trackStop).toHaveBeenCalledOnce();
     }
   });
+
+  it("drains the recorder completion when cancellation interrupts a frame", async () => {
+    vi.useFakeTimers();
+    const { trackStops } = stubEncoder({ emitStop: true });
+    const frame = document.createElement("canvas");
+    const controller = new AbortController();
+    const encoding = encodeVideo([frame], {
+      frameMs: 100,
+      loops: 2,
+      watermark: false,
+      signal: controller.signal,
+    });
+    const rejection = expect(encoding).rejects.toMatchObject({
+      name: "AbortError",
+    });
+
+    controller.abort();
+    await vi.runAllTimersAsync();
+    await rejection;
+    for (const trackStop of trackStops) {
+      expect(trackStop).toHaveBeenCalledOnce();
+    }
+  });
 });
