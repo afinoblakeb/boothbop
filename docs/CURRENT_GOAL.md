@@ -109,7 +109,9 @@ After any context compaction or agent handoff:
 
 1. Read this file, `docs/IOS_AGENT_CONTEXT.md`, and
    `docs/features/0.0.5-bopfx-living-portraits.md`.
-2. Inspect `git status`, the current branch, and the latest commit.
-3. Resume at the first unchecked checkpoint.
-4. Keep this file updated when the objective, boundaries, decisions, or
+2. Read `docs/research/BOPFX_COMPLETION_AUDIT.md` for the authoritative
+   requirement-by-requirement evidence and remaining physical gate.
+3. Inspect `git status`, the current branch, and the latest commit.
+4. Resume at the first unchecked checkpoint.
+5. Keep this file updated when the objective, boundaries, decisions, or
    checkpoint status changes.
