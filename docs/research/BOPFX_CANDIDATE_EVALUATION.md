@@ -34,7 +34,7 @@ scope:
 | Strong alternate           | Cutout Chorus                                  | Distinct device result and successful person matte                     | Measure and bound segmentation cost                         |
 | Lab hold                   | Funhouse                                       | High delight but inconsistent influence radius across faces            | Tune against more face sizes and scenes                     |
 | Pending device ranking     | Spin Cycle                                     | Deterministic simulator still/video only                               | Run the physical scorecard                                  |
-| Architecture spike         | Living Strip                                   | Deterministic 2-second H.264 composition and tested timestamp model    | Judge direction, then decide whether to wire capture        |
+| Architecture spike         | Living Strip                                   | Real Debug collector plus deterministic H.264 and timestamp contracts  | Run physical capture and creative scorecards                |
 | Interaction layer          | Tuning Frame                                   | Physical preview/still/freeze contract confirmed                       | Keep separate from effect ranking                           |
 | Rejected default           | Mirror Bloom                                   | Technically valid but composition-dependent and often unflattering     | Retain only as a research reference                         |
 | Device-limited future work | ARKit expression and TrueDepth spatial effects | Capability probes and architecture boundaries only                     | Do not pursue until a baseline effect earns production work |

@@ -11,8 +11,8 @@ the two remaining discovery questions:
 
 1. Is Spin Cycle strong enough on real people to rank beside the face-aware
    candidates?
-2. Is Living Strip compelling enough as a playback concept to justify wiring
-   real shutter-adjacent motion capture?
+2. Is Living Strip compelling and reliable enough on real shutter-adjacent
+   motion to justify a focused production brief?
 
 The two questions have different evidence. Spin Cycle runs in the live Debug
 camera lab. Living Strip now has both a deterministic H.264 composition fixture
@@ -31,6 +31,53 @@ replaces physical-device evidence.
   or navigation regression is a blocker regardless of the effect score.
 - Keep personal photos and videos outside the public repository. Record only
   scores, timings, and non-identifying observations here.
+
+## Automated Private Evidence
+
+The physical-device harness has no default side effect. Run `help` or `status`
+freely; only the explicit `prepare`, `launch`, `logs`, and `collect` commands
+touch the app or its private container.
+
+Before the session:
+
+```bash
+npm run ios:bopfx:device -- status
+npm run ios:bopfx:device -- prepare
+```
+
+`prepare` syncs the current web bundle, builds the signed Debug app for the
+exact paired physical iPhone named Blerque, and installs it. It deliberately
+does not launch. It writes the branch, commit, worktree state, device class, and
+OS version to `ios/DerivedData/bopfx-device/latest-install.json`.
+
+At the start of the manual session, stream app-owned and crash output in one
+terminal:
+
+```bash
+npm run ios:bopfx:device -- logs
+```
+
+Then explicitly launch in another terminal:
+
+```bash
+npm run ios:bopfx:device -- launch
+```
+
+After each successful Living playback, and again after any later retry worth
+preserving:
+
+```bash
+npm run ios:bopfx:device -- collect
+```
+
+`collect` copies the app's temporary Living media and deterministic fixture
+directory into a new timestamped snapshot under
+`ios/DerivedData/bopfx-device/evidence`. This tree is gitignored because it may
+contain personal imagery. The script records a private-evidence warning,
+manifest, copy results, and the count of discovered `living-strip.mp4`
+artifacts. Repeated collection never overwrites an earlier successful artifact.
+Keep comparative screenshots and iPhone screen recordings in the same private
+archive; only non-identifying scores and observations belong in this document.
 
 ## Test Scenes
 
@@ -103,9 +150,11 @@ Then exercise the real Debug collector:
 4. Return to Camera after the review screen. Wait for **Live Ready** if the
    native effect pipeline is still processing.
 5. Tap **Play** and watch at least five loops at normal and full-screen size.
-6. Repeat once after turning Live off and back on. Confirm the new attempt never
+6. Run `npm run ios:bopfx:device -- collect` before starting another attempt.
+7. Repeat once after turning Live off and back on. Confirm the new attempt never
    reuses frames or playback from the prior attempt.
-7. Background and reopen the app during a separate Live attempt. Confirm the
+8. Collect the successful retry before continuing.
+9. Background and reopen the app during a separate Live attempt. Confirm the
    experiment cancels without affecting the normal still strip.
 
 Score each dimension from 0 to 2:
@@ -120,8 +169,9 @@ Score each dimension from 0 to 2:
 | Share impulse           | No reason to share                 | Interesting novelty      | Clearly more shareable than a still |         |
 | **Total**               |                                    |                          |                                     | **/12** |
 
-The direction advances at 10/12 or better. A passing score authorizes the next
-capture spike; it does not authorize production.
+The direction advances at 10/12 or better. A creative and technical pass
+authorizes a focused production brief and native extraction plan; it does not
+authorize release.
 
 ### Capture Proof Still Required
 

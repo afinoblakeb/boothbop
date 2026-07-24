@@ -93,6 +93,9 @@ one when device evidence justifies it.
 - [x] Wire a Debug-only real Living collector into the serialized camera path
       with app-owned buffers, attempt-scoped cancellation, still/motion
       transactions, and simulator fixture coverage of the real render path.
+- [x] Add an explicit physical-device harness that can inspect Blerque, install
+      without launching, stream native logs, and collect private evidence under
+      gitignored `ios/DerivedData`.
 - [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
       resumes physical-device testing, using
       `docs/research/BOPFX_DEVICE_EVALUATION_PROTOCOL.md`.
