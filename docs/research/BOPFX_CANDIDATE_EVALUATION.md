@@ -141,9 +141,11 @@ shutter, and compose four portable MP4 clips. Do not make Apple Live Photo
 containers the primary artifact; they are awkward to composite and share.
 
 The simulator-only composition fixture now produces a 720x2016, 30 FPS,
-two-second H.264 MP4 at the 2.5x7 strip ratio. Four panels move independently,
-and the approximately 2.6 MB artifact decodes correctly. This proves the
-portable visual artifact, not real camera motion.
+two-second H.264 MP4 at the 2.5x7 strip ratio. Four panels move independently.
+The latest approximately 2.49 MB artifact contains 60 unique decoded frames.
+The fixture now exercises the same pixel-buffer normalization, per-frame
+effect, playback-plan, and writer path as the camera lab. It proves the
+portable processing path, not physical camera delivery.
 
 The real capture experiment must:
 
@@ -160,20 +162,22 @@ The real capture experiment must:
 
 The timing contract now lives in the native `ios/CameraCore` Swift package.
 `LivingFrameWindowSelector` chooses 15 output targets across the exact
-half-second window, while `LivingCaptureTimelineRecorder` scopes samples to a
-capture ID and session generation. It preserves a bounded provisional window
-until `AVCapturePhoto.timestamp` arrives, handles a delayed callback, rejects
-implausible timestamp corrections, and drops motion on clock discontinuity.
+half-second window and requires at least 12 unique source frames. It rejects
+compressed endpoint coverage and large central gaps. `LivingCaptureTimelineRecorder`
+scopes samples to a capture ID and session generation, preserves a bounded
+provisional window until `AVCapturePhoto.timestamp` arrives, accepts exact
+timestamps when retained coverage supports them, and drops motion on clock
+discontinuity.
 Input is bucketed to the 30 FPS target cadence before retention, so a delayed
 photo callback cannot overflow the active window when the camera delivers
 60 FPS samples.
 
-`BopFXLivingCaptureBuffer` is a Debug-only AVFoundation adapter over that model.
-It is not wired into `AppDelegate`, React, gallery storage, or release behavior,
-and it still retains source camera buffers. It reports collection, completion,
-and terminal timing failures explicitly rather than collapsing them into a
-missing result. The production adapter must perform the documented 720px
-normalization before retention.
+`BopFXLivingCaptureBuffer` is a Debug-only AVFoundation adapter over that model
+and is now wired into the existing serialized native camera session. It never
+retains camera-owned sample buffers: accepted frames are synchronously
+center-cropped into a bounded app-owned 450x450 BGRA pool before the delegate
+returns. It reports collection, completion, copy failure, and terminal timing
+failures explicitly rather than collapsing them into a missing result.
 
 The native suite currently covers 24, 30, and 60 FPS input, jitter, dropped and
 duplicate samples, clock rollback, exact timestamp correction, delayed photo
@@ -189,12 +193,23 @@ clips, starts each panel on the frame nearest its exact shutter time, and builds
 a seamless ping-pong index sequence for a two-second, 30 FPS output. Repeated
 source timestamps remain valid because 24 FPS and dropped-frame inputs may map
 one source frame to multiple 30 FPS targets.
-`BopFXLivingStripWriter` now accepts `[BopFXLivingClip]`; its synthetic fixture
-generator is only a source of deterministic test clips. Real captured windows
-can use the same Debug writer boundary without changing playback timing or the
-still-photo master. This raw-frame boundary is not the production memory model:
-production must encode and release each shot before composing four file-backed
-clips.
+`LivingStripAssemblyCoordinator` gives every retry a distinct attempt ID and
+commits a panel only after both its full-resolution still transaction and its
+motion render succeed. `BopFXLivingStripWriter` is attempt-cancellable, owns one
+absolute encode deadline, and publishes only after all four committed panels
+compose. Simulator execution of normalization, 60 per-frame effects, and H.264
+composition currently takes about 7.05 seconds. That is acceptable for the
+Debug discovery lab, not a production latency claim.
+
+Living remains optional at every boundary. `AVCapturePhotoOutput.capturePhoto`
+is invoked before the Debug collector can wait on its sample queue, the normal
+still resolves without waiting for post-roll motion, an unresolved motion
+window fails after 1.5 seconds, and each normalize/effect job fails after 30
+seconds. Backgrounding cancels an active attempt even when the camera session
+has already stopped for off-camera composition. After the fourth valid still,
+the review transition remains immediate while native teardown waits only for
+the remainder of the active motion deadline; an expired or cancelled attempt
+never defers teardown.
 
 ### Rotating Frame
 

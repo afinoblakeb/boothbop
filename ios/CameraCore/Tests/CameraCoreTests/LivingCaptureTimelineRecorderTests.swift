@@ -173,7 +173,56 @@ final class LivingCaptureTimelineRecorderTests: XCTestCase {
         XCTAssertEqual(window.frameIDs.count, 15)
     }
 
-    func testRejectsAnImplausiblePhotoTimestampCorrection() {
+    func testLatePhotoCallbacksRemainBoundedAtCommonCaptureRates() {
+        for frameRate in [24, 30, 60] {
+            let recorder = LivingCaptureTimelineRecorder()
+            let generation = UInt64(frameRate)
+            recorder.startSession(generation: generation)
+            offerFrames(
+                to: recorder,
+                generation: generation,
+                frameRate: Double(frameRate),
+                range: 0...frameRate)
+            XCTAssertEqual(
+                recorder.retainedFrameCount,
+                min(frameRate + 1, 30),
+                "Unexpected pre-shutter retention at \(frameRate) FPS")
+            XCTAssertTrue(
+                recorder.armShot(
+                    captureID: Int64(frameRate),
+                    provisionalTime: 1,
+                    generation: generation))
+
+            offerFrames(
+                to: recorder,
+                generation: generation,
+                frameRate: Double(frameRate),
+                range: (frameRate + 1)...(frameRate * 3))
+            XCTAssertLessThanOrEqual(
+                recorder.retainedFrameCount,
+                30)
+            XCTAssertLessThanOrEqual(
+                recorder.retainedActiveFrameCount,
+                30)
+            XCTAssertLessThanOrEqual(
+                recorder.retainedFrameIDs.count,
+                60)
+
+            let outcome = recorder.resolveShutter(
+                captureID: Int64(frameRate),
+                timestamp: 1.08,
+                generation: generation)
+            guard case .completed(let window) = outcome else {
+                return XCTFail(
+                    "Expected delayed callback at \(frameRate) FPS")
+            }
+            XCTAssertGreaterThanOrEqual(
+                Set(window.frameIDs).count,
+                12)
+        }
+    }
+
+    func testAcceptsALargeExactTimestampShiftWhenCoverageWasRetained() {
         let recorder = LivingCaptureTimelineRecorder()
         recorder.startSession(generation: 18)
         offerFrames(
@@ -186,15 +235,113 @@ final class LivingCaptureTimelineRecorderTests: XCTestCase {
                 provisionalTime: 1,
                 generation: 18))
 
+        offerFrames(
+            to: recorder,
+            generation: 18,
+            range: 31...60)
+        let outcome = recorder.resolveShutter(
+            captureID: 52,
+            timestamp: 1.2,
+            generation: 18)
+        guard case .completed(let window) = outcome else {
+            return XCTFail("Expected retained coverage to resolve exact timestamp")
+        }
+        XCTAssertEqual(window.shutterTime, 1.2, accuracy: 0.000_1)
+        XCTAssertGreaterThanOrEqual(
+            Set(window.frameIDs).count,
+            12)
+    }
+
+    func testRejectsAnExactTimestampOutsideRetainedCoverage() {
+        let recorder = LivingCaptureTimelineRecorder()
+        recorder.startSession(generation: 19)
+        offerFrames(
+            to: recorder,
+            generation: 19,
+            range: 0...30)
+        XCTAssertTrue(
+            recorder.armShot(
+                captureID: 53,
+                provisionalTime: 1,
+                generation: 19))
+
+        offerFrames(
+            to: recorder,
+            generation: 19,
+            range: 31...75)
         XCTAssertEqual(
             recorder.resolveShutter(
-                captureID: 52,
-                timestamp: 1.3,
-                generation: 18),
+                captureID: 53,
+                timestamp: 0.4,
+                generation: 19),
             .failed(
-                captureID: 52,
-                reason: .anchorCorrectionOutOfRange))
-        XCTAssertEqual(recorder.retainedActiveFrameCount, 0)
+                captureID: 53,
+                reason: .insufficientCoverage))
+        XCTAssertEqual(
+            recorder.retainedActiveFrameCount,
+            0)
+    }
+
+    func testRejectsAFutureExactTimestampAfterBoundedCollectionEnds() {
+        let recorder = LivingCaptureTimelineRecorder()
+        recorder.startSession(generation: 21)
+        offerFrames(
+            to: recorder,
+            generation: 21,
+            range: 0...30)
+        XCTAssertTrue(
+            recorder.armShot(
+                captureID: 55,
+                provisionalTime: 1,
+                generation: 21))
+
+        offerFrames(
+            to: recorder,
+            generation: 21,
+            range: 31...75)
+        XCTAssertEqual(
+            recorder.resolveShutter(
+                captureID: 55,
+                timestamp: 2,
+                generation: 21),
+            .failed(
+                captureID: 55,
+                reason: .insufficientCoverage))
+        XCTAssertEqual(
+            recorder.retainedActiveFrameCount,
+            0)
+    }
+
+    func testCustomTimelineAndActiveLimitsRemainHardBounds() {
+        let recorder = LivingCaptureTimelineRecorder(
+            maximumFrames: 18,
+            maximumActiveFrames: 18)
+        recorder.startSession(generation: 20)
+        offerFrames(
+            to: recorder,
+            generation: 20,
+            range: 0...30)
+        XCTAssertEqual(recorder.retainedFrameCount, 18)
+        XCTAssertTrue(
+            recorder.armShot(
+                captureID: 54,
+                provisionalTime: 1,
+                generation: 20))
+
+        offerFrames(
+            to: recorder,
+            generation: 20,
+            range: 31...300)
+
+        XCTAssertLessThanOrEqual(
+            recorder.retainedFrameCount,
+            18)
+        XCTAssertLessThanOrEqual(
+            recorder.retainedActiveFrameCount,
+            18)
+        XCTAssertLessThanOrEqual(
+            recorder.retainedFrameIDs.count,
+            36)
     }
 
     func testWrongCaptureIDCannotStealTheActiveShot() {
@@ -278,13 +425,14 @@ final class LivingCaptureTimelineRecorderTests: XCTestCase {
     private func offerFrames(
         to recorder: LivingCaptureTimelineRecorder,
         generation: UInt64,
+        frameRate: Double = 30,
         range: ClosedRange<Int>
     ) {
         for index in range {
             _ = recorder.offer(
                 LivingTimelineFrame(
                     id: index,
-                    presentationTime: Double(index) / 30),
+                    presentationTime: Double(index) / frameRate),
                 generation: generation)
         }
     }

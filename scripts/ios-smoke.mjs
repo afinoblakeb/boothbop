@@ -36,6 +36,12 @@ const requestedDevices = (
   .map((name) => name.trim())
   .filter(Boolean);
 const updateDeviceName = process.env.IOS_SMOKE_UPDATE_DEVICE ?? "iPhone 17";
+const configuredLaunchTimeoutMs = Number(
+  process.env.IOS_SMOKE_LAUNCH_TIMEOUT_MS ?? 120000,
+);
+const launchTimeoutMs = Number.isFinite(configuredLaunchTimeoutMs)
+  ? Math.max(45000, configuredLaunchTimeoutMs)
+  : 120000;
 
 function run(command, args, options = {}) {
   const {
@@ -438,7 +444,7 @@ async function launchApp(device, label = "launching") {
           device.udid,
           bundleId,
         ],
-        { quiet: true, timeoutMs: 45000 },
+        { quiet: true, timeoutMs: launchTimeoutMs },
       );
       if (
         !new RegExp(`${bundleId.replaceAll(".", "\\.")}:\\s*\\d+`).test(

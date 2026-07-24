@@ -22,6 +22,7 @@
 		B0F000012F00000000000012 /* LivingFrameWindowSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000011 /* LivingFrameWindowSelector.swift */; };
 		B0F000012F00000000000014 /* LivingCaptureTimelineRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000013 /* LivingCaptureTimelineRecorder.swift */; };
 		B0F000012F00000000000016 /* LivingStripPlaybackPlan.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000015 /* LivingStripPlaybackPlan.swift */; };
+		B0F000012F00000000000018 /* LivingStripAssemblyCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000017 /* LivingStripAssemblyCoordinator.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
@@ -45,6 +46,7 @@
 		B0F000012F00000000000011 /* LivingFrameWindowSelector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LivingFrameWindowSelector.swift; path = ../CameraCore/Sources/CameraCore/LivingFrameWindowSelector.swift; sourceTree = SOURCE_ROOT; };
 		B0F000012F00000000000013 /* LivingCaptureTimelineRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LivingCaptureTimelineRecorder.swift; path = ../CameraCore/Sources/CameraCore/LivingCaptureTimelineRecorder.swift; sourceTree = SOURCE_ROOT; };
 		B0F000012F00000000000015 /* LivingStripPlaybackPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LivingStripPlaybackPlan.swift; path = ../CameraCore/Sources/CameraCore/LivingStripPlaybackPlan.swift; sourceTree = SOURCE_ROOT; };
+		B0F000012F00000000000017 /* LivingStripAssemblyCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LivingStripAssemblyCoordinator.swift; path = ../CameraCore/Sources/CameraCore/LivingStripAssemblyCoordinator.swift; sourceTree = SOURCE_ROOT; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -98,6 +100,7 @@
 				B0F000012F00000000000011 /* LivingFrameWindowSelector.swift */,
 				B0F000012F00000000000013 /* LivingCaptureTimelineRecorder.swift */,
 				B0F000012F00000000000015 /* LivingStripPlaybackPlan.swift */,
+				B0F000012F00000000000017 /* LivingStripAssemblyCoordinator.swift */,
 				B0F000012F00000000000007 /* set1-1.jpg */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -204,6 +207,7 @@
 				B0F000012F00000000000012 /* LivingFrameWindowSelector.swift in Sources */,
 				B0F000012F00000000000014 /* LivingCaptureTimelineRecorder.swift in Sources */,
 				B0F000012F00000000000016 /* LivingStripPlaybackPlan.swift in Sources */,
+				B0F000012F00000000000018 /* LivingStripAssemblyCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

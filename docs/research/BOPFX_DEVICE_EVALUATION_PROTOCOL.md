@@ -1,6 +1,6 @@
 # BopFX Device Evaluation Protocol
 
-Status: Ready for owner testing  
+Status: Ready for owner testing; real Living capture remains device-unvalidated
 Target device: Blerque, iPhone 15 Pro  
 Branch: `codex/bopfx-living-portraits`
 
@@ -14,11 +14,12 @@ the two remaining discovery questions:
 2. Is Living Strip compelling enough as a playback concept to justify wiring
    real shutter-adjacent motion capture?
 
-The two questions have different evidence. Spin Cycle already runs in the live
-Debug camera lab. Living Strip currently has a deterministic, device-playable
-H.264 composition fixture, but its real camera motion collector is not wired
-into the app. Passing the Living Strip direction review does not prove its
-capture pipeline.
+The two questions have different evidence. Spin Cycle runs in the live Debug
+camera lab. Living Strip now has both a deterministic H.264 composition fixture
+and a Debug-only real camera collector. The collector copies bounded
+shutter-adjacent samples into app-owned buffers, keeps the full-resolution still
+independent, and composes the four panels off the camera queue. None of that
+replaces physical-device evidence.
 
 ## Test Boundaries
 
@@ -78,10 +79,10 @@ the lab at 7-9. Reject or redesign it at 0-6.
 
 ## Living Strip
 
-### Direction Review
+### Direction Review And Debug Capture
 
-Open the generated `living-strip.mp4` on Blerque at normal size and full screen.
-Watch at least five loops with sound muted. The fixture contract is:
+First open the generated `living-strip.mp4` on Blerque at normal size and full
+screen. Watch at least five loops with sound muted. The fixture contract is:
 
 - H.264;
 - 720 x 2016 pixels;
@@ -90,6 +91,22 @@ Watch at least five loops with sound muted. The fixture contract is:
 - two seconds;
 - four independently animated panels;
 - each panel begins nearest its exact simulated shutter timestamp.
+
+Then exercise the real Debug collector:
+
+1. Open Camera and turn on **Live** in the native effects toolbar.
+2. Capture a normal four-shot sequence with any supported effect choices.
+3. Confirm the countdown and every 600 ms freeze feel unchanged.
+   Delayed or failed motion must never delay or reject the normal still.
+   The fourth still must reach review immediately even though the hidden native
+   camera may remain alive only until the bounded motion deadline.
+4. Return to Camera after the review screen. Wait for **Live Ready** if the
+   native effect pipeline is still processing.
+5. Tap **Play** and watch at least five loops at normal and full-screen size.
+6. Repeat once after turning Live off and back on. Confirm the new attempt never
+   reuses frames or playback from the prior attempt.
+7. Background and reopen the app during a separate Live attempt. Confirm the
+   experiment cancels without affecting the normal still strip.
 
 Score each dimension from 0 to 2:
 
@@ -108,16 +125,20 @@ capture spike; it does not authorize production.
 
 ### Capture Proof Still Required
 
-Do not mark Living Strip technically validated until a later build proves all
-of the following with real camera samples:
+The implementation and simulator fixture cover the pure timing, attempt,
+cancellation, composition, and file contracts. Do not mark Living Strip
+technically validated until Blerque proves all of the following with real camera
+samples:
 
 - each half-second window is anchored to its matching
   `AVCapturePhoto.timestamp`;
 - post-roll collection continues while the visible preview is frozen;
 - the full-quality still remains independent from the bounded motion clip;
 - cancellation and stale session generations publish no clip;
-- every shot is normalized, encoded, and released before the next retained
-  clip causes unbounded memory growth;
+- camera-owned sample buffers are released immediately and the app-owned
+  450x450 BGRA pool remains bounded without visible dropped-frame stalls;
+- cancellation during Vision rendering or H.264 encoding terminates the old
+  attempt and never publishes into a retry;
 - four real clips compose with correct orientation and selfie mirroring;
 - motion capture does not shorten countdown or freeze/recovery timing.
 
@@ -136,11 +157,11 @@ Any one of these overrides a creative score:
 
 ## Decision Record
 
-| Candidate              | Score | Blocker        | Decision                  | Short observation |
-| ---------------------- | ----: | -------------- | ------------------------- | ----------------- |
-| Spin Cycle             |   /12 |                | Pending                   |                   |
-| Living Strip direction |   /12 |                | Pending                   |                   |
-| Living Strip capture   |   N/A | Not integrated | Pending engineering spike |                   |
+| Candidate              | Score | Blocker         | Decision              | Short observation |
+| ---------------------- | ----: | --------------- | --------------------- | ----------------- |
+| Spin Cycle             |   /12 |                 | Pending               |                   |
+| Living Strip direction |   /12 |                 | Pending               |                   |
+| Living Strip capture   |   N/A | Device untested | Debug path integrated |                   |
 
 After filling this table, copy the decisions into
 `BOPFX_CANDIDATE_EVALUATION.md`. The discovery goal closes only when the final

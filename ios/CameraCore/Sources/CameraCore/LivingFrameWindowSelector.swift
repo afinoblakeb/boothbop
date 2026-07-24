@@ -13,9 +13,9 @@ public struct LivingFrameWindowConfiguration: Equatable, Sendable {
         preRollSeconds: TimeInterval = 0.25,
         postRollSeconds: TimeInterval = 0.25,
         targetFrameRate: Double = 30,
-        minimumUniqueFrames: Int = 8,
-        maximumSampleDistance: TimeInterval = 0.1,
-        coverageTolerance: TimeInterval = 1.0 / 15.0,
+        minimumUniqueFrames: Int = 12,
+        maximumSampleDistance: TimeInterval = 1.0 / 24.0,
+        coverageTolerance: TimeInterval = 1.0 / 48.0,
         discontinuityThreshold: TimeInterval = 0.5
     ) {
         self.preRollSeconds = max(0, preRollSeconds)

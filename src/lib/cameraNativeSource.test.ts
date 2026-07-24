@@ -128,7 +128,7 @@ describe("native camera source contract", () => {
       "AVCaptureSession.wasInterruptedNotification",
     );
     expect(cameraSource).toContain("AVCaptureSession.runtimeErrorNotification");
-    expect(cameraSource).toContain('notifyListeners("stateChanged"');
+    expect(cameraSource).toMatch(/notifyListeners\(\s*"stateChanged"/);
   });
 
   it("owns background shutdown natively and settles interrupted starts", () => {

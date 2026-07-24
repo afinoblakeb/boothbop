@@ -1,4 +1,7 @@
 #if DEBUG
+import CoreImage
+import CoreMedia
+import CoreVideo
 import UIKit
 
 final class BopFXFixtureViewController: UIViewController {
@@ -118,19 +121,22 @@ final class BopFXFixtureViewController: UIViewController {
         imageView.layer.cornerCurve = .continuous
         imageView.accessibilityLabel = "\(effect.fixtureTitle) result"
         imageView.heightAnchor.constraint(
-            equalTo: imageView.widthAnchor).isActive = true
+            equalTo: imageView.widthAnchor
+        ).isActive = true
         card.addArrangedSubview(imageView)
         imageViews[effect] = imageView
         return card
     }
 
     private func renderFixtures() {
-        guard let sourceURL = Bundle.main.url(
-            forResource: "set1-1",
-            withExtension: "jpg"),
+        guard
+            let sourceURL = Bundle.main.url(
+                forResource: "set1-1",
+                withExtension: "jpg"),
             let source = UIImage(contentsOfFile: sourceURL.path),
             let renderer = BopFXRenderer(),
-            let directory = labDirectory() else {
+            let directory = labDirectory()
+        else {
             showFailure()
             return
         }
@@ -196,14 +202,19 @@ final class BopFXFixtureViewController: UIViewController {
                 }
             }
             do {
-                let recording = try BopFXLivingStripWriter.write(
+                let startedAt = CACurrentMediaTime()
+                let clips = try self.makeLivingFixtureClips(
                     source: source,
-                    renderer: renderer,
+                    renderer: renderer)
+                let recording = try BopFXLivingStripWriter.write(
+                    clips: clips,
                     directory: directory)
                 reports.append([
                     "effect": "livingStrip",
                     "rendered": true,
                     "livingStripRecording": recording.lastPathComponent,
+                    "pipelineDurationMs": Int(
+                        (CACurrentMediaTime() - startedAt) * 1_000),
                 ])
             } catch {
                 reports.append([
@@ -216,9 +227,120 @@ final class BopFXFixtureViewController: UIViewController {
         }
     }
 
+    private func makeLivingFixtureClips(
+        source: UIImage,
+        renderer: BopFXRenderer
+    ) throws -> [BopFXLivingClip] {
+        let pixelBuffer = try makeLivingFixturePixelBuffer(
+            source: source)
+        let builder = BopFXLivingClipBuilder(
+            renderer: renderer)
+        let effects: [BopFXEffect] = [
+            .spectralEcho,
+            .funhouse,
+            .spinCycle,
+            .mirrorBloom,
+        ]
+        return try effects.enumerated().map {
+            index,
+            effect in
+            let baseTime = Double(index) * 2
+            let frames = (0..<15).map { frameIndex in
+                BopFXLivingFrame(
+                    id: index * 15 + frameIndex,
+                    pixelBuffer: pixelBuffer,
+                    presentationTime: CMTime(
+                        seconds:
+                            baseTime + Double(frameIndex) / 30,
+                        preferredTimescale: 600))
+            }
+            let shot = BopFXLivingShot(
+                captureID: Int64(index + 1),
+                generation: 1,
+                shutterTime: CMTime(
+                    seconds: baseTime + 0.25,
+                    preferredTimescale: 600),
+                frames: frames)
+            let normalized = try builder.normalize(
+                shot: shot)
+            return try builder.apply(
+                effect: effect,
+                tuning: .neutral,
+                to: normalized,
+                renderer: renderer)
+        }
+    }
+
+    private func makeLivingFixturePixelBuffer(
+        source: UIImage
+    ) throws -> CVPixelBuffer {
+        let panelSide = 450
+        var pixelBuffer: CVPixelBuffer?
+        let attributes: [CFString: Any] = [
+            kCVPixelBufferPixelFormatTypeKey:
+                kCVPixelFormatType_32BGRA,
+            kCVPixelBufferWidthKey: panelSide,
+            kCVPixelBufferHeightKey: panelSide,
+            kCVPixelBufferIOSurfacePropertiesKey: [:],
+            kCVPixelBufferMetalCompatibilityKey: true,
+        ]
+        guard
+            CVPixelBufferCreate(
+                nil,
+                panelSide,
+                panelSide,
+                kCVPixelFormatType_32BGRA,
+                attributes as CFDictionary,
+                &pixelBuffer) == kCVReturnSuccess,
+            let pixelBuffer,
+            let input = CIImage(image: source)
+        else {
+            throw BopFXFixtureError.pixelBuffer
+        }
+
+        let side = min(
+            input.extent.width,
+            input.extent.height)
+        guard side > 0 else {
+            throw BopFXFixtureError.pixelBuffer
+        }
+        let crop = CGRect(
+            x: input.extent.midX - side / 2,
+            y: input.extent.midY - side / 2,
+            width: side,
+            height: side)
+        let normalized =
+            input
+            .cropped(to: crop)
+            .transformed(
+                by: CGAffineTransform(
+                    translationX: -crop.minX,
+                    y: -crop.minY)
+            )
+            .transformed(
+                by: CGAffineTransform(
+                    scaleX: CGFloat(panelSide) / side,
+                    y: CGFloat(panelSide) / side))
+        let context = CIContext(options: [
+            .cacheIntermediates: false
+        ])
+        context.render(
+            normalized,
+            to: pixelBuffer,
+            bounds: CGRect(
+                x: 0,
+                y: 0,
+                width: panelSide,
+                height: panelSide),
+            colorSpace: CGColorSpace(
+                name: CGColorSpace.sRGB))
+        return pixelBuffer
+    }
+
     private func writeFixture(_ image: UIImage, effect: BopFXEffect) {
         guard let data = image.pngData(),
-              let directory = labDirectory() else { return }
+            let directory = labDirectory()
+        else { return }
         try? data.write(
             to: directory.appendingPathComponent("\(effect.rawValue).png"),
             options: .atomic)
@@ -226,19 +348,23 @@ final class BopFXFixtureViewController: UIViewController {
 
     private func writeJSON(_ value: Any, filename: String) {
         guard JSONSerialization.isValidJSONObject(value),
-              let data = try? JSONSerialization.data(
+            let data = try? JSONSerialization.data(
                 withJSONObject: value,
                 options: [.prettyPrinted, .sortedKeys]),
-              let directory = labDirectory() else { return }
+            let directory = labDirectory()
+        else { return }
         try? data.write(
             to: directory.appendingPathComponent(filename),
             options: .atomic)
     }
 
     private func labDirectory() -> URL? {
-        guard let documents = FileManager.default.urls(
-            for: .documentDirectory,
-            in: .userDomainMask).first else { return nil }
+        guard
+            let documents = FileManager.default.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+            ).first
+        else { return nil }
         let directory = documents.appendingPathComponent(
             "BopFXLab",
             isDirectory: true)
@@ -277,8 +403,12 @@ final class BopFXFixtureViewController: UIViewController {
     }
 }
 
-private extension BopFXEffect {
-    var fixtureTitle: String {
+private enum BopFXFixtureError: Error {
+    case pixelBuffer
+}
+
+extension BopFXEffect {
+    fileprivate var fixtureTitle: String {
         switch self {
         case .original: return "Original"
         case .spectralEcho: return "Spectral Echo"

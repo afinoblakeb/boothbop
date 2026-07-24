@@ -35,6 +35,10 @@ const livingPlaybackSource = readFileSync(
   "ios/CameraCore/Sources/CameraCore/LivingStripPlaybackPlan.swift",
   "utf8",
 );
+const livingAssemblySource = readFileSync(
+  "ios/CameraCore/Sources/CameraCore/LivingStripAssemblyCoordinator.swift",
+  "utf8",
+);
 const fixtureScriptSource = readFileSync(
   "scripts/ios-bopfx-fixture.mjs",
   "utf8",
@@ -299,6 +303,8 @@ describe("native BopFX renderer source contract", () => {
     expect(livingCaptureSource).toContain("func cancelSession(");
     expect(livingCaptureSource).toContain("retainedFrameIDs");
     expect(livingCaptureSource).toContain("LivingCaptureRecorderFailure");
+    expect(livingCaptureSource).toContain("CVPixelBufferPool");
+    expect(livingCaptureSource).toContain("copySquareFrame");
     expect(livingCaptureSource).not.toContain("DispatchQueue.main");
   });
 
@@ -315,13 +321,17 @@ describe("native BopFX renderer source contract", () => {
     expect(livingWriterSource).toContain("frameRate: Int32 = 30");
     expect(livingWriterSource).toContain("plan.outputFrameCount");
     expect(fixtureSource).toContain("BopFXLivingStripWriter.write");
+    expect(fixtureSource).toContain("BopFXLivingClipBuilder");
+    expect(fixtureSource).toContain("builder.normalize(");
+    expect(fixtureSource).toContain("builder.apply(");
+    expect(fixtureSource).toContain("BopFXLivingShot(");
     expect(fixtureSource).toContain('"livingStripRecording"');
   });
 
   it("uses a native exact-timestamp selector with generation-scoped state", () => {
     expect(livingSelectorSource).toContain("LivingFrameWindowSelector");
     expect(livingSelectorSource).toContain("targetFrameRate: Double = 30");
-    expect(livingSelectorSource).toContain("minimumUniqueFrames: Int = 8");
+    expect(livingSelectorSource).toContain("minimumUniqueFrames: Int = 12");
     expect(livingSelectorSource).toContain("monotonicSegments");
     expect(livingRecorderSource).toContain("LivingCaptureTimelineRecorder");
     expect(livingRecorderSource).toContain("resolveShutter");
@@ -342,5 +352,82 @@ describe("native BopFX renderer source contract", () => {
     expect(fixtureScriptSource).toContain('"swift"');
     expect(fixtureScriptSource).toContain('"test"');
     expect(fixtureScriptSource).toContain('"CameraCore"');
+  });
+
+  it("wires Debug living capture without moving camera ownership", () => {
+    expect(livingAssemblySource.trimStart()).toMatch(/^#if DEBUG\b/);
+    expect(livingAssemblySource.trimEnd()).toMatch(/#endif$/);
+    expect(livingAssemblySource).toContain("LivingStripAssemblyCoordinator");
+    expect(livingAssemblySource).toContain("registerCapture(");
+    expect(livingAssemblySource).toContain("markClipReady(");
+    expect(livingAssemblySource).toContain("markCompositionSucceeded(");
+    expect(livingAssemblySource).toContain("generation: UInt64");
+    expect(livingAssemblySource).toContain("attemptID: UInt64");
+    expect(livingWriterSource).toContain("BopFXLivingClipBuilder");
+    expect(livingWriterSource).toContain("func normalize(");
+    expect(livingWriterSource).toContain("func apply(");
+    expect(livingWriterSource).toContain("BopFXLivingCancellationToken");
+    expect(livingWriterSource).toContain("absoluteDeadline");
+    expect(pickerSource).toContain("var onToggleLiving:");
+    expect(pickerSource).toContain("var onPlayLiving:");
+    expect(cameraSource).toContain("armLivingCaptureIfNeeded(");
+    expect(cameraSource).toContain("photo.timestamp");
+    expect(cameraSource).toContain("resolveLivingShutterIfNeeded(");
+    expect(cameraSource).toContain("livingCaptureBuffer.append(");
+    expect(cameraSource).toContain("sampleLivingGeneration");
+    expect(cameraSource).toContain("sampleLivingAttemptID");
+    expect(livingAssemblySource).toContain("markStillSucceeded(");
+    expect(cameraSource).toContain("handleLivingAssemblyUpdate(");
+    expect(cameraSource).toContain("preserveCompletedDebugWork:");
+    expect(cameraSource).toContain("livingCleanupQueue");
+    expect(cameraSource).toContain("livingNormalizationQueue");
+    expect(cameraSource).toContain("livingProcessingQueue");
+    expect(cameraSource).toContain("LivingStripAssemblyCoordinator(");
+    expect(cameraSource).toContain("BopFXLivingStripWriter.write(");
+    expect(cameraSource).toContain("AVPlayerLooper");
+  });
+
+  it("keeps optional Living work off the still-capture critical path", () => {
+    const capture = cameraSource
+      .split("@objc func capture(_ call: CAPPluginCall)")[1]
+      .split("@objc func release")[0];
+    const finishCapture = cameraSource
+      .split("private func finishCaptureIfReady()")[1]
+      .split("private func failStart")[0];
+    const stop = cameraSource
+      .split("@objc func stop(_ call: CAPPluginCall)")[1]
+      .split("private func authorizeAndStart")[0];
+    const deferredStop = cameraSource
+      .split("private func deferStopForLivingWindowIfNeeded")[1]
+      .split("private func processLivingShot")[0];
+
+    expect(capture.indexOf("output.capturePhoto(with: settings")).toBeLessThan(
+      capture.indexOf("armLivingCaptureIfNeeded("),
+    );
+    expect(finishCapture).not.toContain(
+      "guard pendingLivingWindowResolved else",
+    );
+    expect(cameraSource).toContain(
+      "private var pendingLivingCaptureID: Int64?",
+    );
+    expect(cameraSource).toContain("expireLivingWindowIfNeeded(");
+    expect(cameraSource).toContain("livingMotionWindowTimeout");
+    expect(stop).toContain("deferStopForLivingWindowIfNeeded(call)");
+    expect(stop.indexOf("deferStopForLivingWindowIfNeeded(call)")).toBeLessThan(
+      stop.indexOf("tearDownSession("),
+    );
+    expect(deferredStop).toContain("livingAssembly.stopDeferralDelay(");
+    expect(cameraSource).toContain("pendingLivingWindowDeadline");
+  });
+
+  it("bounds Living processing and cancels it across app lifecycle changes", () => {
+    expect(cameraSource).toContain("self.livingAttemptID != nil");
+    expect(cameraSource).toContain("livingProcessingCaptureIDs");
+    expect(cameraSource).toContain("livingProcessingTimeout");
+    expect(cameraSource).toContain("expireLivingProcessingIfNeeded(");
+    expect(livingWriterSource).toContain("absoluteDeadline: Date?");
+    expect(livingWriterSource).toContain(
+      "try cancellation?.check(absoluteDeadline: absoluteDeadline)",
+    );
   });
 });

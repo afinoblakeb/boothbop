@@ -1,16 +1,29 @@
 #if DEBUG
 import UIKit
 
+enum BopFXLivingLabState: Equatable {
+    case off
+    case collecting(completedClipCount: Int)
+    case processing
+    case ready
+    case failed
+}
+
 final class BopFXLabPicker: UIVisualEffectView {
     var onSelect: ((BopFXEffect) -> Void)?
     var onSelectSequence: (() -> Void)?
+    var onToggleLiving: ((Bool) -> Void)?
+    var onPlayLiving: (() -> Void)?
 
     private let scrollView = UIScrollView()
     private let stackView = UIStackView()
     private let sequenceButton = UIButton(type: .system)
+    private let livingButton = UIButton(type: .system)
+    private let playLivingButton = UIButton(type: .system)
     private var buttons: [BopFXEffect: UIButton] = [:]
     private var selectedEffect: BopFXEffect
     private var sequenceSelected = false
+    private var livingState = BopFXLivingLabState.off
 
     init(effect: BopFXEffect) {
         self.selectedEffect = effect
@@ -44,6 +57,34 @@ final class BopFXLabPicker: UIVisualEffectView {
         }
     }
 
+    func setLivingState(_ state: BopFXLivingLabState) {
+        livingState = state
+        switch state {
+        case .off:
+            livingButton.configuration?.title = "Live"
+            livingButton.isEnabled = true
+            playLivingButton.isHidden = true
+        case .collecting(let completedClipCount):
+            livingButton.configuration?.title =
+                "Live \(completedClipCount)/4"
+            livingButton.isEnabled = true
+            playLivingButton.isHidden = true
+        case .processing:
+            livingButton.configuration?.title = "Live 4/4"
+            livingButton.isEnabled = false
+            playLivingButton.isHidden = true
+        case .ready:
+            livingButton.configuration?.title = "Live Ready"
+            livingButton.isEnabled = true
+            playLivingButton.isHidden = false
+        case .failed:
+            livingButton.configuration?.title = "Live Retry"
+            livingButton.isEnabled = true
+            playLivingButton.isHidden = true
+        }
+        updateSelection()
+    }
+
     private func updateSelection() {
         for (candidate, button) in buttons {
             applySelection(
@@ -51,7 +92,9 @@ final class BopFXLabPicker: UIVisualEffectView {
                 to: button)
         }
         applySelection(sequenceSelected, to: sequenceButton)
-        let selectedButton = sequenceSelected
+        applySelection(livingState.isActive, to: livingButton)
+        let selectedButton =
+            sequenceSelected
             ? sequenceButton
             : buttons[selectedEffect]
         if let selectedButton {
@@ -126,8 +169,34 @@ final class BopFXLabPicker: UIVisualEffectView {
             },
             for: .touchUpInside)
         sequenceButton.heightAnchor.constraint(
-            equalToConstant: 34).isActive = true
+            equalToConstant: 34
+        ).isActive = true
         stackView.addArrangedSubview(sequenceButton)
+
+        configure(livingButton, title: "Live")
+        livingButton.accessibilityLabel = "Living Strip motion capture"
+        livingButton.addAction(
+            UIAction { [weak self] _ in
+                self?.toggleLiving()
+            },
+            for: .touchUpInside)
+        livingButton.heightAnchor.constraint(
+            equalToConstant: 34
+        ).isActive = true
+        stackView.addArrangedSubview(livingButton)
+
+        configure(playLivingButton, title: "Play")
+        playLivingButton.accessibilityLabel = "Play Living Strip"
+        playLivingButton.addAction(
+            UIAction { [weak self] _ in
+                self?.onPlayLiving?()
+            },
+            for: .touchUpInside)
+        playLivingButton.heightAnchor.constraint(
+            equalToConstant: 34
+        ).isActive = true
+        playLivingButton.isHidden = true
+        stackView.addArrangedSubview(playLivingButton)
     }
 
     private func choose(_ effect: BopFXEffect) {
@@ -140,6 +209,19 @@ final class BopFXLabPicker: UIVisualEffectView {
         guard !sequenceSelected else { return }
         setSequenceEffect(.spectralEcho, announce: true)
         onSelectSequence?()
+    }
+
+    private func toggleLiving() {
+        let enabled = !livingState.isActive
+        setLivingState(
+            enabled
+                ? .collecting(completedClipCount: 0)
+                : .off)
+        onToggleLiving?(enabled)
+        announceSelection(
+            enabled
+                ? "Living Strip on"
+                : "Living Strip off")
     }
 
     private func configuredButton(title: String) -> UIButton {
@@ -174,11 +256,13 @@ final class BopFXLabPicker: UIVisualEffectView {
     private func applySelection(_ selected: Bool, to button: UIButton) {
         var configuration = button.configuration ?? .plain()
         configuration.baseForegroundColor = selected ? .black : .white
-        configuration.background.backgroundColor = selected
+        configuration.background.backgroundColor =
+            selected
             ? UIColor.white
             : UIColor.white.withAlphaComponent(0.12)
         button.configuration = configuration
-        button.accessibilityTraits = selected
+        button.accessibilityTraits =
+            selected
             ? [.button, .selected]
             : [.button]
     }
@@ -190,8 +274,19 @@ final class BopFXLabPicker: UIVisualEffectView {
     }
 }
 
-private extension BopFXEffect {
-    var labTitle: String {
+extension BopFXLivingLabState {
+    fileprivate var isActive: Bool {
+        switch self {
+        case .collecting, .processing, .ready:
+            return true
+        case .off, .failed:
+            return false
+        }
+    }
+}
+
+extension BopFXEffect {
+    fileprivate var labTitle: String {
         switch self {
         case .original: return "Original"
         case .spectralEcho: return "Echo"

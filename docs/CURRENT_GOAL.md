@@ -60,9 +60,12 @@ a release candidate.
   Vision entirely so group shots and missing-face cases remain deterministic.
 - Tuning Frame: direct hue, saturation, and warmth manipulation on the live
   camera border. This is a composable interaction layer, not another effect.
-- Living Strip: an exploratory 500 ms motion window for each still. The current
-  simulator fixture proves the portable 2.5x7 MP4 composition only; real
-  shutter-adjacent camera capture is not yet integrated.
+- Living Strip: an exploratory 500 ms motion window for each still. A Debug-only
+  native path now captures app-owned shutter-adjacent buffers, commits motion
+  only with a successful full-resolution still, and composes the 2.5x7 MP4.
+  Optional motion work runs after the hardware shutter, never gates the still
+  result, and fails on bounded collection/processing deadlines. Physical camera
+  behavior and creative value remain unvalidated.
 
 The list is intentionally provisional. Remove weak candidates and add a better
 one when device evidence justifies it.
@@ -87,6 +90,9 @@ one when device evidence justifies it.
       a native `CameraCore` Swift package with deterministic tests.
 - [x] Add a shutter-centered four-clip playback plan and make the Debug writer
       accept real motion-clip inputs at 30 FPS.
+- [x] Wire a Debug-only real Living collector into the serialized camera path
+      with app-owned buffers, attempt-scoped cancellation, still/motion
+      transactions, and simulator fixture coverage of the real render path.
 - [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
       resumes physical-device testing, using
       `docs/research/BOPFX_DEVICE_EVALUATION_PROTOCOL.md`.

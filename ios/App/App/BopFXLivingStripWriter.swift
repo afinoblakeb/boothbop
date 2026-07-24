@@ -1,6 +1,7 @@
 #if DEBUG
 import AVFoundation
 import CoreGraphics
+import CoreImage
 import CoreVideo
 import Foundation
 import UIKit
@@ -8,6 +9,167 @@ import UIKit
 struct BopFXLivingClip {
     let descriptor: LivingStripClipDescriptor
     let frames: [CGImage]
+}
+
+final class BopFXLivingCancellationToken {
+    private let lock = NSLock()
+    private var cancelled = false
+    private var activeWriter: AVAssetWriter?
+
+    var isCancelled: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return cancelled
+    }
+
+    func cancel() {
+        let writer: AVAssetWriter?
+        lock.lock()
+        cancelled = true
+        writer = activeWriter
+        activeWriter = nil
+        lock.unlock()
+        writer?.cancelWriting()
+    }
+
+    func check(
+        absoluteDeadline: Date? = nil
+    ) throws {
+        if let absoluteDeadline,
+            Date() >= absoluteDeadline
+        {
+            throw BopFXLivingWriterError.timeout
+        }
+        guard !isCancelled else {
+            throw BopFXLivingWriterError.cancelled
+        }
+    }
+
+    func register(_ writer: AVAssetWriter) throws {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !cancelled else {
+            throw BopFXLivingWriterError.cancelled
+        }
+        activeWriter = writer
+    }
+
+    func unregister(_ writer: AVAssetWriter) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard activeWriter === writer else { return }
+        activeWriter = nil
+    }
+}
+
+final class BopFXLivingClipBuilder {
+    private static let panelSide = 450
+
+    private let context: CIContext
+
+    init(renderer: BopFXRenderer) {
+        context = CIContext(
+            mtlDevice: renderer.device,
+            options: [
+                .cacheIntermediates: false,
+                .workingColorSpace: CGColorSpace(name: CGColorSpace.sRGB)
+                    as Any,
+            ])
+    }
+
+    func normalize(
+        shot: BopFXLivingShot,
+        cancellation: BopFXLivingCancellationToken? = nil,
+        absoluteDeadline: Date? = nil
+    ) throws -> BopFXLivingClip {
+        let outputBounds = CGRect(
+            x: 0,
+            y: 0,
+            width: Self.panelSide,
+            height: Self.panelSide)
+        let images = try shot.frames.map { frame in
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
+            let image = CIImage(
+                cvPixelBuffer: frame.pixelBuffer)
+            let side = min(
+                image.extent.width,
+                image.extent.height)
+            guard side > 0 else {
+                throw BopFXLivingWriterError.render(
+                    "Living Strip received an empty camera frame")
+            }
+            let crop = CGRect(
+                x: image.extent.midX - side / 2,
+                y: image.extent.midY - side / 2,
+                width: side,
+                height: side)
+            let normalized =
+                image
+                .cropped(to: crop)
+                .transformed(
+                    by: CGAffineTransform(
+                        translationX: -crop.minX,
+                        y: -crop.minY)
+                )
+                .transformed(
+                    by: CGAffineTransform(
+                        scaleX: CGFloat(Self.panelSide) / side,
+                        y: CGFloat(Self.panelSide) / side))
+            guard
+                let rendered = context.createCGImage(
+                    normalized,
+                    from: outputBounds)
+            else {
+                throw BopFXLivingWriterError.render(
+                    "Living Strip could not normalize a camera frame")
+            }
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
+            return rendered
+        }
+        return BopFXLivingClip(
+            descriptor: shot.playbackDescriptor,
+            frames: images)
+    }
+
+    func apply(
+        effect: BopFXEffect,
+        tuning: BopFXTuning,
+        to clip: BopFXLivingClip,
+        renderer: BopFXRenderer,
+        cancellation: BopFXLivingCancellationToken? = nil,
+        absoluteDeadline: Date? = nil
+    ) throws -> BopFXLivingClip {
+        guard effect != .original || !tuning.isNeutral else {
+            return clip
+        }
+        let frameCount = max(1, clip.frames.count)
+        let images = try clip.frames.enumerated().map {
+            index,
+            frame in
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
+            let phase = CGFloat(index) / CGFloat(frameCount)
+            guard
+                let rendered = renderer.renderStillImage(
+                    UIImage(cgImage: frame),
+                    effect: effect,
+                    phase: phase,
+                    tuning: tuning),
+                let image = rendered.cgImage
+            else {
+                throw BopFXLivingWriterError.render(
+                    "Living Strip could not render the selected effect")
+            }
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
+            return image
+        }
+        return BopFXLivingClip(
+            descriptor: clip.descriptor,
+            frames: images)
+    }
 }
 
 enum BopFXLivingStripWriter {
@@ -28,20 +190,32 @@ enum BopFXLivingStripWriter {
     static func write(
         source: UIImage,
         renderer: BopFXRenderer,
-        directory: URL
+        directory: URL,
+        cancellation: BopFXLivingCancellationToken? = nil
     ) throws -> URL {
+        let absoluteDeadline = Date().addingTimeInterval(30)
+        try cancellation?.check(absoluteDeadline: absoluteDeadline)
         let clips = try renderClips(
             source: source,
-            renderer: renderer)
+            renderer: renderer,
+            cancellation: cancellation,
+            absoluteDeadline: absoluteDeadline)
         return try write(
             clips: clips,
-            directory: directory)
+            directory: directory,
+            cancellation: cancellation,
+            absoluteDeadline: absoluteDeadline)
     }
 
     static func write(
         clips: [BopFXLivingClip],
-        directory: URL
+        directory: URL,
+        cancellation: BopFXLivingCancellationToken? = nil,
+        absoluteDeadline: Date? = nil
     ) throws -> URL {
+        let absoluteDeadline =
+            absoluteDeadline ?? Date().addingTimeInterval(30)
+        try cancellation?.check(absoluteDeadline: absoluteDeadline)
         let plan: LivingStripPlaybackPlan
         do {
             plan = try LivingStripPlaybackPlan(
@@ -66,6 +240,10 @@ enum BopFXLivingStripWriter {
         let writer = try AVAssetWriter(
             outputURL: outputURL,
             fileType: .mp4)
+        try cancellation?.register(writer)
+        defer {
+            cancellation?.unregister(writer)
+        }
         let input = AVAssetWriterInput(
             mediaType: .video,
             outputSettings: [
@@ -101,10 +279,22 @@ enum BopFXLivingStripWriter {
         writer.startSession(atSourceTime: .zero)
 
         for index in 0..<plan.outputFrameCount {
-            guard waitUntilReady(input: input, writer: writer),
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
+            guard
+                waitUntilReady(
+                    input: input,
+                    writer: writer,
+                    cancellation: cancellation,
+                    absoluteDeadline: absoluteDeadline),
                 let pool = adaptor.pixelBufferPool
             else {
                 writer.cancelWriting()
+                try cancellation?.check(
+                    absoluteDeadline: absoluteDeadline)
+                guard Date() < absoluteDeadline else {
+                    throw BopFXLivingWriterError.timeout
+                }
                 throw BopFXLivingWriterError.render(
                     "Living Strip writer stopped accepting frames")
             }
@@ -137,10 +327,23 @@ enum BopFXLivingStripWriter {
         writer.finishWriting {
             completed.signal()
         }
-        guard completed.wait(timeout: .now() + 30) == .success else {
+        let remainingMilliseconds = max(
+            0,
+            Int(
+                (absoluteDeadline.timeIntervalSinceNow * 1_000)
+                    .rounded(.up)))
+        guard
+            completed.wait(
+                timeout: .now()
+                    + .milliseconds(remainingMilliseconds)) == .success
+        else {
             writer.cancelWriting()
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
             throw BopFXLivingWriterError.timeout
         }
+        try cancellation?.check(
+            absoluteDeadline: absoluteDeadline)
         guard writer.status == .completed else {
             throw BopFXLivingWriterError.render(
                 writer.error?.localizedDescription ?? "Living Strip writer did not complete")
@@ -150,10 +353,14 @@ enum BopFXLivingStripWriter {
 
     private static func renderClips(
         source: UIImage,
-        renderer: BopFXRenderer
+        renderer: BopFXRenderer,
+        cancellation: BopFXLivingCancellationToken?,
+        absoluteDeadline: Date?
     ) throws -> [BopFXLivingClip] {
         var clips: [BopFXLivingClip] = []
         for (index, effect) in effects.enumerated() {
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
             var frames: [CGImage] = []
             let rendered = renderer.renderAnimationFrames(
                 source,
@@ -161,6 +368,9 @@ enum BopFXLivingStripWriter {
                 frameCount: clipFrameCount,
                 pixelSize: panelSide
             ) { frame, _ in
+                guard cancellation?.isCancelled != true else {
+                    return false
+                }
                 frames.append(frame)
                 return true
             }
@@ -168,6 +378,8 @@ enum BopFXLivingStripWriter {
                 throw BopFXLivingWriterError.render(
                     "Could not render the \(effect.rawValue) Living Strip clip")
             }
+            try cancellation?.check(
+                absoluteDeadline: absoluteDeadline)
             let baseTime = Double(index) * 2
             let sourceTimes = frames.indices.map {
                 baseTime + Double($0) / Double(frameRate)
@@ -275,16 +487,20 @@ enum BopFXLivingStripWriter {
 
     private static func waitUntilReady(
         input: AVAssetWriterInput,
-        writer: AVAssetWriter
+        writer: AVAssetWriter,
+        cancellation: BopFXLivingCancellationToken?,
+        absoluteDeadline: Date
     ) -> Bool {
-        let deadline = Date().addingTimeInterval(5)
         while !input.isReadyForMoreMediaData,
             writer.status == .writing,
-            Date() < deadline
+            cancellation?.isCancelled != true,
+            Date() < absoluteDeadline
         {
             Thread.sleep(forTimeInterval: 0.002)
         }
-        return input.isReadyForMoreMediaData && writer.status == .writing
+        return input.isReadyForMoreMediaData
+            && writer.status == .writing
+            && cancellation?.isCancelled != true
     }
 }
 
@@ -292,6 +508,7 @@ private enum BopFXLivingWriterError: LocalizedError {
     case setup(String)
     case render(String)
     case timeout
+    case cancelled
 
     var errorDescription: String? {
         switch self {
@@ -299,6 +516,8 @@ private enum BopFXLivingWriterError: LocalizedError {
             return message
         case .timeout:
             return "Timed out while finishing the Living Strip fixture"
+        case .cancelled:
+            return "Living Strip processing was cancelled"
         }
     }
 }

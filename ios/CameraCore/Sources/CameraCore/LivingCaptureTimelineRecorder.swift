@@ -23,7 +23,6 @@ public struct LivingCaptureWindow: Equatable, Sendable {
 
 public enum LivingCaptureRecorderFailure: Error, Equatable, Sendable {
     case clockDiscontinuity
-    case anchorCorrectionOutOfRange
     case insufficientCoverage
     case sampleGap
     case insufficientUniqueFrames
@@ -42,7 +41,6 @@ public final class LivingCaptureTimelineRecorder {
     private struct ActiveCapture {
         let captureID: Int64
         let generation: UInt64
-        let provisionalTime: TimeInterval
         var resolvedShutterTime: TimeInterval?
         var frames: [LivingTimelineFrame]
     }
@@ -50,7 +48,6 @@ public final class LivingCaptureTimelineRecorder {
     private let selector: LivingFrameWindowSelector
     private let maximumFrames: Int
     private let maximumActiveFrames: Int
-    private let maximumAnchorCorrection: TimeInterval
     private var generation: UInt64?
     private var frames: [LivingTimelineFrame] = []
     private var activeCapture: ActiveCapture?
@@ -60,8 +57,7 @@ public final class LivingCaptureTimelineRecorder {
     public init(
         configuration: LivingFrameWindowConfiguration = .init(),
         maximumFrames: Int = 30,
-        maximumActiveFrames: Int = 30,
-        maximumAnchorCorrection: TimeInterval = 0.15
+        maximumActiveFrames: Int = 30
     ) {
         selector = LivingFrameWindowSelector(
             configuration: configuration)
@@ -71,9 +67,6 @@ public final class LivingCaptureTimelineRecorder {
         self.maximumActiveFrames = max(
             configuration.targetFrameCount,
             maximumActiveFrames)
-        self.maximumAnchorCorrection = max(
-            0,
-            maximumAnchorCorrection)
     }
 
     public var retainedFrameCount: Int {
@@ -144,15 +137,8 @@ public final class LivingCaptureTimelineRecorder {
         if var activeCapture,
             frame.presentationTime > (activeCapture.frames.last?.presentationTime ?? -.infinity)
         {
-            let collectionEnd =
-                activeCapture.provisionalTime + selector.configuration.postRollSeconds
-                + maximumAnchorCorrection + selector.configuration.coverageTolerance
-            if frame.presentationTime <= collectionEnd {
+            if activeCapture.frames.count < maximumActiveFrames {
                 activeCapture.frames.append(frame)
-                if activeCapture.frames.count > maximumActiveFrames {
-                    activeCapture.frames.removeFirst(
-                        activeCapture.frames.count - maximumActiveFrames)
-                }
                 self.activeCapture = activeCapture
             }
         }
@@ -172,23 +158,25 @@ public final class LivingCaptureTimelineRecorder {
             let last = frames.last,
             first.presentationTime <= provisionalTime - selector.configuration.preRollSeconds
                 + selector.configuration.coverageTolerance,
-            last.presentationTime >= provisionalTime - selector.configuration.coverageTolerance
+            last.presentationTime >= provisionalTime - selector.configuration.maximumSampleDistance
         else {
             return false
         }
-        let retainedStart =
-            provisionalTime - selector.configuration.preRollSeconds - maximumAnchorCorrection
-            - selector.configuration.coverageTolerance
-        let retainedFrames = frames.filter {
-            $0.presentationTime >= retainedStart
-        }
+        let minimumHistoryFrames = Int(
+            ceil(
+                selector.configuration.preRollSeconds
+                    * selector.configuration.targetFrameRate))
+        let historyFrameBudget = min(
+            maximumActiveFrames,
+            max(
+                minimumHistoryFrames,
+                maximumActiveFrames / 2))
         activeCapture = ActiveCapture(
             captureID: captureID,
             generation: generation,
-            provisionalTime: provisionalTime,
             resolvedShutterTime: nil,
             frames: Array(
-                retainedFrames.suffix(maximumActiveFrames)))
+                frames.suffix(historyFrameBudget)))
         return true
     }
 
@@ -204,12 +192,6 @@ public final class LivingCaptureTimelineRecorder {
             activeCapture.generation == generation
         else {
             return .ignored
-        }
-        guard abs(timestamp - activeCapture.provisionalTime) <= maximumAnchorCorrection else {
-            self.activeCapture = nil
-            return .failed(
-                captureID: captureID,
-                reason: .anchorCorrectionOutOfRange)
         }
         activeCapture.resolvedShutterTime = timestamp
         self.activeCapture = activeCapture
@@ -246,12 +228,19 @@ public final class LivingCaptureTimelineRecorder {
         else {
             return .collecting
         }
+        guard let latest = activeCapture.frames.last?.presentationTime else {
+            return .collecting
+        }
         guard
-            let latest =
-                activeCapture.frames.last?.presentationTime,
             latest >= shutterTime + selector.configuration.postRollSeconds
                 - selector.configuration.coverageTolerance
         else {
+            if activeCapture.frames.count >= maximumActiveFrames {
+                self.activeCapture = nil
+                return .failed(
+                    captureID: activeCapture.captureID,
+                    reason: .insufficientCoverage)
+            }
             return .collecting
         }
 

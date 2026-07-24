@@ -299,14 +299,17 @@ production effect controls. This creates one native camera authority that both
 the temporary Capacitor adapter and the future native `CaptureFeature` can use.
 It is the highest-leverage decoupling step and does not require a full rewrite.
 
-Do not integrate Living Strip into the current Capacitor sequence first. Its
-correct ownership belongs inside the extracted `CameraCore` and
-`CaptureFeature`: sample ingestion, photo timestamps, capture generations,
-post-roll completion, and cancellation are one native state machine. React
-should eventually receive only the completed session identifier.
+The discovery branch now contains a temporary Debug-only Living Strip adapter
+inside the current Capacitor camera sequence. This is a bounded feasibility
+instrument, not the production architecture. Its pure timing, playback, and
+assembly state already live in `CameraCore`; the remaining sample ingestion,
+photo transaction, and media jobs must move with the camera into the extracted
+coordinator before any public Living capability. React should eventually
+receive only the completed session identifier.
 
 The final discovery decision is recorded with
 `BOPFX_DEVICE_EVALUATION_PROTOCOL.md` and
-`BOPFX_CANDIDATE_EVALUATION.md`. A creative pass for Living Strip authorizes
-only the next native capture spike; it does not change the migration order or
-justify wiring motion ownership into the current React sequence.
+`BOPFX_CANDIDATE_EVALUATION.md`. A creative and technical pass for the Debug
+Living prototype authorizes a production brief; it does not change the
+migration order or justify shipping motion ownership in the current React
+sequence.

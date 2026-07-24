@@ -1,16 +1,31 @@
-import UIKit
-import Capacitor
-import Photos
 import AVFoundation
+import Capacitor
 import CoreImage
+import Photos
+import UIKit
 
-private extension UIColor {
-    static let boothBopCanvas = UIColor(
+#if DEBUG
+import AVKit
+
+private final class BopFXLivingPlayerViewController:
+    AVPlayerViewController
+{
+    var onDismiss: (() -> Void)?
+
+    override func viewDidDisappear(_ animated: Bool) {
+        super.viewDidDisappear(animated)
+        onDismiss?()
+    }
+}
+#endif
+
+extension UIColor {
+    fileprivate static let boothBopCanvas = UIColor(
         red: 244.0 / 255.0,
         green: 245.0 / 255.0,
         blue: 245.0 / 255.0,
         alpha: 1.0)
-    static let boothBopAccent = UIColor(
+    fileprivate static let boothBopAccent = UIColor(
         red: 242.0 / 255.0,
         green: 85.0 / 255.0,
         blue: 34.0 / 255.0,
@@ -20,14 +35,22 @@ private extension UIColor {
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
+    ) -> Bool {
         return true
     }
 
     // UIScene lifecycle: hand each new session the default scene configuration
     // declared in Info.plist (UIApplicationSceneManifest).
-    func application(_ application: UIApplication, configurationForConnecting connectingSceneSession: UISceneSession, options: UIScene.ConnectionOptions) -> UISceneConfiguration {
-        return UISceneConfiguration(name: "Default Configuration", sessionRole: connectingSceneSession.role)
+    func application(
+        _ application: UIApplication,
+        configurationForConnecting connectingSceneSession: UISceneSession,
+        options: UIScene.ConnectionOptions
+    ) -> UISceneConfiguration {
+        return UISceneConfiguration(
+            name: "Default Configuration", sessionRole: connectingSceneSession.role)
     }
 }
 
@@ -48,21 +71,22 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         let sceneWindow = UIWindow(windowScene: windowScene)
         sceneWindow.backgroundColor = .boothBopCanvas
-#if DEBUG
+        #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--bopfx-fixture") {
             install(
                 BopFXFixtureViewController(),
                 in: sceneWindow)
             return
         }
-#endif
+        #endif
         let rootViewController = BridgeViewController()
         rootViewController.loadViewIfNeeded()
         rootViewController.view.backgroundColor = .boothBopCanvas
 
-        let launchViewController = UIStoryboard(
-            name: "LaunchScreen", bundle: nil
-        ).instantiateInitialViewController() ?? UIViewController()
+        let launchViewController =
+            UIStoryboard(
+                name: "LaunchScreen", bundle: nil
+            ).instantiateInitialViewController() ?? UIViewController()
         launchViewController.loadViewIfNeeded()
         launchViewController.view.backgroundColor = .boothBopCanvas
         let launchOverlay = launchViewController.view!
@@ -96,13 +120,16 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         )
     }
 
-    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
-        guard let url = URLContexts.first?.url else { return }
-        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, open: url, options: [:])
+    func scene(_ scene: UIScene, openURLContexts urlContexts: Set<UIOpenURLContext>) {
+        guard let url = urlContexts.first?.url else { return }
+        _ = ApplicationDelegateProxy.shared.application(
+            UIApplication.shared, open: url, options: [:])
     }
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
-        _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity) { _ in }
+        _ = ApplicationDelegateProxy.shared.application(
+            UIApplication.shared, continue: userActivity
+        ) { _ in }
     }
 }
 
@@ -116,14 +143,16 @@ public class BoothBopLaunch: CAPPlugin, CAPBridgedPlugin {
     public let identifier = "BoothBopLaunch"
     public let jsName = "BoothBopLaunch"
     public let pluginMethods: [CAPPluginMethod] = [
-        CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise)
     ]
 
     @objc func hide(_ call: CAPPluginCall) {
         DispatchQueue.main.async {
-            UIApplication.shared.connectedScenes
-                .compactMap { $0.delegate as? SceneDelegate }
-                .forEach { $0.hideLaunchOverlay() }
+            for sceneDelegate in UIApplication.shared.connectedScenes
+                .compactMap({ $0.delegate as? SceneDelegate })
+            {
+                sceneDelegate.hideLaunchOverlay()
+            }
             call.resolve()
         }
     }
@@ -196,31 +225,40 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
         let opts = PHFetchOptions()
         opts.predicate = NSPredicate(format: "title = %@", BoothBopPhotos.albumName)
         return PHAssetCollection.fetchAssetCollections(
-            with: .album, subtype: .albumRegular, options: opts).firstObject
+            with: .album, subtype: .albumRegular, options: opts
+        ).firstObject
     }
 
     // Find or create the BoothBop album; hands the collection (or nil) to completion.
     private func ensureAlbum(_ completion: @escaping (PHAssetCollection?) -> Void) {
-        if let existing = findAlbum() { completion(existing); return }
+        if let existing = findAlbum() {
+            completion(existing)
+            return
+        }
         var placeholder: PHObjectPlaceholder?
-        PHPhotoLibrary.shared().performChanges({
-            let req = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(
-                withTitle: BoothBopPhotos.albumName)
-            placeholder = req.placeholderForCreatedAssetCollection
-        }, completionHandler: { success, _ in
-            if success, let id = placeholder?.localIdentifier {
-                completion(PHAssetCollection.fetchAssetCollections(
-                    withLocalIdentifiers: [id], options: nil).firstObject)
-            } else {
-                completion(nil)
-            }
-        })
+        PHPhotoLibrary.shared().performChanges(
+            {
+                let req = PHAssetCollectionChangeRequest.creationRequestForAssetCollection(
+                    withTitle: BoothBopPhotos.albumName)
+                placeholder = req.placeholderForCreatedAssetCollection
+            },
+            completionHandler: { success, _ in
+                if success, let id = placeholder?.localIdentifier {
+                    completion(
+                        PHAssetCollection.fetchAssetCollections(
+                            withLocalIdentifiers: [id], options: nil
+                        ).firstObject)
+                } else {
+                    completion(nil)
+                }
+            })
     }
 
     // save({ base64, type: "image"|"video", mime, album: bool })
     @objc func save(_ call: CAPPluginCall) {
         guard let base64 = call.getString("base64"),
-              let data = Data(base64Encoded: base64) else {
+            let data = Data(base64Encoded: base64)
+        else {
             return call.reject("base64 required/invalid", "argumentError")
         }
         let type = call.getString("type") ?? "image"
@@ -243,28 +281,31 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
 
         let performSave: (PHAssetCollection?) -> Void = { collection in
             var placeholder: PHObjectPlaceholder?
-            PHPhotoLibrary.shared().performChanges({
-                let creation = PHAssetCreationRequest.forAsset()
-                if type == "video", let url = tempURL {
-                    let opts = PHAssetResourceCreationOptions()
-                    opts.shouldMoveFile = true
-                    creation.addResource(with: .video, fileURL: url, options: opts)
-                } else {
-                    creation.addResource(with: .photo, data: data, options: nil)
-                }
-                placeholder = creation.placeholderForCreatedAsset
-                if let collection = collection, let ph = placeholder,
-                   let albumChange = PHAssetCollectionChangeRequest(for: collection) {
-                    albumChange.addAssets([ph] as NSArray)
-                }
-            }, completionHandler: { success, error in
-                if let url = tempURL { try? FileManager.default.removeItem(at: url) }
-                if success {
-                    call.resolve(["assetId": placeholder?.localIdentifier ?? ""])
-                } else {
-                    call.reject(error?.localizedDescription ?? "save failed", "filesystemError")
-                }
-            })
+            PHPhotoLibrary.shared().performChanges(
+                {
+                    let creation = PHAssetCreationRequest.forAsset()
+                    if type == "video", let url = tempURL {
+                        let opts = PHAssetResourceCreationOptions()
+                        opts.shouldMoveFile = true
+                        creation.addResource(with: .video, fileURL: url, options: opts)
+                    } else {
+                        creation.addResource(with: .photo, data: data, options: nil)
+                    }
+                    placeholder = creation.placeholderForCreatedAsset
+                    if let collection = collection, let ph = placeholder,
+                        let albumChange = PHAssetCollectionChangeRequest(for: collection)
+                    {
+                        albumChange.addAssets([ph] as NSArray)
+                    }
+                },
+                completionHandler: { success, error in
+                    if let url = tempURL { try? FileManager.default.removeItem(at: url) }
+                    if success {
+                        call.resolve(["assetId": placeholder?.localIdentifier ?? ""])
+                    } else {
+                        call.reject(error?.localizedDescription ?? "save failed", "filesystemError")
+                    }
+                })
         }
 
         if toAlbum {
@@ -289,7 +330,8 @@ public class BoothBopPhotos: CAPPlugin, CAPBridgedPlugin {
 @objc(BoothBopCamera)
 public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     AVCaptureVideoDataOutputSampleBufferDelegate, AVCapturePhotoCaptureDelegate,
-    AVCaptureMetadataOutputObjectsDelegate {
+    AVCaptureMetadataOutputObjectsDelegate
+{
     public let identifier = "BoothBopCamera"
     public let jsName = "BoothBopCamera"
     public let pluginMethods: [CAPPluginMethod] = [
@@ -330,6 +372,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let height: Int
     }
 
+    #if DEBUG
+    private struct LivingCaptureStyle {
+        let effect: BopFXEffect
+        let tuning: BopFXTuning
+    }
+    #endif
+
     private let sessionQueue = DispatchQueue(
         label: "com.boothbop.camera.session", qos: .userInitiated)
     private let sampleQueue = DispatchQueue(
@@ -339,6 +388,27 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         qos: .userInitiated)
     private let metadataQueue = DispatchQueue(
         label: "com.boothbop.camera.metadata", qos: .userInteractive)
+    #if DEBUG
+    private let livingNormalizationQueue = DispatchQueue(
+        label: "com.boothbop.camera.living-normalization",
+        qos: .userInitiated,
+        attributes: .concurrent)
+    private let livingProcessingQueue = DispatchQueue(
+        label: "com.boothbop.camera.living-processing",
+        qos: .userInitiated)
+    private let livingCleanupQueue = DispatchQueue(
+        label: "com.boothbop.camera.living-cleanup",
+        qos: .utility)
+    private static let livingMotionWindowTimeout: TimeInterval = 1.5
+    private static let livingProcessingTimeout: TimeInterval = 30
+    private let livingPipeline: (renderer: BopFXRenderer, builder: BopFXLivingClipBuilder)? = {
+        guard let renderer = BopFXRenderer() else { return nil }
+        return (
+            renderer,
+            BopFXLivingClipBuilder(renderer: renderer)
+        )
+    }()
+    #endif
     private let previewImageContext = CIContext(options: [
         .cacheIntermediates: false
     ])
@@ -371,6 +441,21 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var temporaryPhotoURLs = Set<URL>()
     private var sessionObservers: [NSObjectProtocol] = []
     private var applicationObservers: [NSObjectProtocol] = []
+    #if DEBUG
+    private let livingAssembly =
+        LivingStripAssemblyCoordinator(requiredClipCount: 4)
+    private var nextLivingAttemptID: UInt64 = 0
+    private var livingAttemptID: UInt64?
+    private var livingLabEnabled = false
+    private var livingCaptureStyles: [Int64: LivingCaptureStyle] = [:]
+    private var livingClips: [Int64: BopFXLivingClip] = [:]
+    private var livingProcessingCaptureIDs = Set<Int64>()
+    private var livingCancellationToken: BopFXLivingCancellationToken?
+    private var livingDirectoryURL: URL?
+    private var livingOutputURL: URL?
+    private var pendingLivingCaptureID: Int64?
+    private var pendingLivingWindowDeadline: Date?
+    #endif
 
     // These properties are owned by sampleQueue. Retaining one pixel buffer is
     // enough to freeze the exact visible moment without continuously encoding
@@ -379,12 +464,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var sampleVideoOutput: AVCaptureVideoDataOutput?
     private weak var sampleBopFXPreviewView: BopFXPreviewView?
     private var reportedFirstFrame = false
+    #if DEBUG
+    private let livingCaptureBuffer = BopFXLivingCaptureBuffer()
+    private var sampleLivingGeneration: UInt64?
+    private var sampleLivingAttemptID: UInt64?
+    #endif
 
     // Preview properties are accessed only on the main thread.
     private var previewView: UIView?
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var bopFXPreviewView: BopFXPreviewView?
-#if DEBUG
+    #if DEBUG
     private var bopFXLabPicker: BopFXLabPicker?
     private var bopFXTuningFrame: BopFXTuningFrameView?
     private let bopFXSequenceOrder: [BopFXEffect] = [
@@ -395,7 +485,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     ]
     private var bopFXSequenceEnabled = false
     private var bopFXSequenceIndex = 0
-#endif
+    private var livingPickerAttemptID: UInt64?
+    private var livingPlayer: AVQueuePlayer?
+    private var livingPlayerLooper: AVPlayerLooper?
+    private var livingPlayerViewController: BopFXLivingPlayerViewController?
+    #endif
     private var previewGeneration: UInt64?
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
@@ -419,11 +513,19 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 queue: nil
             ) { [weak self] _ in
                 self?.sessionQueue.async {
-                    guard let self = self,
-                          self.session != nil || self.pendingStartCall != nil else { return }
+                    guard let self = self else { return }
+                    #if DEBUG
+                    let hasActiveLivingWork = self.livingAttemptID != nil
+                    #else
+                    let hasActiveLivingWork = false
+                    #endif
+                    guard
+                        self.session != nil || self.pendingStartCall != nil
+                            || hasActiveLivingWork
+                    else { return }
                     self.tearDownSession(rejectPending: true)
                 }
-            },
+            }
         ]
     }
 
@@ -439,7 +541,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     @objc func setBopFX(_ call: CAPPluginCall) {
         guard let rawEffect = call.getString("effect"),
-              let effect = BopFXEffect(rawValue: rawEffect) else {
+            let effect = BopFXEffect(rawValue: rawEffect)
+        else {
             return call.reject("A supported BopFX effect is required", "argumentError")
         }
         guard BopFXNativeSupport.supportedEffects.contains(effect) else {
@@ -447,15 +550,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
         sessionQueue.async {
             self.activeBopFX = effect
-#if DEBUG
+            #if DEBUG
             self.bopFXSequenceEnabled = false
             self.bopFXSequenceIndex = 0
-#endif
+            #endif
             DispatchQueue.main.async {
                 self.bopFXPreviewView?.setEffect(effect)
-#if DEBUG
+                #if DEBUG
                 self.bopFXLabPicker?.setEffect(effect)
-#endif
+                #endif
                 if effect != .original {
                     self.clearFaceOverlays()
                 }
@@ -467,10 +570,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     @objc func start(_ call: CAPPluginCall) {
         sessionQueue.async {
             if let size = self.latestFrameSize,
-               self.session?.isRunning == true,
-               let generation = self.sessionGeneration,
-               self.photoPreparationComplete,
-               self.pendingStartCall == nil {
+                self.session?.isRunning == true,
+                let generation = self.sessionGeneration,
+                self.photoPreparationComplete,
+                self.pendingStartCall == nil
+            {
                 return call.resolve([
                     "width": size.width,
                     "height": size.height,
@@ -493,11 +597,12 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     @objc func setPreviewFrame(_ call: CAPPluginCall) {
         guard let x = call.getDouble("x"),
-              let y = call.getDouble("y"),
-              let width = call.getDouble("width"),
-              let height = call.getDouble("height"),
-              x.isFinite, y.isFinite, width.isFinite, height.isFinite,
-              width > 0, height > 0 else {
+            let y = call.getDouble("y"),
+            let width = call.getDouble("width"),
+            let height = call.getDouble("height"),
+            x.isFinite, y.isFinite, width.isFinite, height.isFinite,
+            width > 0, height > 0
+        else {
             return call.reject("A finite, positive preview frame is required", "argumentError")
         }
         let cornerRadius = call.getDouble("cornerRadius") ?? 0
@@ -513,8 +618,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             DispatchQueue.main.async {
                 self.requestedPreviewFrame = cssFrame
                 self.requestedPreviewCornerRadius = CGFloat(cornerRadius)
-                guard self.applyPreviewFrame(
-                          cssFrame, cornerRadius: CGFloat(cornerRadius)) else {
+                guard
+                    self.applyPreviewFrame(
+                        cssFrame, cornerRadius: CGFloat(cornerRadius))
+                else {
                     return call.reject(
                         "The native camera preview could not be installed",
                         "previewUnavailable")
@@ -530,9 +637,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 return call.reject("A photo capture is already in progress", "busy")
             }
             guard let session = self.session, session.isRunning,
-                  self.latestFrameSize != nil,
-                  self.photoPreparationComplete,
-                  let output = self.photoOutput else {
+                self.latestFrameSize != nil,
+                self.photoPreparationComplete,
+                let output = self.photoOutput
+            else {
                 return call.reject("Camera is not ready", "notStarted")
             }
             guard let settings = self.makePhotoSettings(for: output) else {
@@ -555,17 +663,23 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.pendingPhoto = nil
             self.captureCompletionReceived = false
 
+            output.capturePhoto(with: settings, delegate: self)
+            #if DEBUG
+            self.armLivingCaptureIfNeeded(
+                captureID: settings.uniqueID,
+                effect: self.pendingCaptureBopFX,
+                tuning: self.pendingCaptureBopFXTuning)
+            #endif
             let freezeSource = self.sampleQueue.sync {
                 (
                     self.sampleBopFXPreviewView,
                     self.latestPreviewPixelBuffer
                 )
             }
-            output.capturePhoto(with: settings, delegate: self)
             let wantsEffectSurface =
-                self.pendingCaptureBopFX != .original ||
-                !self.pendingCaptureBopFXTuning.isNeutral
-            let frozenPhase = wantsEffectSurface
+                self.pendingCaptureBopFX != .original || !self.pendingCaptureBopFXTuning.isNeutral
+            let frozenPhase =
+                wantsEffectSurface
                 ? freezeSource.0?.freezeCurrentFrame()
                 : nil
             self.pendingCaptureBopFXPhase =
@@ -588,7 +702,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             let captureID = settings.uniqueID
             self.sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
                 guard let self = self,
-                      self.pendingCaptureID == captureID else { return }
+                    self.pendingCaptureID == captureID
+                else { return }
                 self.failCapture(
                     "The camera did not return a photo in time",
                     code: "captureTimedOut")
@@ -598,7 +713,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     @objc func release(_ call: CAPPluginCall) {
         guard let path = call.getString("path"),
-              let fileURL = URL(string: path), fileURL.isFileURL else {
+            let fileURL = URL(string: path), fileURL.isFileURL
+        else {
             return call.reject("A temporary photo path is required", "argumentError")
         }
         sessionQueue.async {
@@ -620,7 +736,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     @objc func stop(_ call: CAPPluginCall) {
         sessionQueue.async {
-            self.tearDownSession(rejectPending: true) {
+            #if DEBUG
+            if self.deferStopForLivingWindowIfNeeded(call) {
+                return
+            }
+            #endif
+            self.tearDownSession(
+                rejectPending: true,
+                preserveCompletedDebugWork: true
+            ) {
                 call.resolve()
             }
         }
@@ -668,6 +792,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 latestPreviewPixelBuffer = nil
                 sampleVideoOutput = configured.videoOutput
                 reportedFirstFrame = false
+                #if DEBUG
+                if let generation = sampleLivingGeneration {
+                    livingCaptureBuffer.cancelSession(
+                        generation: generation)
+                }
+                sampleLivingGeneration = nil
+                sampleLivingAttemptID = nil
+                #endif
             }
 
             observeSession(configured.session, generation: generation)
@@ -689,7 +821,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                     tuning: activeTuning)
                 self.sessionQueue.async {
                     guard self.pendingStartID == id,
-                          self.session === configured.session else { return }
+                        self.session === configured.session
+                    else { return }
                     guard installed else {
                         return self.failStart(
                             CameraError.configuration(
@@ -702,26 +835,30 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 }
             }
 
-            guard let preparationSettings = makePhotoSettings(
-                for: configured.photoOutput) else {
+            guard
+                let preparationSettings = makePhotoSettings(
+                    for: configured.photoOutput)
+            else {
                 throw CameraError.configuration("JPEG capture is unavailable")
             }
             configured.photoOutput.setPreparedPhotoSettingsArray(
                 [preparationSettings]) { [weak self] prepared, error in
-                self?.sessionQueue.async {
-                    guard let self = self, self.pendingStartID == id else { return }
-                    guard prepared else {
-                        let preparationError = error ?? CameraError.configuration(
-                            "The camera could not prepare its first photo")
-                        return self.failStart(
-                            preparationError,
-                            code: "preparationError",
-                            id: id)
+                    self?.sessionQueue.async {
+                        guard let self = self, self.pendingStartID == id else { return }
+                        guard prepared else {
+                            let preparationError =
+                                error
+                                ?? CameraError.configuration(
+                                    "The camera could not prepare its first photo")
+                            return self.failStart(
+                                preparationError,
+                                code: "preparationError",
+                                id: id)
+                        }
+                        self.photoPreparationComplete = true
+                        self.finishStartIfReady()
                     }
-                    self.photoPreparationComplete = true
-                    self.finishStartIfReady()
                 }
-            }
 
             sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
                 guard let self = self, self.pendingStartID == id else { return }
@@ -753,9 +890,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func finishStartIfReady() {
         guard photoPreparationComplete,
-              previewInstalled,
-              let size = latestFrameSize,
-              let call = pendingStartCall else { return }
+            previewInstalled,
+            let size = latestFrameSize,
+            let call = pendingStartCall
+        else { return }
         var result: [String: Any] = ["width": size.width, "height": size.height]
         guard let generation = sessionGeneration else { return }
         result["generation"] = generation
@@ -783,13 +921,16 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 guard let captureSession else { return }
                 self?.sessionQueue.async {
                     guard let self = self,
-                          self.session === captureSession else { return }
+                        self.session === captureSession
+                    else { return }
                     if let startID = self.pendingStartID {
-                        self.notifyListeners("stateChanged", data: [
-                            "state": "interrupted",
-                            "message": "The camera was interrupted. Try Camera Again.",
-                            "generation": generation,
-                        ])
+                        self.notifyListeners(
+                            "stateChanged",
+                            data: [
+                                "state": "interrupted",
+                                "message": "The camera was interrupted. Try Camera Again.",
+                                "generation": generation,
+                            ])
                         return self.failStart(
                             CameraError.configuration("The camera was interrupted"),
                             code: "interrupted",
@@ -800,11 +941,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                             "The camera was interrupted",
                             code: "interrupted")
                     }
-                    self.notifyListeners("stateChanged", data: [
-                        "state": "interrupted",
-                        "message": "The camera was interrupted. Try Camera Again.",
-                        "generation": generation,
-                    ])
+                    self.notifyListeners(
+                        "stateChanged",
+                        data: [
+                            "state": "interrupted",
+                            "message": "The camera was interrupted. Try Camera Again.",
+                            "generation": generation,
+                        ])
                     self.tearDownSession(rejectPending: true)
                 }
             },
@@ -814,20 +957,25 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 queue: nil
             ) { [weak self, weak captureSession] notification in
                 guard let captureSession else { return }
-                let error = notification.userInfo?[AVCaptureSessionErrorKey]
+                let error =
+                    notification.userInfo?[AVCaptureSessionErrorKey]
                     as? NSError
                 self?.sessionQueue.async {
                     guard let self = self,
-                          self.session === captureSession else { return }
+                        self.session === captureSession
+                    else { return }
                     if let startID = self.pendingStartID {
-                        self.notifyListeners("stateChanged", data: [
-                            "state": "failed",
-                            "message": "The camera stopped unexpectedly. Try Camera Again.",
-                            "generation": generation,
-                        ])
+                        self.notifyListeners(
+                            "stateChanged",
+                            data: [
+                                "state": "failed",
+                                "message": "The camera stopped unexpectedly. Try Camera Again.",
+                                "generation": generation,
+                            ])
                         return self.failStart(
-                            error ?? CameraError.configuration(
-                                "The camera stopped unexpectedly"),
+                            error
+                                ?? CameraError.configuration(
+                                    "The camera stopped unexpectedly"),
                             code: "runtimeError",
                             id: startID)
                     }
@@ -836,11 +984,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                             error?.localizedDescription ?? "The camera stopped unexpectedly",
                             code: "runtimeError")
                     }
-                    self.notifyListeners("stateChanged", data: [
-                        "state": "failed",
-                        "message": "The camera stopped unexpectedly. Try Camera Again.",
-                        "generation": generation,
-                    ])
+                    self.notifyListeners(
+                        "stateChanged",
+                        data: [
+                            "state": "failed",
+                            "message": "The camera stopped unexpectedly. Try Camera Again.",
+                            "generation": generation,
+                        ])
                     self.tearDownSession(rejectPending: true)
                 }
             },
@@ -964,12 +1114,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             readinessOutput,
             stillOutput,
             enabledFaceOutput,
-            device)
+            device
+        )
     }
 
     private func frontCamera() -> AVCaptureDevice? {
         if let trueDepth = AVCaptureDevice.default(
-            .builtInTrueDepthCamera, for: .video, position: .front) {
+            .builtInTrueDepthCamera, for: .video, position: .front)
+        {
             return trueDepth
         }
         return AVCaptureDevice.default(
@@ -1020,7 +1172,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             let coordinator = AVCaptureDevice.RotationCoordinator(
                 device: device,
                 previewLayer: previewLayer)
-            let angle = previewLayer == nil
+            let angle =
+                previewLayer == nil
                 ? coordinator.videoRotationAngleForHorizonLevelCapture
                 : coordinator.videoRotationAngleForHorizonLevelPreview
             if connection.isVideoRotationAngleSupported(angle) {
@@ -1044,6 +1197,19 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         latestPreviewPixelBuffer = pixelBuffer
         sampleBopFXPreviewView?.consume(pixelBuffer)
+        #if DEBUG
+        if let generation = sampleLivingGeneration,
+            let attemptID = sampleLivingAttemptID
+        {
+            let update = livingCaptureBuffer.append(
+                sampleBuffer,
+                generation: generation)
+            publishLivingCaptureUpdate(
+                update,
+                generation: generation,
+                attemptID: attemptID)
+        }
+        #endif
         guard !reportedFirstFrame else { return }
         reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
@@ -1059,16 +1225,18 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             guard shouldWarm else { return }
             let warmupFileURL: URL? = autoreleasepool {
                 guard let previewImage,
-                      let warmupData = try? self.renderSquareJPEG(
-                          previewImage,
-                          size: 1920,
-                          effect: .original,
-                          tuning: .neutral) else { return nil }
+                    let warmupData = try? self.renderSquareJPEG(
+                        previewImage,
+                        size: 1920,
+                        effect: .original,
+                        tuning: .neutral)
+                else { return nil }
                 return try? self.writeTemporaryPhoto(warmupData)
             }
             self.sessionQueue.async {
                 guard self.videoOutput === output,
-                      self.pendingStartCall != nil else {
+                    self.pendingStartCall != nil
+                else {
                     if let warmupFileURL {
                         self.removeTemporaryPhotos([warmupFileURL])
                     }
@@ -1092,8 +1260,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let faces = metadataObjects.compactMap { $0 as? AVMetadataFaceObject }
         sessionQueue.async {
             guard self.metadataOutput === output,
-                  let generation = self.sessionGeneration,
-                  self.activeBopFX == .original else { return }
+                let generation = self.sessionGeneration,
+                self.activeBopFX == .original
+            else { return }
             DispatchQueue.main.async {
                 guard self.previewGeneration == generation else { return }
                 self.renderFaceOverlays(faces)
@@ -1104,7 +1273,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private func renderFaceOverlays(_ faces: [AVMetadataFaceObject]) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let previewLayer = previewLayer,
-              let previewView = previewView else {
+            let previewView = previewView
+        else {
             clearFaceOverlays()
             return
         }
@@ -1116,8 +1286,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let clippingBounds = previewView.bounds.insetBy(dx: 4, dy: 4)
 
         for face in faces {
-            guard let transformed = previewLayer.transformedMetadataObject(
-                for: face) as? AVMetadataFaceObject else { continue }
+            guard
+                let transformed = previewLayer.transformedMetadataObject(
+                    for: face) as? AVMetadataFaceObject
+            else { continue }
             let bounds = transformed.bounds
                 .insetBy(dx: 8, dy: 8)
                 .intersection(clippingBounds)
@@ -1130,7 +1302,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
             if now - cueStartedAt >= cueDuration {
                 if let overlay = faceOverlayLayers[face.faceID],
-                   overlay.opacity > 0 {
+                    overlay.opacity > 0
+                {
                     let fade = CABasicAnimation(keyPath: "opacity")
                     fade.fromValue = overlay.presentation()?.opacity ?? 1
                     fade.toValue = 0
@@ -1147,7 +1320,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             } else {
                 let created = CAShapeLayer()
                 created.fillColor = UIColor.clear.cgColor
-                created.strokeColor = UIColor.boothBopAccent
+                created.strokeColor =
+                    UIColor.boothBopAccent
                     .withAlphaComponent(0.5).cgColor
                 created.lineWidth = 2
                 created.lineJoin = .round
@@ -1169,7 +1343,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             let cornerRadius = min(12, min(bounds.width, bounds.height) * 0.08)
             let nextPath = UIBezierPath(
                 roundedRect: bounds,
-                cornerRadius: cornerRadius).cgPath
+                cornerRadius: cornerRadius
+            ).cgPath
             if let previousPath = overlay.presentation()?.path ?? overlay.path {
                 let movement = CABasicAnimation(keyPath: "path")
                 movement.fromValue = previousPath
@@ -1183,8 +1358,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
 
         let staleFaceIDs = faceOverlayLayers.keys.filter { faceID in
-            !detectedFaceIDs.contains(faceID) &&
-                now - (faceLastSeen[faceID] ?? 0) > redetectionDelay
+            !detectedFaceIDs.contains(faceID)
+                && now - (faceLastSeen[faceID] ?? 0) > redetectionDelay
         }
         for faceID in staleFaceIDs {
             faceOverlayLayers[faceID]?.removeFromSuperlayer()
@@ -1196,7 +1371,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func clearFaceOverlays() {
         dispatchPrecondition(condition: .onQueue(.main))
-        faceOverlayLayers.values.forEach { $0.removeFromSuperlayer() }
+        for overlay in faceOverlayLayers.values {
+            overlay.removeFromSuperlayer()
+        }
         faceOverlayLayers.removeAll()
         faceLastSeen.removeAll()
         faceCueStartedAt.removeAll()
@@ -1206,8 +1383,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         _ pixelBuffer: CVPixelBuffer
     ) -> UIImage? {
         let image = CIImage(cvPixelBuffer: pixelBuffer)
-        guard let cgImage = previewImageContext.createCGImage(
-            image, from: image.extent) else { return nil }
+        guard
+            let cgImage = previewImageContext.createCGImage(
+                image, from: image.extent)
+        else { return nil }
         return UIImage(cgImage: cgImage)
     }
 
@@ -1250,11 +1429,12 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         if effect == .original && tuning.isNeutral {
             finalImage = rendered
         } else {
-            finalImage = bopFXStillRenderer?.renderStillImage(
-                rendered,
-                effect: effect,
-                phase: phase,
-                tuning: tuning) ?? rendered
+            finalImage =
+                bopFXStillRenderer?.renderStillImage(
+                    rendered,
+                    effect: effect,
+                    phase: phase,
+                    tuning: tuning) ?? rendered
         }
         guard let data = finalImage.jpegData(compressionQuality: 0.98) else {
             throw CameraError.configuration("The captured photo could not be encoded")
@@ -1284,11 +1464,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         error: Error?
     ) {
         let captureID = photo.resolvedSettings.uniqueID
+        let shutterTimestamp = photo.timestamp
         sessionQueue.async {
             guard self.pendingCaptureID == captureID else { return }
             if let error = error {
                 return self.failCapture(error.localizedDescription, code: "captureError")
             }
+            #if DEBUG
+            self.resolveLivingShutterIfNeeded(
+                captureID: captureID,
+                timestamp: shutterTimestamp)
+            #endif
             let captureSize = self.pendingCaptureSize
             let captureEffect = self.pendingCaptureBopFX
             let captureTuning = self.pendingCaptureBopFXTuning
@@ -1301,7 +1487,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 let result: Result<CapturedPhoto, Error> = autoreleasepool {
                     Result {
                         guard let data = photo.fileDataRepresentation(),
-                              let image = UIImage(data: data) else {
+                            let image = UIImage(data: data)
+                        else {
                             throw CameraError.configuration(
                                 "The captured photo could not be encoded")
                         }
@@ -1357,8 +1544,26 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func finishCaptureIfReady() {
         guard captureCompletionReceived,
-              let photo = pendingPhoto,
-              let call = pendingCaptureCall else { return }
+            let photo = pendingPhoto,
+            let call = pendingCaptureCall,
+            let captureID = pendingCaptureID
+        else { return }
+        #if DEBUG
+        if let generation = livingAssembly.generation,
+            let attemptID = livingAttemptID,
+            livingAssembly.attemptID == attemptID,
+            livingAssembly.containsCapture(id: captureID)
+        {
+            let update = livingAssembly.markStillSucceeded(
+                captureID: captureID,
+                generation: generation,
+                attemptID: attemptID)
+            handleLivingAssemblyUpdate(
+                update,
+                generation: generation,
+                attemptID: attemptID)
+        }
+        #endif
         pendingCaptureCall = nil
         pendingCaptureID = nil
         pendingCaptureSize = 1920
@@ -1367,9 +1572,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureBopFXPhase = 0
         pendingPhoto = nil
         captureCompletionReceived = false
-#if DEBUG
+        #if DEBUG
         advanceBopFXLabSequence()
-#endif
+        #endif
         DispatchQueue.main.async {
             self.completeShutterFreeze()
             call.resolve([
@@ -1392,6 +1597,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func failCapture(_ message: String, code: String) {
         guard let call = pendingCaptureCall else { return }
+        #if DEBUG
+        if let captureID = pendingCaptureID {
+            failLivingCaptureIfNeeded(captureID: captureID)
+        }
+        #endif
         if let fileURL = pendingPhoto?.fileURL {
             temporaryPhotoURLs.remove(fileURL)
             removeTemporaryPhotos([fileURL])
@@ -1412,6 +1622,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
 
     private func tearDownSession(
         rejectPending: Bool,
+        preserveCompletedDebugWork: Bool = false,
         completion: (() -> Void)? = nil
     ) {
         let unpublishedPhotoURL = pendingPhoto?.fileURL
@@ -1434,13 +1645,20 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         photoPreparationComplete = false
         previewInstalled = false
         startupWarmupFileURL = nil
-#if DEBUG
+        #if DEBUG
         bopFXSequenceEnabled = false
         bopFXSequenceIndex = 0
-#endif
+        if preserveCompletedDebugWork {
+            prepareLivingLabForTeardown()
+        } else {
+            cancelLivingLab(updatePicker: false)
+        }
+        #endif
 
         let unpublishedURLs = [unpublishedPhotoURL, unpublishedWarmupURL].compactMap { $0 }
-        unpublishedURLs.forEach { temporaryPhotoURLs.remove($0) }
+        for fileURL in unpublishedURLs {
+            temporaryPhotoURLs.remove(fileURL)
+        }
         removeTemporaryPhotos(unpublishedURLs)
 
         removeSessionObservers()
@@ -1454,6 +1672,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             sampleVideoOutput = nil
             sampleBopFXPreviewView = nil
             reportedFirstFrame = false
+            #if DEBUG
+            if let generation = sampleLivingGeneration {
+                livingCaptureBuffer.cancelSession(
+                    generation: generation)
+            }
+            sampleLivingGeneration = nil
+            sampleLivingAttemptID = nil
+            #endif
         }
         session = nil
         sessionGeneration = nil
@@ -1478,8 +1704,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
-              let webView = bridge?.webView,
-              let previewHost = webView.superview else { return false }
+            let webView = bridge?.webView,
+            let previewHost = webView.superview
+        else { return false }
 
         rootView.backgroundColor = .boothBopCanvas
         webView.isOpaque = false
@@ -1497,7 +1724,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             nativePreview.layer.addSublayer(layer)
 
             if let effectView = BopFXPreviewView(
-                bopFXFrame: nativePreview.bounds) {
+                bopFXFrame: nativePreview.bounds)
+            {
                 effectView.autoresizingMask = [
                     .flexibleWidth,
                     .flexibleHeight,
@@ -1509,7 +1737,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 sampleQueue.async {
                     self.sampleBopFXPreviewView = effectView
                 }
-#if DEBUG
+                #if DEBUG
                 let tuningFrame = BopFXTuningFrameView(tuning: tuning)
                 tuningFrame.autoresizingMask = [
                     .flexibleWidth,
@@ -1532,9 +1760,29 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 picker.onSelectSequence = { [weak self] in
                     self?.startBopFXLabSequence()
                 }
+                picker.onToggleLiving = { [weak self] enabled in
+                    self?.setLivingLabEnabled(enabled)
+                }
+                picker.onPlayLiving = { [weak self] in
+                    self?.playLivingStrip()
+                }
                 previewHost.addSubview(picker)
                 bopFXLabPicker = picker
-#endif
+                sessionQueue.async {
+                    let state =
+                        self.currentLivingLabPickerState()
+                    let attemptID =
+                        self.livingAttemptID
+                    DispatchQueue.main.async {
+                        guard self.bopFXLabPicker === picker else {
+                            return
+                        }
+                        self.livingPickerAttemptID =
+                            attemptID
+                        picker.setLivingState(state)
+                    }
+                }
+                #endif
             }
             previewView = nativePreview
             previewLayer = layer
@@ -1606,7 +1854,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     ) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard shutterFreezeGeneration == generation,
-              let previewView = previewView else { return }
+            let previewView = previewView
+        else { return }
 
         let freezeView: UIImageView
         if let existing = shutterFreezeView {
@@ -1653,8 +1902,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private func finishShutterFreezeIfReady() {
         dispatchPrecondition(condition: .onQueue(.main))
         guard shutterFreezeMinimumElapsed,
-              shutterFreezeCaptureComplete,
-              shutterFreezeDismissRequested else { return }
+            shutterFreezeCaptureComplete,
+            shutterFreezeDismissRequested
+        else { return }
         hideShutterFreeze()
     }
 
@@ -1678,14 +1928,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let webView = bridge?.webView,
-              let previewView = previewView,
-              let previewHost = previewView.superview else { return false }
+            let previewView = previewView,
+            let previewHost = previewView.superview
+        else { return false }
         previewView.frame = webView.convert(cssFrame, to: previewHost)
         previewView.layer.cornerRadius = cornerRadius
         previewView.layer.cornerCurve = .continuous
         previewLayer?.frame = previewView.bounds
         bopFXPreviewView?.frame = previewView.bounds
-#if DEBUG
+        #if DEBUG
         let previewFrame = previewView.frame
         bopFXTuningFrame?.frame = previewFrame
         bopFXLabPicker?.frame = CGRect(
@@ -1693,7 +1944,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             y: max(previewFrame.minY + 8, previewFrame.maxY - 58),
             width: max(0, previewFrame.width - 16),
             height: 50)
-#endif
+        #endif
         shutterFreezeView?.frame = previewView.bounds
         return previewLayer != nil && !previewView.frame.isEmpty
     }
@@ -1710,12 +1961,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         shutterFreezeView = nil
         bopFXPreviewView?.removeFromSuperview()
         bopFXPreviewView = nil
-#if DEBUG
+        #if DEBUG
+        stopLivingPlayer()
+        livingPickerAttemptID = nil
         bopFXTuningFrame?.removeFromSuperview()
         bopFXTuningFrame = nil
         bopFXLabPicker?.removeFromSuperview()
         bopFXLabPicker = nil
-#endif
+        #endif
         previewLayer?.session = nil
         previewLayer?.removeFromSuperlayer()
         previewView?.removeFromSuperview()
@@ -1731,7 +1984,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         bridge?.webView?.scrollView.backgroundColor = .boothBopCanvas
     }
 
-#if DEBUG
+    #if DEBUG
     private func selectBopFXFromLab(_ effect: BopFXEffect) {
         dispatchPrecondition(condition: .onQueue(.main))
         guard BopFXNativeSupport.supportedEffects.contains(effect) else { return }
@@ -1776,8 +2029,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private func advanceBopFXLabSequence() {
         dispatchPrecondition(condition: .onQueue(sessionQueue))
         guard bopFXSequenceEnabled, !bopFXSequenceOrder.isEmpty else { return }
-        bopFXSequenceIndex = (bopFXSequenceIndex + 1) %
-            bopFXSequenceOrder.count
+        bopFXSequenceIndex = (bopFXSequenceIndex + 1) % bopFXSequenceOrder.count
         let effect = bopFXSequenceOrder[bopFXSequenceIndex]
         activeBopFX = effect
         DispatchQueue.main.async {
@@ -1786,7 +2038,859 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.clearFaceOverlays()
         }
     }
-#endif
+
+    private func setLivingLabEnabled(_ enabled: Bool) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sessionQueue.async {
+            if enabled {
+                self.startLivingLab()
+            } else {
+                self.cancelLivingLab(updatePicker: true)
+            }
+        }
+    }
+
+    private func currentLivingLabPickerState()
+        -> BopFXLivingLabState
+    {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        switch livingAssembly.phase {
+        case .off:
+            return .off
+        case .collecting:
+            if livingAssembly.hasRegisteredAllCaptures {
+                return .processing
+            }
+            return .collecting(
+                completedClipCount:
+                    livingAssembly.completedClipCount)
+        case .composing:
+            return .processing
+        case .ready:
+            return .ready
+        case .failed:
+            return .failed
+        }
+    }
+
+    private func startLivingLab() {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard let generation = sessionGeneration,
+            session?.isRunning == true,
+            livingPipeline != nil
+        else {
+            DispatchQueue.main.async {
+                self.bopFXLabPicker?.setLivingState(.failed)
+            }
+            return
+        }
+
+        let previousDirectory = livingDirectoryURL
+        livingCancellationToken?.cancel()
+        nextLivingAttemptID &+= 1
+        let attemptID = nextLivingAttemptID
+        livingAttemptID = attemptID
+        livingCancellationToken =
+            BopFXLivingCancellationToken()
+        _ = livingAssembly.start(
+            generation: generation,
+            attemptID: attemptID)
+        livingLabEnabled = true
+        livingCaptureStyles.removeAll(keepingCapacity: true)
+        livingClips.removeAll(keepingCapacity: true)
+        livingProcessingCaptureIDs.removeAll(keepingCapacity: true)
+        pendingLivingCaptureID = nil
+        pendingLivingWindowDeadline = nil
+        livingOutputURL = nil
+        livingDirectoryURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(
+                "boothbop-living-\(generation)-\(attemptID)-\(UUID().uuidString)",
+                isDirectory: true)
+        sampleQueue.async {
+            if let previousGeneration = self.sampleLivingGeneration {
+                self.livingCaptureBuffer.cancelSession(
+                    generation: previousGeneration)
+            }
+            self.sampleLivingGeneration = generation
+            self.sampleLivingAttemptID = attemptID
+            self.livingCaptureBuffer.startSession(
+                generation: generation)
+        }
+        DispatchQueue.main.async {
+            self.livingPickerAttemptID = attemptID
+            self.stopLivingPlayer {
+                self.cleanLivingDirectory(previousDirectory)
+            }
+            self.bopFXLabPicker?.setLivingState(
+                .collecting(completedClipCount: 0))
+        }
+    }
+
+    private func cancelLivingLab(updatePicker: Bool) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        let attemptID = livingAttemptID
+        livingCancellationToken?.cancel()
+        livingCancellationToken = nil
+        if let generation = livingAssembly.generation,
+            let attemptID
+        {
+            _ = livingAssembly.cancel(
+                generation: generation,
+                attemptID: attemptID)
+            sampleQueue.async {
+                self.livingCaptureBuffer.cancelSession(
+                    generation: generation)
+                if self.sampleLivingGeneration == generation,
+                    self.sampleLivingAttemptID == attemptID
+                {
+                    self.sampleLivingGeneration = nil
+                    self.sampleLivingAttemptID = nil
+                }
+            }
+        }
+        livingAttemptID = nil
+        livingLabEnabled = false
+        livingCaptureStyles.removeAll(keepingCapacity: true)
+        livingClips.removeAll(keepingCapacity: true)
+        livingProcessingCaptureIDs.removeAll(keepingCapacity: true)
+        livingOutputURL = nil
+        let directory = livingDirectoryURL
+        livingDirectoryURL = nil
+        pendingLivingCaptureID = nil
+        pendingLivingWindowDeadline = nil
+        DispatchQueue.main.async {
+            if self.livingPickerAttemptID == attemptID {
+                self.livingPickerAttemptID = nil
+            }
+            self.stopLivingPlayer {
+                self.cleanLivingDirectory(directory)
+            }
+            if updatePicker {
+                self.bopFXLabPicker?.setLivingState(.off)
+            }
+        }
+    }
+
+    private func prepareLivingLabForTeardown() {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        let shouldFinishOffCamera =
+            (livingAssembly.phase == .collecting
+                && livingAssembly.hasRegisteredAllCaptures
+                && livingAssembly.successfulStillCaptureCount
+                    == livingAssembly.registeredCaptureCount
+                && pendingLivingCaptureID == nil)
+            || livingAssembly.phase == .composing || livingAssembly.phase == .ready
+        guard shouldFinishOffCamera else {
+            cancelLivingLab(updatePicker: false)
+            return
+        }
+        livingLabEnabled = false
+        if let generation = livingAssembly.generation,
+            let attemptID = livingAttemptID
+        {
+            sampleQueue.async {
+                self.livingCaptureBuffer.cancelSession(
+                    generation: generation)
+                if self.sampleLivingGeneration == generation,
+                    self.sampleLivingAttemptID == attemptID
+                {
+                    self.sampleLivingGeneration = nil
+                    self.sampleLivingAttemptID = nil
+                }
+            }
+        }
+    }
+
+    private func armLivingCaptureIfNeeded(
+        captureID: Int64,
+        effect: BopFXEffect,
+        tuning: BopFXTuning
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingLabEnabled,
+            let generation = sessionGeneration,
+            let attemptID = livingAttemptID,
+            livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAssembly.phase == .collecting
+        else {
+            return
+        }
+        let armed = sampleQueue.sync {
+            guard sampleLivingGeneration == generation,
+                sampleLivingAttemptID == attemptID
+            else {
+                return false
+            }
+            return livingCaptureBuffer.armShot(
+                captureID: captureID,
+                generation: generation)
+        }
+        guard armed,
+            livingAssembly.registerCapture(
+                id: captureID,
+                generation: generation,
+                attemptID: attemptID)
+        else {
+            if armed {
+                sampleQueue.async {
+                    _ = self.livingCaptureBuffer.cancelShot(
+                        captureID: captureID,
+                        generation: generation)
+                }
+            }
+            transitionLivingLabToFailure(
+                generation: generation,
+                attemptID: attemptID)
+            return
+        }
+        livingCaptureStyles[captureID] = LivingCaptureStyle(
+            effect: effect,
+            tuning: tuning)
+        pendingLivingCaptureID = captureID
+        pendingLivingWindowDeadline = Date().addingTimeInterval(
+            Self.livingMotionWindowTimeout)
+        sessionQueue.asyncAfter(
+            deadline: .now() + Self.livingMotionWindowTimeout
+        ) { [weak self] in
+            self?.expireLivingWindowIfNeeded(
+                captureID: captureID,
+                generation: generation,
+                attemptID: attemptID)
+        }
+    }
+
+    private func resolveLivingShutterIfNeeded(
+        captureID: Int64,
+        timestamp: CMTime
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard let generation = livingAssembly.generation,
+            let attemptID = livingAttemptID,
+            livingAssembly.attemptID == attemptID,
+            livingAssembly.containsCapture(id: captureID)
+        else {
+            return
+        }
+        sampleQueue.async {
+            let update = self.livingCaptureBuffer.resolveShutter(
+                captureID: captureID,
+                timestamp: timestamp,
+                generation: generation)
+            if case .ignored = update {
+                self.sessionQueue.async {
+                    self.resolveLivingWindow(
+                        captureID: captureID,
+                        generation: generation,
+                        attemptID: attemptID)
+                    guard
+                        self.livingAssembly.markClipFailed(
+                            captureID: captureID,
+                            generation: generation,
+                            attemptID: attemptID) == .failed
+                    else {
+                        return
+                    }
+                    self.transitionLivingLabToFailure(
+                        generation: generation,
+                        attemptID: attemptID)
+                }
+                return
+            }
+            self.publishLivingCaptureUpdate(
+                update,
+                generation: generation,
+                attemptID: attemptID)
+        }
+    }
+
+    private func failLivingCaptureIfNeeded(
+        captureID: Int64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard let generation = livingAssembly.generation,
+            let attemptID = livingAttemptID,
+            livingAssembly.attemptID == attemptID,
+            livingAssembly.containsCapture(id: captureID)
+        else {
+            return
+        }
+        sampleQueue.async {
+            _ = self.livingCaptureBuffer.cancelShot(
+                captureID: captureID,
+                generation: generation)
+        }
+        guard
+            livingAssembly.markClipFailed(
+                captureID: captureID,
+                generation: generation,
+                attemptID: attemptID) == .failed
+        else {
+            return
+        }
+        transitionLivingLabToFailure(
+            generation: generation,
+            attemptID: attemptID)
+    }
+
+    private func publishLivingCaptureUpdate(
+        _ update: BopFXLivingCaptureUpdate,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sampleQueue))
+        switch update {
+        case .ignored, .collecting:
+            return
+        case .failed(let captureID, _):
+            sessionQueue.async {
+                self.resolveLivingWindow(
+                    captureID: captureID,
+                    generation: generation,
+                    attemptID: attemptID)
+                guard
+                    self.livingAssembly.markClipFailed(
+                        captureID: captureID,
+                        generation: generation,
+                        attemptID: attemptID) == .failed
+                else {
+                    return
+                }
+                self.transitionLivingLabToFailure(
+                    generation: generation,
+                    attemptID: attemptID)
+            }
+        case .completed(let shot):
+            sessionQueue.async {
+                self.resolveLivingWindow(
+                    captureID: shot.captureID,
+                    generation: generation,
+                    attemptID: attemptID)
+                self.processLivingShot(
+                    shot,
+                    generation: generation,
+                    attemptID: attemptID)
+            }
+        }
+    }
+
+    private func resolveLivingWindow(
+        captureID: Int64,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            pendingLivingCaptureID == captureID
+        else {
+            return
+        }
+        pendingLivingCaptureID = nil
+        pendingLivingWindowDeadline = nil
+    }
+
+    private func expireLivingWindowIfNeeded(
+        captureID: Int64,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            pendingLivingCaptureID == captureID
+        else {
+            return
+        }
+        pendingLivingCaptureID = nil
+        pendingLivingWindowDeadline = nil
+        sampleQueue.async {
+            _ = self.livingCaptureBuffer.cancelShot(
+                captureID: captureID,
+                generation: generation)
+        }
+        guard
+            livingAssembly.markClipFailed(
+                captureID: captureID,
+                generation: generation,
+                attemptID: attemptID) == .failed
+        else {
+            return
+        }
+        transitionLivingLabToFailure(
+            generation: generation,
+            attemptID: attemptID)
+    }
+
+    private func deferStopForLivingWindowIfNeeded(
+        _ call: CAPPluginCall
+    ) -> Bool {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        let now = Date.timeIntervalSinceReferenceDate
+        guard
+            let remaining = livingAssembly.stopDeferralDelay(
+                pendingCaptureID: pendingLivingCaptureID,
+                deadline: pendingLivingWindowDeadline?
+                    .timeIntervalSinceReferenceDate,
+                now: now)
+        else {
+            return false
+        }
+        sessionQueue.asyncAfter(
+            deadline: .now() + remaining
+        ) { [weak self] in
+            guard let self else {
+                call.resolve()
+                return
+            }
+            self.tearDownSession(
+                rejectPending: true,
+                preserveCompletedDebugWork: true
+            ) {
+                call.resolve()
+            }
+        }
+        return true
+    }
+
+    private func processLivingShot(
+        _ shot: BopFXLivingShot,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            livingAssembly.phase == .collecting,
+            let style = livingCaptureStyles.removeValue(
+                forKey: shot.captureID),
+            let pipeline = livingPipeline,
+            let cancellation = livingCancellationToken
+        else {
+            return
+        }
+        livingProcessingCaptureIDs.insert(shot.captureID)
+        let absoluteDeadline = Date().addingTimeInterval(
+            Self.livingProcessingTimeout)
+        sessionQueue.asyncAfter(
+            deadline: .now() + Self.livingProcessingTimeout
+        ) { [weak self] in
+            self?.expireLivingProcessingIfNeeded(
+                captureID: shot.captureID,
+                generation: generation,
+                attemptID: attemptID)
+        }
+
+        livingNormalizationQueue.async {
+            let normalized: Result<BopFXLivingClip, Error> =
+                autoreleasepool {
+                    Result {
+                        try pipeline.builder.normalize(
+                            shot: shot,
+                            cancellation: cancellation,
+                            absoluteDeadline: absoluteDeadline)
+                    }
+                }
+            switch normalized {
+            case .failure:
+                self.sessionQueue.async {
+                    guard
+                        self.livingAssembly.markClipFailed(
+                            captureID: shot.captureID,
+                            generation: generation,
+                            attemptID: attemptID) == .failed
+                    else {
+                        return
+                    }
+                    self.transitionLivingLabToFailure(
+                        generation: generation,
+                        attemptID: attemptID)
+                }
+            case .success(let clip):
+                self.livingProcessingQueue.async {
+                    let shouldRender = self.sessionQueue.sync {
+                        self.livingAssembly.generation == generation
+                            && self.livingAssembly.attemptID == attemptID
+                            && self.livingAttemptID == attemptID
+                            && self.livingAssembly.phase == .collecting
+                            && !cancellation.isCancelled
+                    }
+                    guard shouldRender else { return }
+                    let rendered: Result<BopFXLivingClip, Error> =
+                        autoreleasepool {
+                            Result {
+                                try pipeline.builder.apply(
+                                    effect: style.effect,
+                                    tuning: style.tuning,
+                                    to: clip,
+                                    renderer: pipeline.renderer,
+                                    cancellation: cancellation,
+                                    absoluteDeadline: absoluteDeadline)
+                            }
+                        }
+                    self.sessionQueue.async {
+                        self.publishLivingClip(
+                            rendered,
+                            captureID: shot.captureID,
+                            generation: generation,
+                            attemptID: attemptID)
+                    }
+                }
+            }
+        }
+    }
+
+    private func publishLivingClip(
+        _ result: Result<BopFXLivingClip, Error>,
+        captureID: Int64,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            livingAssembly.phase == .collecting,
+            livingAssembly.containsCapture(id: captureID),
+            livingCancellationToken?.isCancelled == false
+        else {
+            return
+        }
+        livingProcessingCaptureIDs.remove(captureID)
+        guard case .success(let clip) = result else {
+            guard
+                livingAssembly.markClipFailed(
+                    captureID: captureID,
+                    generation: generation,
+                    attemptID: attemptID) == .failed
+            else {
+                return
+            }
+            transitionLivingLabToFailure(
+                generation: generation,
+                attemptID: attemptID)
+            return
+        }
+
+        livingClips[captureID] = clip
+        let update = livingAssembly.markClipReady(
+            captureID: captureID,
+            generation: generation,
+            attemptID: attemptID)
+        handleLivingAssemblyUpdate(
+            update,
+            generation: generation,
+            attemptID: attemptID)
+    }
+
+    private func expireLivingProcessingIfNeeded(
+        captureID: Int64,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            livingProcessingCaptureIDs.remove(captureID) != nil
+        else {
+            return
+        }
+        guard
+            livingAssembly.markClipFailed(
+                captureID: captureID,
+                generation: generation,
+                attemptID: attemptID) == .failed
+        else {
+            return
+        }
+        transitionLivingLabToFailure(
+            generation: generation,
+            attemptID: attemptID)
+    }
+
+    private func handleLivingAssemblyUpdate(
+        _ update: LivingStripAssemblyUpdate,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            let cancellation = livingCancellationToken,
+            !cancellation.isCancelled
+        else {
+            return
+        }
+        switch update {
+        case .collecting(let completedClipCount):
+            DispatchQueue.main.async {
+                guard self.livingPickerAttemptID == attemptID else {
+                    return
+                }
+                self.bopFXLabPicker?.setLivingState(
+                    .collecting(
+                        completedClipCount: completedClipCount))
+            }
+        case .compose(let captureIDs):
+            guard
+                let directory = livingDirectoryURL,
+                captureIDs.allSatisfy({
+                    livingClips[$0] != nil
+                })
+            else {
+                _ = livingAssembly.markCompositionFailed(
+                    generation: generation,
+                    attemptID: attemptID)
+                transitionLivingLabToFailure(
+                    generation: generation,
+                    attemptID: attemptID)
+                return
+            }
+            livingLabEnabled = false
+            livingCaptureStyles.removeAll(keepingCapacity: true)
+            let clips = captureIDs.compactMap {
+                livingClips[$0]
+            }
+            sampleQueue.async {
+                self.livingCaptureBuffer.cancelSession(
+                    generation: generation)
+                if self.sampleLivingGeneration == generation,
+                    self.sampleLivingAttemptID == attemptID
+                {
+                    self.sampleLivingGeneration = nil
+                    self.sampleLivingAttemptID = nil
+                }
+            }
+            DispatchQueue.main.async {
+                guard self.livingPickerAttemptID == attemptID else {
+                    return
+                }
+                self.bopFXLabPicker?.setLivingState(.processing)
+            }
+            composeLivingStrip(
+                clips: clips,
+                directory: directory,
+                generation: generation,
+                attemptID: attemptID,
+                cancellation: cancellation)
+        case .ignored, .ready, .failed:
+            return
+        }
+    }
+
+    private func composeLivingStrip(
+        clips: [BopFXLivingClip],
+        directory: URL,
+        generation: UInt64,
+        attemptID: UInt64,
+        cancellation: BopFXLivingCancellationToken
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        livingProcessingQueue.async {
+            let result: Result<URL, Error> = autoreleasepool {
+                Result {
+                    try FileManager.default.createDirectory(
+                        at: directory,
+                        withIntermediateDirectories: true)
+                    return try BopFXLivingStripWriter.write(
+                        clips: clips,
+                        directory: directory,
+                        cancellation: cancellation)
+                }
+            }
+            self.sessionQueue.async {
+                self.publishLivingStrip(
+                    result,
+                    directory: directory,
+                    generation: generation,
+                    attemptID: attemptID)
+            }
+        }
+    }
+
+    private func publishLivingStrip(
+        _ result: Result<URL, Error>,
+        directory: URL,
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID,
+            livingAssembly.phase == .composing,
+            livingDirectoryURL == directory
+        else {
+            cleanLivingDirectory(directory)
+            return
+        }
+        guard case .success(let outputURL) = result,
+            livingAssembly.markCompositionSucceeded(
+                generation: generation,
+                attemptID: attemptID) == .ready
+        else {
+            _ = livingAssembly.markCompositionFailed(
+                generation: generation,
+                attemptID: attemptID)
+            transitionLivingLabToFailure(
+                generation: generation,
+                attemptID: attemptID)
+            return
+        }
+
+        livingOutputURL = outputURL
+        livingClips.removeAll(keepingCapacity: true)
+        DispatchQueue.main.async {
+            guard self.livingPickerAttemptID == attemptID else {
+                return
+            }
+            self.bopFXLabPicker?.setLivingState(.ready)
+        }
+    }
+
+    private func transitionLivingLabToFailure(
+        generation: UInt64,
+        attemptID: UInt64
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard livingAssembly.generation == generation,
+            livingAssembly.attemptID == attemptID,
+            livingAttemptID == attemptID
+        else {
+            return
+        }
+        _ = livingAssembly.markFailed(
+            generation: generation,
+            attemptID: attemptID)
+        livingCancellationToken?.cancel()
+        livingCancellationToken = nil
+        livingLabEnabled = false
+        livingCaptureStyles.removeAll(keepingCapacity: true)
+        livingClips.removeAll(keepingCapacity: true)
+        livingProcessingCaptureIDs.removeAll(keepingCapacity: true)
+        pendingLivingCaptureID = nil
+        pendingLivingWindowDeadline = nil
+        livingOutputURL = nil
+        let directory = livingDirectoryURL
+        livingDirectoryURL = nil
+        sampleQueue.async {
+            self.livingCaptureBuffer.cancelSession(
+                generation: generation)
+            if self.sampleLivingGeneration == generation,
+                self.sampleLivingAttemptID == attemptID
+            {
+                self.sampleLivingGeneration = nil
+                self.sampleLivingAttemptID = nil
+            }
+        }
+        DispatchQueue.main.async {
+            guard self.livingPickerAttemptID == attemptID else {
+                self.cleanLivingDirectory(directory)
+                return
+            }
+            self.stopLivingPlayer {
+                self.cleanLivingDirectory(directory)
+            }
+            self.bopFXLabPicker?.setLivingState(.failed)
+        }
+    }
+
+    private func cleanLivingDirectory(_ directory: URL?) {
+        guard let directory else { return }
+        livingCleanupQueue.async {
+            try? FileManager.default.removeItem(
+                at: directory)
+        }
+    }
+
+    private func playLivingStrip() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sessionQueue.async {
+            guard self.livingAssembly.phase == .ready,
+                let attemptID = self.livingAttemptID,
+                self.livingAssembly.attemptID == attemptID,
+                let outputURL = self.livingOutputURL,
+                FileManager.default.fileExists(
+                    atPath: outputURL.path)
+            else {
+                return
+            }
+            DispatchQueue.main.async {
+                guard
+                    self.livingPickerAttemptID == attemptID,
+                    let presenter = self.bridge?.viewController,
+                    presenter.presentedViewController == nil
+                else {
+                    return
+                }
+                self.stopLivingPlayer()
+                let player = AVQueuePlayer()
+                let item = AVPlayerItem(url: outputURL)
+                let looper = AVPlayerLooper(
+                    player: player,
+                    templateItem: item)
+                let playerViewController =
+                    BopFXLivingPlayerViewController()
+                playerViewController.player = player
+                playerViewController.onDismiss = {
+                    [weak self, weak playerViewController] in
+                    guard let self,
+                        self.livingPlayerViewController
+                            === playerViewController
+                    else {
+                        return
+                    }
+                    self.releaseLivingPlayer()
+                }
+                self.livingPlayer = player
+                self.livingPlayerLooper = looper
+                self.livingPlayerViewController =
+                    playerViewController
+                presenter.present(
+                    playerViewController,
+                    animated: true
+                ) {
+                    player.play()
+                }
+            }
+        }
+    }
+
+    private func stopLivingPlayer(
+        completion: (() -> Void)? = nil
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        let controller = livingPlayerViewController
+        controller?.onDismiss = nil
+        releaseLivingPlayer()
+        guard let controller,
+            controller.presentingViewController != nil
+        else {
+            completion?()
+            return
+        }
+        controller.dismiss(
+            animated: false,
+            completion: completion)
+    }
+
+    private func releaseLivingPlayer() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        livingPlayer?.pause()
+        livingPlayer?.removeAllItems()
+        livingPlayerLooper?.disableLooping()
+        livingPlayerViewController?.player = nil
+        livingPlayerViewController?.onDismiss = nil
+        livingPlayerViewController = nil
+        livingPlayerLooper = nil
+        livingPlayer = nil
+    }
+    #endif
 
     deinit {
         let center = NotificationCenter.default
@@ -1801,6 +2905,21 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let nativePreviewLayer = previewLayer
         let rootView = bridge?.viewController?.view
         let webView = bridge?.webView
+        #if DEBUG
+        let debugLivingDirectory = livingDirectoryURL
+        let debugLivingCancellation = livingCancellationToken
+        let debugLivingPlayer = livingPlayer
+        let debugLivingLooper = livingPlayerLooper
+        let debugLivingPlayerViewController =
+            livingPlayerViewController
+        debugLivingCancellation?.cancel()
+        livingCleanupQueue.async {
+            if let debugLivingDirectory {
+                try? FileManager.default.removeItem(
+                    at: debugLivingDirectory)
+            }
+        }
+        #endif
         sessionQueue.async {
             if activeSession?.isRunning == true {
                 activeSession?.stopRunning()
@@ -1813,6 +2932,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 webView?.isOpaque = false
                 webView?.backgroundColor = .boothBopCanvas
                 webView?.scrollView.backgroundColor = .boothBopCanvas
+                #if DEBUG
+                debugLivingPlayer?.pause()
+                debugLivingPlayer?.removeAllItems()
+                debugLivingLooper?.disableLooping()
+                debugLivingPlayerViewController?.player = nil
+                debugLivingPlayerViewController?.onDismiss = nil
+                #endif
             }
         }
     }
@@ -1832,7 +2958,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
     public let jsName = "BoothBopVideo"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "make", returnType: CAPPluginReturnPromise),
-        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise)
+        CAPPluginMethod(name: "cancel", returnType: CAPPluginReturnPromise),
     ]
 
     private enum VideoError: Error { case decode, writer, append, cancelled }
@@ -1980,7 +3106,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             AVVideoH264EntropyModeKey: AVVideoH264EntropyModeCABAC,
             AVVideoExpectedSourceFrameRateKey: fps,
             AVVideoMaxKeyFrameIntervalKey: framesPerPhoto,
-            AVVideoAllowFrameReorderingKey: false
+            AVVideoAllowFrameReorderingKey: false,
         ]
         let settings: [String: Any] = [
             AVVideoCodecKey: AVVideoCodecType.h264,
@@ -1989,9 +3115,9 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             AVVideoColorPropertiesKey: [
                 AVVideoColorPrimariesKey: AVVideoColorPrimaries_ITU_R_709_2,
                 AVVideoTransferFunctionKey: AVVideoTransferFunction_ITU_R_709_2,
-                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2
+                AVVideoYCbCrMatrixKey: AVVideoYCbCrMatrix_ITU_R_709_2,
             ],
-            AVVideoCompressionPropertiesKey: compression
+            AVVideoCompressionPropertiesKey: compression,
         ]
         let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
         input.expectsMediaDataInRealTime = false
@@ -2002,7 +3128,7 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
             kCVPixelBufferHeightKey as String: height,
             kCVPixelBufferCGImageCompatibilityKey as String: true,
             kCVPixelBufferCGBitmapContextCompatibilityKey as String: true,
-            kCVPixelBufferIOSurfacePropertiesKey as String: [:]
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:],
         ]
         let adaptor = AVAssetWriterInputPixelBufferAdaptor(
             assetWriterInput: input, sourcePixelBufferAttributes: attrs)
@@ -2032,7 +3158,8 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
                         while !input.isReadyForMoreMediaData {
                             if job.isCancelled { throw VideoError.cancelled }
                             if writer.status == .failed || writer.status == .cancelled
-                                || Date() >= appendDeadline {
+                                || Date() >= appendDeadline
+                            {
                                 writer.cancelWriting()
                                 throw writer.error ?? VideoError.writer
                             }
@@ -2076,7 +3203,8 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
         // Tolerate an optional "data:...;base64," prefix.
         let raw = base64.contains(",") ? String(base64.split(separator: ",").last ?? "") : base64
         guard let data = Data(base64Encoded: raw),
-              let image = UIImage(data: data)?.cgImage else {
+            let image = UIImage(data: data)?.cgImage
+        else {
             throw VideoError.decode
         }
 
@@ -2097,15 +3225,17 @@ public class BoothBopVideo: CAPPlugin, CAPBridgedPlugin {
 
         CVPixelBufferLockBaseAddress(buffer, [])
         defer { CVPixelBufferUnlockBaseAddress(buffer, []) }
-        guard let ctx = CGContext(
-            data: CVPixelBufferGetBaseAddress(buffer),
-            width: width, height: height,
-            bitsPerComponent: 8,
-            bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
-            space: CGColorSpace(name: CGColorSpace.sRGB)!,
-            bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
-                | CGBitmapInfo.byteOrder32Little.rawValue
-        ) else { throw VideoError.decode }
+        guard
+            let ctx = CGContext(
+                data: CVPixelBufferGetBaseAddress(buffer),
+                width: width, height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+                space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                bitmapInfo: CGImageAlphaInfo.premultipliedFirst.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue
+            )
+        else { throw VideoError.decode }
 
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
         return buffer

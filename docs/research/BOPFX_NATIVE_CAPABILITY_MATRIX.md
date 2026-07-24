@@ -75,17 +75,19 @@ Spin Cycle deliberately uses a center crop rather than a face anchor. The
 visual idea does not benefit from Vision, and removing that dependency makes
 the composition stable for groups, profiles, obscured faces, and empty frames.
 
-Living Strip keeps `AVCapturePhotoOutput` as the still authority. Its future
-motion path uses timestamps from the existing `AVCaptureVideoDataOutput`; no
-TrueDepth, ARKit, microphone, or new permission is required.
+Living Strip keeps `AVCapturePhotoOutput` as the still authority. Its
+Debug-only motion path uses timestamps from the existing
+`AVCaptureVideoDataOutput`; no TrueDepth, ARKit, microphone, or new permission
+is required.
 
 ## Performance And Quality Contract
 
 - Preserve `AVCapturePhotoOutput` for every final still.
 - Preview analysis is advisory geometry. Re-run Vision with accurate quality on
   each full-resolution captured still.
-- Render every GIF/video frame from its captured still rather than recording
-  the preview view.
+- Render synthetic GIF/video frames from captured stills. Living Strip is the
+  explicit exception: it renders bounded app-owned camera samples paired with
+  an independent full-quality still.
 - Keep sample delivery on the existing bounded output queue with
   `alwaysDiscardsLateVideoFrames = true`.
 - Allow at most one Vision analysis in flight.
@@ -108,15 +110,16 @@ TrueDepth, ARKit, microphone, or new permission is required.
 The current discovery branch intentionally implements less than the framework
 matrix describes:
 
-| Tier                                 | Current state            | Runtime behavior                                                                                                                                            |
-| ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| AVFoundation still and sample stream | Active                   | Existing `AVCapturePhotoOutput` remains the full-quality still authority; `AVCaptureVideoDataOutput` feeds preview and bounded motion experiments           |
-| Metal-backed Core Image renderer     | Active                   | A single renderer owns one Metal device and `CIContext`; no effect is offered when Metal setup fails                                                        |
-| Vision face landmarks                | Active                   | A failed or empty request produces a stable non-face-aware render rather than blocking capture                                                              |
-| Vision person segmentation           | Active for Cutout Chorus | iOS 18+ probes supported output formats; older supported systems optimistically offer the request and use render-time failure as the authoritative fallback |
-| ARKit face mesh and expressions      | Capability probe only    | `ARFaceTrackingConfiguration.isSupported` and supported face count are reported; no current effect starts an `ARSession`                                    |
-| TrueDepth device and depth formats   | Capability probe only    | Device and format availability are reported; the active session is not configured for depth and no effect consumes depth                                    |
-| Custom Metal shader                  | Not implemented          | Current candidates use Core Image graphs rendered on Metal                                                                                                  |
+| Tier                                 | Current state            | Runtime behavior                                                                                                                                                  |
+| ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AVFoundation still and sample stream | Active                   | Existing `AVCapturePhotoOutput` remains the full-quality still authority; `AVCaptureVideoDataOutput` feeds preview and bounded motion experiments                 |
+| Living Strip collector               | Debug-only               | Accepted samples are copied into a bounded 450x450 app-owned pool; exact photo timestamps, attempt IDs, still/motion commit gates, and cancellation remain native |
+| Metal-backed Core Image renderer     | Active                   | A single renderer owns one Metal device and `CIContext`; no effect is offered when Metal setup fails                                                              |
+| Vision face landmarks                | Active                   | A failed or empty request produces a stable non-face-aware render rather than blocking capture                                                                    |
+| Vision person segmentation           | Active for Cutout Chorus | iOS 18+ probes supported output formats; older supported systems optimistically offer the request and use render-time failure as the authoritative fallback       |
+| ARKit face mesh and expressions      | Capability probe only    | `ARFaceTrackingConfiguration.isSupported` and supported face count are reported; no current effect starts an `ARSession`                                          |
+| TrueDepth device and depth formats   | Capability probe only    | Device and format availability are reported; the active session is not configured for depth and no effect consumes depth                                          |
+| Custom Metal shader                  | Not implemented          | Current candidates use Core Image graphs rendered on Metal                                                                                                        |
 
 `trueDepthCamera` and `depthStream` mean that a suitable device/format was
 found, not that the active capture session has enabled synchronized depth.
