@@ -50,6 +50,7 @@ export function CameraScreen({
   nativeShell,
   cameraError,
   onRetry,
+  demoPreviewSrc,
 }: {
   videoRef: RefObject<HTMLVideoElement | null>;
   phase: Phase;
@@ -65,6 +66,7 @@ export function CameraScreen({
   nativeShell: boolean;
   cameraError: string | null;
   onRetry: () => void;
+  demoPreviewSrc: string | null;
 }) {
   return (
     <div className="camera-screen flex min-h-0 flex-1 flex-col py-3">
@@ -97,6 +99,14 @@ export function CameraScreen({
               nativePreview ? "opacity-0" : ""
             }`}
           />
+
+          {demoPreviewSrc && (
+            <img
+              src={demoPreviewSrc}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          )}
 
           {freezeFrame && <CapturedPhotoPreview frame={freezeFrame} />}
 

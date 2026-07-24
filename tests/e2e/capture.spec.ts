@@ -15,6 +15,16 @@ const REQUIRED_SHUTTER_FREEZE_MS = 600;
 const LIVE_PREVIEW_RECOVERY_MS = 50;
 const SELECTED_COUNTDOWN_MS = 1_000;
 
+test("screenshot build exposes staging controls on the native camera", async ({
+  page,
+}) => {
+  await page.goto("/?native=1");
+
+  await expect(page.getByRole("button", { name: "Take Photos" })).toBeVisible();
+  await expect(page.getByTestId("demo-controls")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Demo 1" })).toBeVisible();
+});
+
 test("native launch opens one camera preview without a home-screen tap", async ({
   page,
 }) => {

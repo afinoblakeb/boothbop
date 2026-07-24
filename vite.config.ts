@@ -2,14 +2,26 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import { VitePWA } from "vite-plugin-pwa";
+import { removeDemoAssetsFromProduction } from "./scripts/lib/demo-asset-exclusion";
 
 // Served from the custom-domain root (boothbop.com). Override with BASE_PATH
 // for a project-page build served from a sub-path.
 const base = process.env.BASE_PATH ?? "/";
+const isDemoBuild = process.env.VITE_DEMO === "1";
 
 export default defineConfig({
   base,
   plugins: [
+    {
+      name: "exclude-demo-assets-from-production",
+      apply: "build",
+      async closeBundle() {
+        await removeDemoAssetsFromProduction(
+          new URL("dist", import.meta.url).pathname,
+          isDemoBuild,
+        );
+      },
+    },
     react(),
     tailwindcss(),
     VitePWA({

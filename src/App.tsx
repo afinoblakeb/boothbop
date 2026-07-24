@@ -171,6 +171,7 @@ export default function App() {
     video: remoteConfig.features.video && isVideoSupported(),
   };
   const [phase, setPhase] = useState<Phase>("idle");
+  const [demoControlsVisible, setDemoControlsVisible] = useState(DEMO);
   const [frames, setFrames] = useState<HTMLCanvasElement[]>([]);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [freezeFrame, setFreezeFrame] = useState<HTMLCanvasElement | null>(
@@ -237,6 +238,12 @@ export default function App() {
     dismissTip: dismissAutosaveTip,
     openSettings,
   } = useAutosave();
+
+  useEffect(() => {
+    if (!demoControlsVisible) return;
+    const id = window.setTimeout(() => setDemoControlsVisible(false), 60_000);
+    return () => window.clearTimeout(id);
+  }, [demoControlsVisible, phase]);
 
   // Auto-dismiss the transient success/info note after a few seconds. The
   // cleanup cancels the prior timer whenever `note` changes or on unmount.
@@ -1762,6 +1769,9 @@ export default function App() {
           nativeShell={isNativeShell()}
           cameraError={error}
           onRetry={() => void openCamera()}
+          demoPreviewSrc={
+            DEMO ? `${import.meta.env.BASE_URL}demo/set1-1.jpg` : null
+          }
         />
       )}
 
@@ -1830,28 +1840,45 @@ export default function App() {
         />
       )}
 
-      {DEMO && phase === "idle" && !showMigration && (
-        <div
-          data-testid="demo-controls"
-          className="fixed bottom-2 left-2 z-50 flex gap-1"
-        >
-          {[1, 2, 3].map((n) => (
+      {DEMO &&
+        demoControlsVisible &&
+        (phase === "idle" || phase === "preview") &&
+        !showMigration &&
+        !showGallery &&
+        !showSettings && (
+          <div
+            data-testid="demo-controls"
+            className="fixed bottom-2 left-2 z-50 flex gap-1"
+          >
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                onClick={() => {
+                  setDemoControlsVisible(false);
+                  void loadSampleSession(n);
+                }}
+                className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
+              >
+                Demo {n}
+              </button>
+            ))}
             <button
-              key={n}
-              onClick={() => loadSampleSession(n)}
+              onClick={() => {
+                setDemoControlsVisible(false);
+                void loadSampleGallery();
+              }}
               className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
             >
-              Demo {n}
+              Demo Gallery
             </button>
-          ))}
-          <button
-            onClick={() => void loadSampleGallery()}
-            className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
-          >
-            Demo Gallery
-          </button>
-        </div>
-      )}
+            <button
+              onClick={() => setDemoControlsVisible(false)}
+              className="border-2 border-ink bg-paper px-2 py-1 font-display text-xs uppercase tracking-wide text-ink"
+            >
+              Hide
+            </button>
+          </div>
+        )}
     </div>
   );
 }
