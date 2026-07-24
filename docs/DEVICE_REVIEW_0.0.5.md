@@ -30,7 +30,7 @@ the paired iPhone 15 Pro on 2026-07-22. To reinstall it from Xcode:
    during live preview and the shutter freeze.
 3. **Shutter:** Select the 1-second delay and take four photos. The first photo
    always receives a complete 3-2-1. The camera freezes at the exact shutter
-   moment for about 400ms with no backward/forward jump or white screen, returns
+   moment for about 600ms with no backward/forward jump or white screen, returns
    live for about 50ms, then gives the complete selected 1-second countdown
    before the next shot.
    Force-quit, cold-launch, and repeat once: the first sequence should be as

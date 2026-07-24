@@ -19,10 +19,10 @@ not a success metric.
 - Public App Store build: `0.0.3`
 - Public release commit: `0e9497c`
 - Public release tag: `appstore-v0.0.3-build-0.0.3`
-- Version `0.0.4` review state: `WAITING_FOR_REVIEW`
-- Queued build: `0.0.4` at `b287baf`
-- Queued build tag: `appstore-v0.0.4-build-0.0.4`
-- Queued build branch: `codex/0.0.4-social-sharing`
+- Version `0.0.4` review state: `DEVELOPER_REJECTED`, editable for replacement
+- Replaced build: `0.0.4` at `b287baf`
+- Replaced build tag: `appstore-v0.0.4-build-0.0.4`
+- Replaced build branch: `codex/0.0.4-social-sharing`
 - Active candidate branch: `codex/0.0.4-build-0.0.5-media-quality`
 
 The previous feature work remains preserved on `codex/0.1.0` and
@@ -46,14 +46,15 @@ a return to the prototype feature bundle. The release required:
 The release shipped as `0.0.3 (0.0.3)`. Its implementation and distribution
 evidence is recorded in `docs/QUALITY_RELEASE_0.0.3.md`.
 
-## Waiting for Review: 0.0.4 Social-Ready Sharing
+## Replaced Candidate: 0.0.4 Social-Ready Sharing
 
 Candidate `0.0.4 (0.0.4)` adds one capability: GIF animations share as a
-social-compatible H.264 MP4 while the original GIF remains available. It is
-waiting for review as of 2026-07-21 and is not the public production version. See
-`docs/features/0.0.4-social-sharing.md` and `docs/QUALITY_AUDIT_0.0.4.md`.
+social-compatible H.264 MP4 while the original GIF remains available. Its
+review submission was canceled so quality-corrected build `0.0.5` can replace
+it. See `docs/features/0.0.4-social-sharing.md` and
+`docs/QUALITY_AUDIT_0.0.4.md`.
 
-## Owner Review Candidate: 0.0.4 Build 0.0.5
+## Submission Candidate: 0.0.4 Build 0.0.5
 
 Build `0.0.5` is a replacement binary for App Store version `0.0.4`, not a new
 feature release. Its scope is media quality, responsiveness, and lifecycle
@@ -73,13 +74,12 @@ correctness:
 7. Apply the future-retro design system, exact 2x6 classic geometry with square
    photos, and Select-then-Delete gallery interaction as quality corrections.
 8. Re-run production-browser and simulator matrices, then archive and validate.
-   Upload and submission remain blocked until owner review.
 
-Source, all 23 production-browser journeys, zero-warning Release compilation,
-and the compact/standard/Pro-Max simulator launch matrix pass. Fresh and
-overwrite-update launches recorded zero black transition frames. Signed archive
-validation and owner iPhone review remain; upload and submission are not
-authorized. See
+All 219 unit tests and 37 production-browser journeys pass. The
+compact/standard/Pro-Max simulator matrix passes fresh launch, with the
+standard-device overwrite update also passing. Apple validated the signed
+`0.0.4 (0.0.5)` archive with no errors. Fifteen official-Simulator screenshots
+are current in App Store Connect. See
 `docs/features/0.0.4-build-0.0.5-media-quality.md` for exact evidence.
 
 After this quality-only replacement, the one-feature monthly cadence resumes.

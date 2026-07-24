@@ -6,11 +6,10 @@ Date: 2026-07-10
 
 Product development was restarted from App Store release `0.0.1 (0.0.2)` at
 commit `465876d`. The current public production baseline is App Store release
-`0.0.3 (0.0.3)` at commit `0e9497c`. Version `0.0.4`, build `0.0.4`, is waiting
-for review at commit `b287baf`, tagged `appstore-v0.0.4-build-0.0.4`. Build
-`0.0.5` is being evaluated as its quality-focused replacement. New release
-work starts from the tagged `0.0.4` source, not an older baseline or a prototype
-branch.
+`0.0.3 (0.0.3)` at commit `0e9497c`. The review submission for version `0.0.4`,
+build `0.0.4`, was canceled so build `0.0.5` can replace it as a
+quality-focused correction. New release work starts from the `0.0.4` release
+line, not an older baseline or a prototype branch.
 
 The `codex/0.1.0` and `codex/prototype-june-2026` branches are preserved as a
 prototype library. They are not production branches and must not be merged as a
@@ -122,16 +121,17 @@ Its acceptance criteria are:
 - The release archives cleanly and is ready for an optional personal-device
   spot-check before distribution.
 
-## Release 0.0.4: Social-Ready Sharing (Waiting for Review)
+## Release 0.0.4: Social-Ready Sharing (Replacement Pending)
 
 Candidate `0.0.4 (0.0.4)` adds one user-facing capability: GIF animations can
 be shared as an Instagram-compatible H.264 MP4 while the original GIF remains
 available. The tagged candidate also includes a one-time in-app update notice.
-It is waiting for review, not publicly released. Its evidence is recorded in
+It is not publicly released. Its original review submission was canceled for
+replacement by build `0.0.5`. Evidence is recorded in
 `docs/QUALITY_AUDIT_0.0.4.md` and
 `docs/features/0.0.4-social-sharing.md`.
 
-## Build 0.0.5: Quality Candidate (Owner Review Pending)
+## Build 0.0.5: Quality Candidate (Validated)
 
 Build `0.0.5` keeps App Store version `0.0.4` and is a quality correction, not
 a creative-feature release. It makes best quality automatic, uses bounded
@@ -141,10 +141,11 @@ full-resolution native iPhone capture, makes launch camera-first, modernizes the
 shared visual system, makes classic strips exact 2x6 outputs with square photos,
 and replaces per-thumbnail trash buttons with Select-then-Delete.
 
-The candidate is not shipped. Source, production-browser, Release compile, and
-native simulator launch/update gates pass. Signed archive validation and owner
-iPhone review remain; upload, active-submission replacement, and App Review are
-explicitly blocked until approval. Exact evidence and open work are recorded in
+The candidate is not shipped. Unit, production-browser, Release compile,
+compact/standard/Pro-Max simulator launch, and standard-device overwrite-update
+gates pass. Apple validated the signed `0.0.4 (0.0.5)` archive with no errors,
+and fifteen official-Simulator screenshots are current in App Store Connect.
+Exact evidence is recorded in
 `docs/features/0.0.4-build-0.0.5-media-quality.md`.
 
 ## Feature Selection Rules
