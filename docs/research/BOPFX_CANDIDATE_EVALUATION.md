@@ -16,6 +16,11 @@ Treat **Tuning Frame** as a higher-priority interaction experiment than adding
 another effect. It lets the user directly shape hue, saturation, and warmth on
 the live camera frame and composes with every current or future effect.
 
+Retain **Spin Cycle** as a provisional orientation-mashup candidate. Its
+simulator output is clear and energetic, but it has not yet been evaluated on
+Blerque. It intentionally uses no face analysis, so it is cheaper and more
+predictable for groups than the first face-centered version.
+
 None of these experiments is production-ready.
 
 ## Ranked Effects
@@ -25,7 +30,8 @@ None of these experiments is production-ready.
 |    1 | Spectral Echo | Clear face tracking and a legible, animated chromatic identity                 | Advance to a focused production brief                         |
 |    2 | Cutout Chorus | Strong visual separation; person matte worked in ordinary indoor lighting      | Retain as the bold alternate; optimize segmentation cost      |
 |    3 | Funhouse      | Immediately playful, but sensitive to mask radius and transition softness      | Keep in lab until different face sizes look consistently good |
-|    4 | Mirror Bloom  | Distinct but often reads as body-horror geometry rather than a flattering look | Reject as a default; retain only as research reference        |
+|    4 | Spin Cycle    | Simulator fixture gives a clear four-panel quarter-turn composition            | Evaluate on device before ranking against the face effects    |
+|    5 | Mirror Bloom  | Distinct but often reads as body-horror geometry rather than a flattering look | Reject as a default; retain only as research reference        |
 
 ## Physical Device Evidence
 
@@ -96,12 +102,12 @@ The lab can assign a different effect to each confirmed capture:
 1. Spectral Echo
 2. Funhouse
 3. Cutout Chorus
-4. Mirror Bloom
+4. Spin Cycle
 
 The sequence advances only after AVFoundation confirms a successful photo.
-Failed captures do not consume an effect. Before production, replace Mirror
-Bloom with a stronger fourth candidate and make effect order an explicit
-non-destructive session setting.
+Failed captures do not consume an effect. Spin replaced Mirror Bloom after the
+orientation-mashup experiment proved more legible in deterministic output.
+Before production, make effect order explicit non-destructive session metadata.
 
 ## Bounded Follow-Up Experiments
 
@@ -113,12 +119,38 @@ small rolling preview-buffer window, keep roughly 250 ms before and after the
 shutter, and compose four portable MP4 clips. Do not make Apple Live Photo
 containers the primary artifact; they are awkward to composite and share.
 
+The first simulator-only composition fixture now produces a 720x2016, 15 FPS,
+two-second H.264 MP4 at the 2.5x7 strip ratio. Four panels move independently,
+and the 1.8 MB artifact decodes correctly. This proves the portable visual
+artifact, not real camera motion.
+
+The real capture experiment must:
+
+- anchor each window to `AVCapturePhoto.timestamp`, which shares the capture
+  session clock with video presentation timestamps;
+- choose approximately 250 ms before and after that exact timestamp;
+- normalize accepted motion frames to a bounded 720px buffer at no more than
+  30 FPS rather than retaining full camera buffers;
+- encode and release each shot before retaining the next compressed clip;
+- keep the existing full-quality JPEG completely independent;
+- ingest post-roll frames even while the filtered preview surface is frozen;
+- carry capture ID and session generation through collection, cancellation,
+  encoding, and temporary-file publication.
+
+`BopFXLivingCaptureBuffer` is currently a bounded timing sketch only. It is not
+wired into `AppDelegate`, React, gallery storage, or release behavior.
+
 ### Rotating Frame
 
-Build a face-centered orientation mashup only after Tuning Frame is evaluated.
-A four-panel quarter-turn composition is more legible than applying arbitrary
-rotation to the whole live preview. It should replace Mirror Bloom in the lab,
-not expand the catalog indefinitely.
+The first face-centered implementation was rejected because it caused
+preview/still framing drift, poor group behavior, and unnecessary Vision work.
+The retained Spin Cycle implementation center-crops the camera frame and uses
+four discrete quarter turns. It replaces Mirror Bloom in Sequence rather than
+expanding the intended release catalog.
+
+The effect is intentionally an orientation shuffle, not smooth arbitrary
+rotation. Deterministic still and four-second MP4 evidence pass
+`npm run ios:bopfx:fixture`; physical-device evaluation remains open.
 
 ## Reliability Gaps Before Production
 

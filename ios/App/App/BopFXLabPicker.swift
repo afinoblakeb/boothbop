@@ -198,6 +198,7 @@ private extension BopFXEffect {
         case .funhouse: return "Warp"
         case .cutoutChorus: return "Cutout"
         case .mirrorBloom: return "Mirror"
+        case .spinCycle: return "Spin"
         }
     }
 }

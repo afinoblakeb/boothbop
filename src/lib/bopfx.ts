@@ -5,7 +5,8 @@ export type BopFXId =
   | "spectralEcho"
   | "funhouse"
   | "cutoutChorus"
-  | "mirrorBloom";
+  | "mirrorBloom"
+  | "spinCycle";
 
 export interface BopFXCapabilities {
   nativePreview: boolean;
@@ -67,6 +68,14 @@ export const BOPFX_EFFECTS: readonly BopFXEffect[] = [
     description: "Face-centered reflections open around the portrait.",
     swatches: ["#f4f5f5", "#5e5ce6", "#ff2d55"],
     requiresFaceLandmarks: true,
+    requiresPersonSegmentation: false,
+  },
+  {
+    id: "spinCycle",
+    name: "Spin Cycle",
+    description: "Quarter-turn frames rotate as a portrait grid.",
+    swatches: ["#f4f5f5", "#ff5a1f", "#111111"],
+    requiresFaceLandmarks: false,
     requiresPersonSegmentation: false,
   },
 ] as const;

@@ -57,17 +57,27 @@ and simulator behavior.
 | Funhouse                        |               Yes |           No |    No |    No | Baseline                                |
 | Cutout Chorus                   |                No |          Yes |    No |    No | Baseline, with the highest preview cost |
 | Mirror Bloom                    |               Yes |           No |    No |    No | Baseline                                |
+| Spin Cycle                      |                No |           No |    No |    No | Baseline Metal/Core Image               |
 | Tuning Frame color stage        |                No |           No |    No |    No | Baseline Metal/Core Image               |
+| Living Strip motion capture     |                No |           No |    No |    No | Baseline AVFoundation                   |
 | Expression-driven future effect | Optional fallback |           No |   Yes |    No | Enhanced devices only                   |
 | Spatial depth future effect     | Optional fallback |     Optional |    No |   Yes | TrueDepth devices only                  |
 
-All four current MVP candidates deliberately fit the broad baseline. That lets
+All current MVP candidates deliberately fit the broad baseline. That lets
 the discovery compare creative merit without confusing it with hardware
 availability. ARKit and depth should be separate experiments only if the
 baseline candidates fail to feel differentiated enough.
 
 Tuning Frame is not a fifth effect. It is a bounded Core Image color stage that
 runs before whichever effect is selected and requires no Vision analysis.
+
+Spin Cycle deliberately uses a center crop rather than a face anchor. The
+visual idea does not benefit from Vision, and removing that dependency makes
+the composition stable for groups, profiles, obscured faces, and empty frames.
+
+Living Strip keeps `AVCapturePhotoOutput` as the still authority. Its future
+motion path uses timestamps from the existing `AVCaptureVideoDataOutput`; no
+TrueDepth, ARKit, microphone, or new permission is required.
 
 ## Performance And Quality Contract
 

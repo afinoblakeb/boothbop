@@ -7,7 +7,7 @@ import UIKit
 enum BopFXLabVideoWriter {
     private static let dimension = 720
     private static let frameRate: Int32 = 15
-    private static let frameCount = 30
+    private static let frameCount = 60
 
     static func write(
         source: UIImage,

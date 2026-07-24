@@ -15,6 +15,14 @@ const videoWriterSource = readFileSync(
   "ios/App/App/BopFXLabVideoWriter.swift",
   "utf8",
 );
+const livingCaptureSource = readFileSync(
+  "ios/App/App/BopFXLivingCaptureBuffer.swift",
+  "utf8",
+);
+const livingWriterSource = readFileSync(
+  "ios/App/App/BopFXLivingStripWriter.swift",
+  "utf8",
+);
 const cameraSource = readFileSync("ios/App/App/AppDelegate.swift", "utf8");
 
 describe("native BopFX renderer source contract", () => {
@@ -25,6 +33,7 @@ describe("native BopFX renderer source contract", () => {
       "funhouse",
       "cutoutChorus",
       "mirrorBloom",
+      "spinCycle",
     ]) {
       expect(source).toContain(`case ${id}`);
     }
@@ -99,6 +108,15 @@ describe("native BopFX renderer source contract", () => {
     );
     expect(source).toContain("image.clampedToExtent()");
     expect(source).toContain('"CISixfoldReflectedTile"');
+    expect(source).toContain("private func spinCycle");
+    expect(source).toContain("for index in 0..<4");
+    expect(source).toContain("CGAffineTransform(rotationAngle:");
+    const spin = source
+      .split("private func spinCycle")[1]
+      .split("private func applying")[0];
+    expect(spin).not.toContain("analysis.faces");
+    expect(spin).not.toContain("sourceCenter");
+    expect(spin).toContain("center: CGPoint(x: extent.midX, y: extent.midY)");
     expect(funhouse).toContain("softRoundedMask");
     expect(funhouse).toContain("blend(");
     expect(funhouse).toContain("dx: -faceRect.width * 0.34");
@@ -164,6 +182,9 @@ describe("native BopFX renderer source contract", () => {
 
   it("advances the four-effect lab sequence only after confirmed captures", () => {
     expect(cameraSource).toContain("bopFXSequenceOrder");
+    expect(cameraSource).toMatch(
+      /bopFXSequenceOrder[\s\S]*\.spectralEcho,[\s\S]*\.funhouse,[\s\S]*\.cutoutChorus,[\s\S]*\.spinCycle,/,
+    );
     expect(cameraSource).toContain("pendingCaptureBopFX = self.activeBopFX");
     expect(cameraSource).toContain("advanceBopFXLabSequence()");
     const finishCapture = cameraSource
@@ -238,7 +259,34 @@ describe("native BopFX renderer source contract", () => {
     expect(videoWriterSource).toContain("AVAssetWriter");
     expect(videoWriterSource).toContain("renderAnimationFrames");
     expect(videoWriterSource).toContain(".mp4");
+    expect(videoWriterSource).toContain("frameCount = 60");
     expect(videoWriterSource).not.toContain("context.translateBy");
     expect(videoWriterSource).not.toContain("context.scaleBy");
+  });
+
+  it("bounds a native half-second living-shot window around the shutter", () => {
+    expect(livingCaptureSource).toContain("BopFXLivingCaptureBuffer");
+    expect(livingCaptureSource).toContain("preRollSeconds: 0.25");
+    expect(livingCaptureSource).toContain("postRollSeconds: 0.25");
+    expect(livingCaptureSource).toContain("maximumFrames: 24");
+    expect(livingCaptureSource).toContain(
+      "CMSampleBufferGetPresentationTimeStamp",
+    );
+    expect(livingCaptureSource).toContain("CVPixelBuffer");
+    expect(livingCaptureSource).toContain("func beginShot()");
+    expect(livingCaptureSource).toContain("func reset()");
+    expect(livingCaptureSource).toContain("CMTimeCompare");
+    expect(livingCaptureSource).not.toContain("DispatchQueue.main");
+  });
+
+  it("renders a portable living-strip fixture without replacing still masters", () => {
+    expect(livingWriterSource).toContain("BopFXLivingStripWriter");
+    expect(livingWriterSource).toContain("AVAssetWriter");
+    expect(livingWriterSource).toContain("living-strip.mp4");
+    expect(livingWriterSource).toContain("BopFXRenderer");
+    expect(livingWriterSource).toContain("2.5 / 7.0");
+    expect(livingWriterSource).toContain("frameCount = 30");
+    expect(fixtureSource).toContain("BopFXLivingStripWriter.write");
+    expect(fixtureSource).toContain('"livingStripRecording"');
   });
 });

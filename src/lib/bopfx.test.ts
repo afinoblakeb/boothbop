@@ -24,6 +24,7 @@ const fullCapabilities: BopFXCapabilities = {
     "funhouse",
     "cutoutChorus",
     "mirrorBloom",
+    "spinCycle",
   ],
 };
 
@@ -35,6 +36,7 @@ describe("BopFX contract", () => {
       "funhouse",
       "cutoutChorus",
       "mirrorBloom",
+      "spinCycle",
     ]);
   });
 
@@ -44,7 +46,13 @@ describe("BopFX contract", () => {
         ...fullCapabilities,
         personSegmentation: false,
       }).map(({ id }) => id),
-    ).toEqual(["original", "spectralEcho", "funhouse", "mirrorBloom"]);
+    ).toEqual([
+      "original",
+      "spectralEcho",
+      "funhouse",
+      "mirrorBloom",
+      "spinCycle",
+    ]);
 
     expect(
       availableBopFXEffects({
@@ -68,6 +76,20 @@ describe("BopFX contract", () => {
         effects: ["original", "spectralEcho"],
       }).map(({ id }) => id),
     ).toEqual(["original", "spectralEcho"]);
+  });
+
+  it("keeps Spin Cycle available without face analysis", () => {
+    const spin = BOPFX_EFFECTS.find(({ id }) => id === "spinCycle");
+    expect(spin).toMatchObject({
+      requiresFaceLandmarks: false,
+      requiresPersonSegmentation: false,
+    });
+    expect(
+      availableBopFXEffects({
+        ...fullCapabilities,
+        faceLandmarks: false,
+      }).map(({ id }) => id),
+    ).toContain("spinCycle");
   });
 
   it("rejects unknown persisted effect ids", () => {

@@ -195,6 +195,23 @@ final class BopFXFixtureViewController: UIViewController {
                         coldDuration: coldResult?.durationMilliseconds)
                 }
             }
+            do {
+                let recording = try BopFXLivingStripWriter.write(
+                    source: source,
+                    renderer: renderer,
+                    directory: directory)
+                reports.append([
+                    "effect": "livingStrip",
+                    "rendered": true,
+                    "livingStripRecording": recording.lastPathComponent,
+                ])
+            } catch {
+                reports.append([
+                    "effect": "livingStrip",
+                    "rendered": false,
+                    "recordingError": error.localizedDescription,
+                ])
+            }
             self.writeJSON(reports, filename: "report.json")
         }
     }
@@ -268,6 +285,7 @@ private extension BopFXEffect {
         case .funhouse: return "Funhouse"
         case .cutoutChorus: return "Cutout Chorus"
         case .mirrorBloom: return "Mirror Bloom"
+        case .spinCycle: return "Spin Cycle"
         }
     }
 }

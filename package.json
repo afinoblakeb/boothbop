@@ -23,6 +23,7 @@
     "gen:assets": "node scripts/gen-assets.mjs",
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:smoke": "node scripts/ios-smoke.mjs",
+    "ios:bopfx:fixture": "node scripts/ios-bopfx-fixture.mjs",
     "ios:open": "npx cap open ios",
     "ios": "npm run ios:sync && npm run ios:open",
     "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs",

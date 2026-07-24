@@ -50,7 +50,7 @@ immediately.
 | `CameraCore`     | Authorization, `AVCaptureSession`, focus/exposure, preview frames, photo capture, interruption, lifecycle generations     | UIKit navigation, effect selection, Capacitor calls |
 | `EffectsCore`    | Effect descriptors, Vision analysis, landmark smoothing, person masks, Core Image/Metal render graphs, capability probing | Camera session lifecycle, gallery persistence       |
 | `CaptureFeature` | Native preview surface, countdown, four-shot sequence, freeze/recovery timing, Retake One                                 | Full media export, permanent storage                |
-| `MediaCore`      | Versioned captured-session model, raw masters, 2x6 strip composition, GIF/Boom/MP4 rendering                              | Screen presentation                                 |
+| `MediaCore`      | Versioned captured-session model, still/motion masters, 2.5x7 strip composition, GIF/Boom/MP4 rendering                   | Screen presentation                                 |
 | `LibraryCore`    | Session manifest and file storage, thumbnails, migration, deletion transactions                                           | Camera ownership                                    |
 | `ShareCore`      | Photo/video file preparation, `UIActivityViewController`, destination-specific aspect presets                             | Rendering UI state                                  |
 | `BoothBopUI`     | Design tokens and native controls shared by capture, review, gallery, settings                                            | AVFoundation or file I/O                            |
@@ -72,6 +72,7 @@ struct CapturedSession: Codable, Identifiable {
 struct CapturedFrame: Codable, Identifiable {
     let id: UUID
     let originalURL: URL
+    let motionURL: URL?
     let pixelWidth: Int
     let pixelHeight: Int
     let orientation: Int
@@ -80,6 +81,8 @@ struct CapturedFrame: Codable, Identifiable {
 ```
 
 - Raw masters are immutable.
+- A Living Strip motion clip is an optional immutable master paired with one
+  still. Motion capture failure never invalidates the still.
 - Effects and layout are non-destructive metadata.
 - Preview thumbnails are disposable derived files.
 - Final strip/GIF/video files are derived artifacts keyed by source and render
@@ -96,6 +99,10 @@ Native migration must preserve the proven queue ownership in
 - Vision uses its own bounded queue and permits one analysis in flight.
 - Full-resolution effects and media export use task-scoped worker queues with
   cancellation and autorelease pools.
+- Living Strip preview samples are normalized to bounded 720px frames before
+  retention; each window is anchored to the corresponding
+  `AVCapturePhoto.timestamp` and encoded before the next compressed clip is
+  published.
 - UIKit and SwiftUI state mutations are `@MainActor`.
 - A session generation travels through every callback and publication.
 - Swift actors may coordinate higher-level jobs, but they must not hide
@@ -266,3 +273,9 @@ After selecting the winning BopFX concept, extract the current
 production effect controls. This creates one native camera authority that both
 the temporary Capacitor adapter and the future native `CaptureFeature` can use.
 It is the highest-leverage decoupling step and does not require a full rewrite.
+
+Do not integrate Living Strip into the current Capacitor sequence first. Its
+correct ownership belongs inside the extracted `CameraCore` and
+`CaptureFeature`: sample ingestion, photo timestamps, capture generations,
+post-roll completion, and cancellation are one native state machine. React
+should eventually receive only the completed session identifier.

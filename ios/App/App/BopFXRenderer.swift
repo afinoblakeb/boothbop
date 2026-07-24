@@ -12,6 +12,7 @@ enum BopFXEffect: String, CaseIterable {
     case funhouse
     case cutoutChorus
     case mirrorBloom
+    case spinCycle
 }
 
 struct BopFXTuning: Equatable {
@@ -127,7 +128,11 @@ private final class BopFXAnalyzer {
         guard effect != .original else { return .empty }
 
         let faceRequest = VNDetectFaceLandmarksRequest()
-        let needsFaces = effect != .cutoutChorus
+        let needsFaces = [
+            BopFXEffect.spectralEcho,
+            .funhouse,
+            .mirrorBloom,
+        ].contains(effect)
         let personRequest: VNGeneratePersonSegmentationRequest? =
             effect == .cutoutChorus ? VNGeneratePersonSegmentationRequest() : nil
         configureSimulatorComputeDevice(faceRequest)
@@ -254,6 +259,8 @@ final class BopFXRenderer {
             return cutoutChorus(tuned, analysis: analysis, phase: phase)
         case .mirrorBloom:
             return mirrorBloom(tuned, analysis: analysis, phase: phase)
+        case .spinCycle:
+            return spinCycle(tuned, phase: phase)
         }
     }
 
@@ -628,6 +635,70 @@ final class BopFXRenderer {
             extent: image.extent)
     }
 
+    private func spinCycle(
+        _ image: CIImage,
+        phase: CGFloat
+    ) -> CIImage {
+        let extent = image.extent
+        let sourceSide = min(extent.width, extent.height)
+        let sourceRect = centeredSquare(
+            side: sourceSide,
+            center: CGPoint(x: extent.midX, y: extent.midY),
+            inside: extent)
+        let source = image.cropped(to: sourceRect)
+        let canvasSide = min(extent.width, extent.height)
+        let canvas = CGRect(
+            x: extent.midX - canvasSide / 2,
+            y: extent.midY - canvasSide / 2,
+            width: canvasSide,
+            height: canvasSide)
+        let gutter = max(2, canvasSide * 0.014)
+        let cellSide = (canvasSide - gutter) / 2
+        let cells = [
+            CGRect(
+                x: canvas.minX,
+                y: canvas.minY + cellSide + gutter,
+                width: cellSide,
+                height: cellSide),
+            CGRect(
+                x: canvas.minX + cellSide + gutter,
+                y: canvas.minY + cellSide + gutter,
+                width: cellSide,
+                height: cellSide),
+            CGRect(
+                x: canvas.minX,
+                y: canvas.minY,
+                width: cellSide,
+                height: cellSide),
+            CGRect(
+                x: canvas.minX + cellSide + gutter,
+                y: canvas.minY,
+                width: cellSide,
+                height: cellSide),
+        ]
+        let cycleStep = Int(floor(phase * 4)) % 4
+        var result = applying(
+            "CIColorControls",
+            to: image,
+            values: [
+                kCIInputSaturationKey: 0.18,
+                kCIInputContrastKey: 1.1,
+                kCIInputBrightnessKey: -0.16,
+            ])
+
+        for index in 0..<4 {
+            let angle = CGFloat((index + cycleStep) % 4) * (.pi / 2)
+            let rotated = source.transformed(
+                by: CGAffineTransform(rotationAngle: angle))
+            let tile = aspectFill(
+                rotated,
+                into: cells[index])
+            result = tile.composited(over: result)
+                .cropped(to: extent)
+        }
+        return result
+    }
+
     private func applying(
         _ name: String,
         to image: CIImage,
@@ -754,6 +825,27 @@ final class BopFXRenderer {
         return min(
             normalized.width * extent.width,
             normalized.height * extent.height) * 0.12
+    }
+
+    private func centeredSquare(
+        side: CGFloat,
+        center: CGPoint,
+        inside extent: CGRect
+    ) -> CGRect {
+        let clampedSide = min(
+            max(1, side),
+            min(extent.width, extent.height))
+        let x = min(
+            max(center.x - clampedSide / 2, extent.minX),
+            extent.maxX - clampedSide)
+        let y = min(
+            max(center.y - clampedSide / 2, extent.minY),
+            extent.maxY - clampedSide)
+        return CGRect(
+            x: x,
+            y: y,
+            width: clampedSide,
+            height: clampedSide)
     }
 
     private func around(

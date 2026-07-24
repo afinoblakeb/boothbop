@@ -391,7 +391,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         .spectralEcho,
         .funhouse,
         .cutoutChorus,
-        .mirrorBloom,
+        .spinCycle,
     ]
     private var bopFXSequenceEnabled = false
     private var bopFXSequenceIndex = 0

@@ -56,8 +56,13 @@ a release candidate.
 - Funhouse: controlled landmark-centered facial warping.
 - Cutout Chorus: person-segmented repeated silhouettes.
 - Mirror Bloom: face-centered kaleidoscopic geometry.
+- Spin Cycle: a center-framed four-panel quarter-turn composition. It avoids
+  Vision entirely so group shots and missing-face cases remain deterministic.
 - Tuning Frame: direct hue, saturation, and warmth manipulation on the live
   camera border. This is a composable interaction layer, not another effect.
+- Living Strip: an exploratory 500 ms motion window for each still. The current
+  simulator fixture proves the portable 2.5x7 MP4 composition only; real
+  shutter-adjacent camera capture is not yet integrated.
 
 The list is intentionally provisional. Remove weak candidates and add a better
 one when device evidence justifies it.
@@ -74,7 +79,12 @@ one when device evidence justifies it.
 - [x] Run `npm run check` and simulator/device Xcode build gates.
 - [x] Add Sequence mode and bake the confirmed effect into each saved still.
 - [x] Add a native Tuning Frame and one preview/still/freeze render contract.
-- [ ] Complete hands-on Tuning Frame and filtered-freeze evaluation on Blerque.
+- [x] Complete hands-on Tuning Frame and filtered-freeze evaluation on Blerque.
+- [x] Add and simulator-validate Spin Cycle as the fourth Sequence candidate.
+- [x] Build a deterministic Living Strip composition fixture and repeatable
+      `npm run ios:bopfx:fixture` smoke check.
+- [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
+      resumes physical-device testing.
 - [ ] Record final candidate recommendation and close the discovery goal.
 
 ## Compaction And Handoff Rule
