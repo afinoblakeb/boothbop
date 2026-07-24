@@ -52,6 +52,7 @@ npm-debug.log*
 # so the first native build stays clean.
 ios/App/Pods
 ios/App/build
+ios/CameraCore/.build
 # the web build is copied in at build time, not committed
 ios/App/App/public
 ios/DerivedData

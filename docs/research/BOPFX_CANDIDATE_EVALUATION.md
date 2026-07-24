@@ -137,8 +137,29 @@ The real capture experiment must:
 - carry capture ID and session generation through collection, cancellation,
   encoding, and temporary-file publication.
 
-`BopFXLivingCaptureBuffer` is currently a bounded timing sketch only. It is not
-wired into `AppDelegate`, React, gallery storage, or release behavior.
+The timing contract now lives in the native `ios/CameraCore` Swift package.
+`LivingFrameWindowSelector` chooses 15 output targets across the exact
+half-second window, while `LivingCaptureTimelineRecorder` scopes samples to a
+capture ID and session generation. It preserves a bounded provisional window
+until `AVCapturePhoto.timestamp` arrives, handles a delayed callback, rejects
+implausible timestamp corrections, and drops motion on clock discontinuity.
+Input is bucketed to the 30 FPS target cadence before retention, so a delayed
+photo callback cannot overflow the active window when the camera delivers
+60 FPS samples.
+
+`BopFXLivingCaptureBuffer` is a Debug-only AVFoundation adapter over that model.
+It is not wired into `AppDelegate`, React, gallery storage, or release behavior,
+and it still retains source camera buffers. It reports collection, completion,
+and terminal timing failures explicitly rather than collapsing them into a
+missing result. The production adapter must perform the documented 720px
+normalization before retention.
+
+The native suite currently covers 24, 30, and 60 FPS input, jitter, dropped and
+duplicate samples, clock rollback, exact timestamp correction, delayed photo
+callbacks including delayed 60 FPS delivery, stale generations, cancellation,
+capture-ID isolation, and hard frame caps. Run it with
+`npm run ios:camera-core:test`; `npm run ios:bopfx:fixture` runs strict Swift
+formatting and the native suite before the visual/media fixture.
 
 ### Rotating Frame
 

@@ -73,6 +73,9 @@ npm run dev          # local dev server; camera works because localhost is a sec
 npm run build        # tsc -b && vite build → dist/
 npm run preview      # serve the production build
 npm run gen:assets   # regenerate public/ icons from brand/ art (only when brand art changes)
+npm run ios:camera-core:test  # native Swift timing/state tests
+npm run ios:swift:lint        # strict Swift formatting for the extracted timing core
+npm run ios:bopfx:fixture     # Debug simulator render/media fixture + CameraCore tests
 ```
 
 ## Bug-fix protocol (from the global rule)

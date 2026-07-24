@@ -111,6 +111,25 @@ Native migration must preserve the proven queue ownership in
 
 ## Migration Milestones
 
+### Extracted Foundation: `CameraCore` Timing
+
+The discovery branch now contains a first framework-neutral Swift package at
+`ios/CameraCore`. It owns no AVFoundation session, buffers, files, or UI. Its
+first two responsibilities are:
+
+- selecting a deterministic 15-frame output window around an exact shutter
+  timestamp despite source-rate differences, jitter, drops, and duplicates;
+- retaining generation- and capture-scoped timeline state until the exact
+  `AVCapturePhoto.timestamp` resolves;
+- decimating source samples to the 30 FPS target cadence before retention so a
+  delayed photo callback remains bounded even when the camera emits 60 FPS.
+
+The app target compiles the same source files directly during this transitional
+stage. A Debug-only AVFoundation adapter preserves explicit collection,
+completion, and terminal-failure outcomes. This is not Milestone 1 completion,
+but it proves the extraction and native-test pattern before camera ownership
+moves.
+
 ### Milestone 0: Native Effects Lab
 
 Current branch.

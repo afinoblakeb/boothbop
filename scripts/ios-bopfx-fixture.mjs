@@ -144,6 +144,19 @@ async function main() {
     `Building BopFX fixture for ${simulator.name} (${simulator.udid})...\n`,
   );
   await mkdir(outputRoot, { recursive: true });
+  await run("xcrun", [
+    "swift-format",
+    "lint",
+    "--strict",
+    "--recursive",
+    path.join("ios", "CameraCore"),
+    path.join("ios", "App", "App", "BopFXLivingCaptureBuffer.swift"),
+  ]);
+  await run("swift", [
+    "test",
+    "--package-path",
+    path.join("ios", "CameraCore"),
+  ]);
   await run("xcodebuild", [
     "-quiet",
     "-project",

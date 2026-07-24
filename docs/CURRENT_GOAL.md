@@ -83,6 +83,8 @@ one when device evidence justifies it.
 - [x] Add and simulator-validate Spin Cycle as the fourth Sequence candidate.
 - [x] Build a deterministic Living Strip composition fixture and repeatable
       `npm run ios:bopfx:fixture` smoke check.
+- [x] Extract exact timestamp selection and generation-scoped motion state into
+      a native `CameraCore` Swift package with deterministic tests.
 - [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
       resumes physical-device testing.
 - [ ] Record final candidate recommendation and close the discovery goal.

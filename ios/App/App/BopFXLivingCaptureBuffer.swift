@@ -3,177 +3,180 @@ import AVFoundation
 import CoreMedia
 import CoreVideo
 
-struct BopFXLivingCaptureConfiguration {
-    static let discovery = BopFXLivingCaptureConfiguration(
-        preRollSeconds: 0.25,
-        postRollSeconds: 0.25,
-        maximumFrames: 24)
-
-    let preRoll: CMTime
-    let postRoll: CMTime
-    let maximumFrames: Int
-
-    init(
-        preRollSeconds: Double,
-        postRollSeconds: Double,
-        maximumFrames: Int
-    ) {
-        preRoll = CMTime(
-            seconds: max(0, preRollSeconds),
-            preferredTimescale: 600)
-        postRoll = CMTime(
-            seconds: max(0, postRollSeconds),
-            preferredTimescale: 600)
-        self.maximumFrames = max(2, maximumFrames)
-    }
-}
-
 struct BopFXLivingFrame {
+    let id: Int
     let pixelBuffer: CVPixelBuffer
     let presentationTime: CMTime
 }
 
 struct BopFXLivingShot {
+    let captureID: Int64
+    let generation: UInt64
     let shutterTime: CMTime
     let frames: [BopFXLivingFrame]
-
-    var duration: CMTime {
-        guard let first = frames.first,
-              let last = frames.last else { return .zero }
-        return CMTimeSubtract(
-            last.presentationTime,
-            first.presentationTime)
-    }
 }
 
-/// A sample-queue-owned rolling buffer for a single half-second living shot.
+enum BopFXLivingCaptureFailure {
+    case timeline(LivingCaptureRecorderFailure)
+    case missingFrameData
+}
+
+enum BopFXLivingCaptureUpdate {
+    case ignored
+    case collecting
+    case completed(BopFXLivingShot)
+    case failed(
+        captureID: Int64,
+        reason: BopFXLivingCaptureFailure)
+}
+
+/// Debug-only AVFoundation adapter around CameraCore's pure timeline recorder.
 ///
-/// The buffer retains preview pixel buffers only. The independent
-/// `AVCapturePhotoOutput` JPEG remains the immutable full-quality still master.
+/// This adapter is not wired into the shipping camera. A production adapter
+/// must normalize accepted frames to 720px before retention; the full-quality
+/// `AVCapturePhotoOutput` JPEG remains an independent immutable still master.
 final class BopFXLivingCaptureBuffer {
-    private struct ActiveShot {
-        let shutterTime: CMTime
-        let endTime: CMTime
-        var frames: [BopFXLivingFrame]
+    private let timeline = LivingCaptureTimelineRecorder()
+    private var sessionGeneration: UInt64?
+    private var nextFrameID = 0
+    private var latestPresentationTime: TimeInterval?
+    private var framesByID: [Int: BopFXLivingFrame] = [:]
+
+    func startSession(generation: UInt64) {
+        sessionGeneration = generation
+        nextFrameID = 0
+        latestPresentationTime = nil
+        framesByID.removeAll(keepingCapacity: true)
+        timeline.startSession(generation: generation)
     }
 
-    private let configuration: BopFXLivingCaptureConfiguration
-    private var rollingFrames: [BopFXLivingFrame] = []
-    private var activeShot: ActiveShot?
-    private var lastPresentationTime = CMTime.invalid
-
-    init(
-        configuration: BopFXLivingCaptureConfiguration = .discovery
-    ) {
-        self.configuration = configuration
-    }
-
-    var isReady: Bool {
-        guard activeShot == nil,
-              let first = rollingFrames.first,
-              let last = rollingFrames.last else { return false }
-        let available = CMTimeSubtract(
-            last.presentationTime,
-            first.presentationTime)
-        return CMTimeCompare(
-            available,
-            configuration.preRoll) >= 0
-    }
-
-    /// Starts a window at the newest sample. Call only from the sample queue.
-    @discardableResult
-    func beginShot() -> Bool {
-        guard isReady,
-              let shutterTime = rollingFrames.last?.presentationTime else {
-            return false
-        }
-        let startTime = CMTimeSubtract(
-            shutterTime,
-            configuration.preRoll)
-        let preRollFrames = rollingFrames.filter {
-            CMTimeCompare($0.presentationTime, startTime) >= 0 &&
-                CMTimeCompare($0.presentationTime, shutterTime) <= 0
-        }
-        guard preRollFrames.count >= 2 else { return false }
-        activeShot = ActiveShot(
-            shutterTime: shutterTime,
-            endTime: CMTimeAdd(
-                shutterTime,
-                configuration.postRoll),
-            frames: preRollFrames)
-        return true
-    }
-
-    /// Adds one camera sample and returns a completed window when post-roll
-    /// reaches its target. Call only from the sample queue.
-    func append(_ sampleBuffer: CMSampleBuffer) -> BopFXLivingShot? {
+    func append(
+        _ sampleBuffer: CMSampleBuffer,
+        generation: UInt64
+    ) -> BopFXLivingCaptureUpdate {
+        guard sessionGeneration == generation else { return .ignored }
         let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let seconds = CMTimeGetSeconds(timestamp)
         guard timestamp.isValid,
-              !timestamp.isIndefinite,
-              let pixelBuffer =
-                CMSampleBufferGetImageBuffer(sampleBuffer) else {
-            return nil
+            !timestamp.isIndefinite,
+            seconds.isFinite,
+            let pixelBuffer =
+                CMSampleBufferGetImageBuffer(sampleBuffer)
+        else {
+            return .ignored
         }
 
-        if lastPresentationTime.isValid {
-            let comparison = CMTimeCompare(
-                timestamp,
-                lastPresentationTime)
-            guard comparison > 0 else { return nil }
-            let gap = CMTimeGetSeconds(
-                CMTimeSubtract(timestamp, lastPresentationTime))
-            if gap > 1 {
-                reset()
-            }
-        }
-
+        nextFrameID &+= 1
         let frame = BopFXLivingFrame(
+            id: nextFrameID,
             pixelBuffer: pixelBuffer,
             presentationTime: timestamp)
-        rollingFrames.append(frame)
-        lastPresentationTime = timestamp
-        trimRollingFrames(relativeTo: timestamp)
+        framesByID[frame.id] = frame
+        latestPresentationTime = seconds
+        let outcome = timeline.offer(
+            LivingTimelineFrame(
+                id: frame.id,
+                presentationTime: seconds),
+            generation: generation)
+        let update = captureUpdate(from: outcome)
+        pruneUnretainedFrames()
+        return update
+    }
 
-        guard var shot = activeShot else { return nil }
-        if CMTimeCompare(timestamp, shot.shutterTime) > 0,
-           CMTimeCompare(timestamp, shot.endTime) <= 0 {
-            shot.frames.append(frame)
-            if shot.frames.count > configuration.maximumFrames {
-                shot.frames.removeFirst(
-                    shot.frames.count - configuration.maximumFrames)
+    @discardableResult
+    func armShot(
+        captureID: Int64,
+        generation: UInt64
+    ) -> Bool {
+        guard sessionGeneration == generation,
+            let latestPresentationTime
+        else {
+            return false
+        }
+        return timeline.armShot(
+            captureID: captureID,
+            provisionalTime: latestPresentationTime,
+            generation: generation)
+    }
+
+    func resolveShutter(
+        captureID: Int64,
+        timestamp: CMTime,
+        generation: UInt64
+    ) -> BopFXLivingCaptureUpdate {
+        let seconds = CMTimeGetSeconds(timestamp)
+        guard sessionGeneration == generation,
+            timestamp.isValid,
+            !timestamp.isIndefinite,
+            seconds.isFinite
+        else {
+            return .ignored
+        }
+        let outcome = timeline.resolveShutter(
+            captureID: captureID,
+            timestamp: seconds,
+            generation: generation)
+        let update = captureUpdate(from: outcome)
+        pruneUnretainedFrames()
+        return update
+    }
+
+    @discardableResult
+    func cancelShot(
+        captureID: Int64,
+        generation: UInt64
+    ) -> Bool {
+        let cancelled = timeline.cancelShot(
+            captureID: captureID,
+            generation: generation)
+        pruneUnretainedFrames()
+        return cancelled
+    }
+
+    func cancelSession(generation: UInt64) {
+        guard sessionGeneration == generation else { return }
+        timeline.cancelSession(generation: generation)
+        sessionGeneration = nil
+        latestPresentationTime = nil
+        framesByID.removeAll(keepingCapacity: true)
+    }
+
+    private func captureUpdate(
+        from outcome: LivingCaptureRecorderOutcome
+    ) -> BopFXLivingCaptureUpdate {
+        switch outcome {
+        case .ignored:
+            return .ignored
+        case .collecting:
+            return .collecting
+        case .failed(let captureID, let reason):
+            return .failed(
+                captureID: captureID,
+                reason: .timeline(reason))
+        case .completed(let window):
+            let frames = window.frameIDs.compactMap {
+                framesByID[$0]
             }
+            guard frames.count == window.frameIDs.count else {
+                return .failed(
+                    captureID: window.captureID,
+                    reason: .missingFrameData)
+            }
+            return .completed(
+                BopFXLivingShot(
+                    captureID: window.captureID,
+                    generation: window.generation,
+                    shutterTime: CMTime(
+                        seconds: window.shutterTime,
+                        preferredTimescale: 600),
+                    frames: frames))
         }
-        activeShot = shot
-
-        guard CMTimeCompare(timestamp, shot.endTime) >= 0 else {
-            return nil
-        }
-        activeShot = nil
-        guard shot.frames.count >= 2 else { return nil }
-        return BopFXLivingShot(
-            shutterTime: shot.shutterTime,
-            frames: shot.frames)
     }
 
-    /// Releases every retained camera buffer. Call for cancellation,
-    /// backgrounding, session replacement, or timestamp discontinuity.
-    func reset() {
-        rollingFrames.removeAll(keepingCapacity: true)
-        activeShot = nil
-        lastPresentationTime = .invalid
-    }
-
-    private func trimRollingFrames(relativeTo timestamp: CMTime) {
-        let retention = CMTimeAdd(
-            configuration.preRoll,
-            CMTime(value: 2, timescale: 30))
-        let cutoff = CMTimeSubtract(timestamp, retention)
-        rollingFrames.removeAll {
-            CMTimeCompare($0.presentationTime, cutoff) < 0
-        }
-        if rollingFrames.count > configuration.maximumFrames {
-            rollingFrames.removeFirst(
-                rollingFrames.count - configuration.maximumFrames)
+    private func pruneUnretainedFrames() {
+        let retainedFrameIDs = timeline.retainedFrameIDs
+        framesByID = framesByID.filter {
+            retainedFrameIDs.contains($0.key)
         }
     }
 }

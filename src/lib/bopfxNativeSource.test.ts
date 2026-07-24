@@ -23,6 +23,18 @@ const livingWriterSource = readFileSync(
   "ios/App/App/BopFXLivingStripWriter.swift",
   "utf8",
 );
+const livingSelectorSource = readFileSync(
+  "ios/CameraCore/Sources/CameraCore/LivingFrameWindowSelector.swift",
+  "utf8",
+);
+const livingRecorderSource = readFileSync(
+  "ios/CameraCore/Sources/CameraCore/LivingCaptureTimelineRecorder.swift",
+  "utf8",
+);
+const fixtureScriptSource = readFileSync(
+  "scripts/ios-bopfx-fixture.mjs",
+  "utf8",
+);
 const cameraSource = readFileSync("ios/App/App/AppDelegate.swift", "utf8");
 
 describe("native BopFX renderer source contract", () => {
@@ -266,16 +278,21 @@ describe("native BopFX renderer source contract", () => {
 
   it("bounds a native half-second living-shot window around the shutter", () => {
     expect(livingCaptureSource).toContain("BopFXLivingCaptureBuffer");
-    expect(livingCaptureSource).toContain("preRollSeconds: 0.25");
-    expect(livingCaptureSource).toContain("postRollSeconds: 0.25");
-    expect(livingCaptureSource).toContain("maximumFrames: 24");
+    expect(livingCaptureSource).toContain("BopFXLivingCaptureUpdate");
+    expect(livingCaptureSource).toContain("case collecting");
+    expect(livingCaptureSource).toContain("case completed(BopFXLivingShot)");
+    expect(livingCaptureSource).toContain("case failed(");
     expect(livingCaptureSource).toContain(
       "CMSampleBufferGetPresentationTimeStamp",
     );
     expect(livingCaptureSource).toContain("CVPixelBuffer");
-    expect(livingCaptureSource).toContain("func beginShot()");
-    expect(livingCaptureSource).toContain("func reset()");
-    expect(livingCaptureSource).toContain("CMTimeCompare");
+    expect(livingCaptureSource).toContain("LivingCaptureTimelineRecorder");
+    expect(livingCaptureSource).toContain("func startSession(");
+    expect(livingCaptureSource).toContain("func armShot(");
+    expect(livingCaptureSource).toContain("func resolveShutter(");
+    expect(livingCaptureSource).toContain("func cancelSession(");
+    expect(livingCaptureSource).toContain("retainedFrameIDs");
+    expect(livingCaptureSource).toContain("LivingCaptureRecorderFailure");
     expect(livingCaptureSource).not.toContain("DispatchQueue.main");
   });
 
@@ -288,5 +305,24 @@ describe("native BopFX renderer source contract", () => {
     expect(livingWriterSource).toContain("frameCount = 30");
     expect(fixtureSource).toContain("BopFXLivingStripWriter.write");
     expect(fixtureSource).toContain('"livingStripRecording"');
+  });
+
+  it("uses a native exact-timestamp selector with generation-scoped state", () => {
+    expect(livingSelectorSource).toContain("LivingFrameWindowSelector");
+    expect(livingSelectorSource).toContain("targetFrameRate: Double = 30");
+    expect(livingSelectorSource).toContain("minimumUniqueFrames: Int = 8");
+    expect(livingSelectorSource).toContain("monotonicSegments");
+    expect(livingRecorderSource).toContain("LivingCaptureTimelineRecorder");
+    expect(livingRecorderSource).toContain("resolveShutter");
+    expect(livingRecorderSource).toContain("generation: UInt64");
+    expect(livingRecorderSource).toContain("maximumFrames: Int = 30");
+    expect(livingRecorderSource).toContain("lastAcceptedBucket");
+    expect(livingRecorderSource).toContain("frameBucket(");
+    expect(livingRecorderSource).toContain("clockDiscontinuity");
+    expect(fixtureScriptSource).toContain('"swift-format"');
+    expect(fixtureScriptSource).toContain('"--strict"');
+    expect(fixtureScriptSource).toContain('"swift"');
+    expect(fixtureScriptSource).toContain('"test"');
+    expect(fixtureScriptSource).toContain('"CameraCore"');
   });
 });
