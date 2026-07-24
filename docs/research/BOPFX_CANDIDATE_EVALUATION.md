@@ -119,10 +119,10 @@ small rolling preview-buffer window, keep roughly 250 ms before and after the
 shutter, and compose four portable MP4 clips. Do not make Apple Live Photo
 containers the primary artifact; they are awkward to composite and share.
 
-The first simulator-only composition fixture now produces a 720x2016, 15 FPS,
+The simulator-only composition fixture now produces a 720x2016, 30 FPS,
 two-second H.264 MP4 at the 2.5x7 strip ratio. Four panels move independently,
-and the 1.8 MB artifact decodes correctly. This proves the portable visual
-artifact, not real camera motion.
+and the approximately 2.6 MB artifact decodes correctly. This proves the
+portable visual artifact, not real camera motion.
 
 The real capture experiment must:
 
@@ -160,6 +160,20 @@ callbacks including delayed 60 FPS delivery, stale generations, cancellation,
 capture-ID isolation, and hard frame caps. Run it with
 `npm run ios:camera-core:test`; `npm run ios:bopfx:fixture` runs strict Swift
 formatting and the native suite before the visual/media fixture.
+
+`LivingStripPlaybackPlan` is the next extracted seam. It accepts exactly four
+capture descriptors carrying capture ID, session generation, exact shutter
+time, and selected source timestamps. It rejects reordered or mixed-generation
+clips, starts each panel on the frame nearest its exact shutter time, and builds
+a seamless ping-pong index sequence for a two-second, 30 FPS output. Repeated
+source timestamps remain valid because 24 FPS and dropped-frame inputs may map
+one source frame to multiple 30 FPS targets.
+`BopFXLivingStripWriter` now accepts `[BopFXLivingClip]`; its synthetic fixture
+generator is only a source of deterministic test clips. Real captured windows
+can use the same Debug writer boundary without changing playback timing or the
+still-photo master. This raw-frame boundary is not the production memory model:
+production must encode and release each shot before composing four file-backed
+clips.
 
 ### Rotating Frame
 

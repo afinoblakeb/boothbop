@@ -24,7 +24,7 @@
     "ios:sync": "npm run build && npx cap sync ios",
     "ios:smoke": "node scripts/ios-smoke.mjs",
     "ios:bopfx:fixture": "node scripts/ios-bopfx-fixture.mjs",
-    "ios:swift:lint": "xcrun swift-format lint --strict --recursive ios/CameraCore ios/App/App/BopFXLivingCaptureBuffer.swift",
+    "ios:swift:lint": "xcrun swift-format lint --strict --recursive ios/CameraCore ios/App/App/BopFXLivingCaptureBuffer.swift ios/App/App/BopFXLivingStripWriter.swift",
     "ios:camera-core:test": "swift test --package-path ios/CameraCore",
     "ios:open": "npx cap open ios",
     "ios": "npm run ios:sync && npm run ios:open",

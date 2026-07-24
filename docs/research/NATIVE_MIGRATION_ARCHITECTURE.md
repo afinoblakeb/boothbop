@@ -115,20 +115,26 @@ Native migration must preserve the proven queue ownership in
 
 The discovery branch now contains a first framework-neutral Swift package at
 `ios/CameraCore`. It owns no AVFoundation session, buffers, files, or UI. Its
-first two responsibilities are:
+initial responsibilities are:
 
 - selecting a deterministic 15-frame output window around an exact shutter
   timestamp despite source-rate differences, jitter, drops, and duplicates;
 - retaining generation- and capture-scoped timeline state until the exact
   `AVCapturePhoto.timestamp` resolves;
 - decimating source samples to the 30 FPS target cadence before retention so a
-  delayed photo callback remains bounded even when the camera emits 60 FPS.
+  delayed photo callback remains bounded even when the camera emits 60 FPS;
+- planning exact-shutter-centered, seamless playback for exactly four
+  independently captured motion clips at a stable two-second, 30 FPS output
+  cadence while preserving capture ID, generation, and source timestamps.
 
 The app target compiles the same source files directly during this transitional
 stage. A Debug-only AVFoundation adapter preserves explicit collection,
-completion, and terminal-failure outcomes. This is not Milestone 1 completion,
-but it proves the extraction and native-test pattern before camera ownership
-moves.
+completion, and terminal-failure outcomes. The Debug writer now consumes a
+four-clip raw-frame input contract rather than owning synthetic motion
+generation. Production still requires per-shot encoding and file-backed
+composition to avoid retaining all four raw windows. This is not Milestone 1
+completion, but it proves the extraction and native-test pattern before camera
+ownership moves.
 
 ### Milestone 0: Native Effects Lab
 

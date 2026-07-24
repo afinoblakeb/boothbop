@@ -31,6 +31,10 @@ const livingRecorderSource = readFileSync(
   "ios/CameraCore/Sources/CameraCore/LivingCaptureTimelineRecorder.swift",
   "utf8",
 );
+const livingPlaybackSource = readFileSync(
+  "ios/CameraCore/Sources/CameraCore/LivingStripPlaybackPlan.swift",
+  "utf8",
+);
 const fixtureScriptSource = readFileSync(
   "scripts/ios-bopfx-fixture.mjs",
   "utf8",
@@ -282,6 +286,8 @@ describe("native BopFX renderer source contract", () => {
     expect(livingCaptureSource).toContain("case collecting");
     expect(livingCaptureSource).toContain("case completed(BopFXLivingShot)");
     expect(livingCaptureSource).toContain("case failed(");
+    expect(livingCaptureSource).toContain("playbackDescriptor");
+    expect(livingCaptureSource).toContain("LivingStripClipDescriptor");
     expect(livingCaptureSource).toContain(
       "CMSampleBufferGetPresentationTimeStamp",
     );
@@ -298,11 +304,16 @@ describe("native BopFX renderer source contract", () => {
 
   it("renders a portable living-strip fixture without replacing still masters", () => {
     expect(livingWriterSource).toContain("BopFXLivingStripWriter");
+    expect(livingWriterSource).toContain("BopFXLivingClip");
+    expect(livingWriterSource).toContain("clips: [BopFXLivingClip]");
+    expect(livingWriterSource).toContain("clips.map(\\.descriptor)");
+    expect(livingWriterSource).toContain("LivingStripPlaybackPlan");
     expect(livingWriterSource).toContain("AVAssetWriter");
     expect(livingWriterSource).toContain("living-strip.mp4");
     expect(livingWriterSource).toContain("BopFXRenderer");
     expect(livingWriterSource).toContain("2.5 / 7.0");
-    expect(livingWriterSource).toContain("frameCount = 30");
+    expect(livingWriterSource).toContain("frameRate: Int32 = 30");
+    expect(livingWriterSource).toContain("plan.outputFrameCount");
     expect(fixtureSource).toContain("BopFXLivingStripWriter.write");
     expect(fixtureSource).toContain('"livingStripRecording"');
   });
@@ -319,6 +330,13 @@ describe("native BopFX renderer source contract", () => {
     expect(livingRecorderSource).toContain("lastAcceptedBucket");
     expect(livingRecorderSource).toContain("frameBucket(");
     expect(livingRecorderSource).toContain("clockDiscontinuity");
+    expect(livingPlaybackSource).toContain("LivingStripPlaybackPlan");
+    expect(livingPlaybackSource).toContain("LivingStripClipDescriptor");
+    expect(livingPlaybackSource).toContain("sourceFrameIndex(");
+    expect(livingPlaybackSource).toContain("clips.count == 4");
+    expect(livingPlaybackSource).toContain("mixedGenerations");
+    expect(livingPlaybackSource).toContain("duplicateCaptureID");
+    expect(livingPlaybackSource).toContain("invalidCaptureOrder");
     expect(fixtureScriptSource).toContain('"swift-format"');
     expect(fixtureScriptSource).toContain('"--strict"');
     expect(fixtureScriptSource).toContain('"swift"');

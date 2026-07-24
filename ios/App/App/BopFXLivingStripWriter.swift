@@ -5,15 +5,19 @@ import CoreVideo
 import Foundation
 import UIKit
 
+struct BopFXLivingClip {
+    let descriptor: LivingStripClipDescriptor
+    let frames: [CGImage]
+}
+
 enum BopFXLivingStripWriter {
     private static let aspectRatio = 2.5 / 7.0
     private static let width = 720
     private static let height = Int(
         (Double(width) / aspectRatio).rounded())
     private static let panelSide = 450
-    private static let frameRate: Int32 = 15
-    private static let frameCount = 30
-    private static let clipFrameCount = 8
+    private static let frameRate: Int32 = 30
+    private static let clipFrameCount = 15
     private static let effects: [BopFXEffect] = [
         .spectralEcho,
         .funhouse,
@@ -29,6 +33,32 @@ enum BopFXLivingStripWriter {
         let clips = try renderClips(
             source: source,
             renderer: renderer)
+        return try write(
+            clips: clips,
+            directory: directory)
+    }
+
+    static func write(
+        clips: [BopFXLivingClip],
+        directory: URL
+    ) throws -> URL {
+        let plan: LivingStripPlaybackPlan
+        do {
+            plan = try LivingStripPlaybackPlan(
+                clips: clips.map(\.descriptor),
+                outputFrameRate: Int(frameRate))
+        } catch {
+            throw BopFXLivingWriterError.setup(
+                "Living Strip received an invalid four-shot capture sequence")
+        }
+        guard
+            zip(clips, plan.clips).allSatisfy({
+                $0.frames.count == $1.sourceTimes.count
+            })
+        else {
+            throw BopFXLivingWriterError.setup(
+                "Living Strip clip pixels do not match their capture timelines")
+        }
         let outputURL = directory.appendingPathComponent(
             "living-strip.mp4")
         try? FileManager.default.removeItem(at: outputURL)
@@ -43,7 +73,7 @@ enum BopFXLivingStripWriter {
                 AVVideoWidthKey: width,
                 AVVideoHeightKey: height,
                 AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: 7_500_000,
+                    AVVideoAverageBitRateKey: 10_000_000,
                     AVVideoProfileLevelKey:
                         AVVideoProfileLevelH264HighAutoLevel,
                 ],
@@ -66,37 +96,39 @@ enum BopFXLivingStripWriter {
         writer.add(input)
         guard writer.startWriting() else {
             throw BopFXLivingWriterError.setup(
-                writer.error?.localizedDescription ??
-                    "Could not start the Living Strip writer")
+                writer.error?.localizedDescription ?? "Could not start the Living Strip writer")
         }
         writer.startSession(atSourceTime: .zero)
 
-        for index in 0..<frameCount {
+        for index in 0..<plan.outputFrameCount {
             guard waitUntilReady(input: input, writer: writer),
-                  let pool = adaptor.pixelBufferPool else {
+                let pool = adaptor.pixelBufferPool
+            else {
                 writer.cancelWriting()
                 throw BopFXLivingWriterError.render(
                     "Living Strip writer stopped accepting frames")
             }
             var pixelBuffer: CVPixelBuffer?
-            guard CVPixelBufferPoolCreatePixelBuffer(
-                nil,
-                pool,
-                &pixelBuffer) == kCVReturnSuccess,
+            guard
+                CVPixelBufferPoolCreatePixelBuffer(
+                    nil,
+                    pool,
+                    &pixelBuffer) == kCVReturnSuccess,
                 let pixelBuffer,
                 draw(
                     clips: clips,
-                    frameIndex: index,
+                    plan: plan,
+                    outputFrameIndex: index,
                     into: pixelBuffer),
                 adaptor.append(
                     pixelBuffer,
                     withPresentationTime: CMTime(
                         value: Int64(index),
-                        timescale: frameRate)) else {
+                        timescale: frameRate))
+            else {
                 writer.cancelWriting()
                 throw BopFXLivingWriterError.render(
-                    writer.error?.localizedDescription ??
-                        "Could not append a Living Strip frame")
+                    writer.error?.localizedDescription ?? "Could not append a Living Strip frame")
             }
         }
 
@@ -111,8 +143,7 @@ enum BopFXLivingStripWriter {
         }
         guard writer.status == .completed else {
             throw BopFXLivingWriterError.render(
-                writer.error?.localizedDescription ??
-                    "Living Strip writer did not complete")
+                writer.error?.localizedDescription ?? "Living Strip writer did not complete")
         }
         return outputURL
     }
@@ -120,9 +151,9 @@ enum BopFXLivingStripWriter {
     private static func renderClips(
         source: UIImage,
         renderer: BopFXRenderer
-    ) throws -> [[CGImage]] {
-        var clips: [[CGImage]] = []
-        for effect in effects {
+    ) throws -> [BopFXLivingClip] {
+        var clips: [BopFXLivingClip] = []
+        for (index, effect) in effects.enumerated() {
             var frames: [CGImage] = []
             let rendered = renderer.renderAnimationFrames(
                 source,
@@ -137,24 +168,38 @@ enum BopFXLivingStripWriter {
                 throw BopFXLivingWriterError.render(
                     "Could not render the \(effect.rawValue) Living Strip clip")
             }
-            clips.append(frames)
+            let baseTime = Double(index) * 2
+            let sourceTimes = frames.indices.map {
+                baseTime + Double($0) / Double(frameRate)
+            }
+            let shutterFrameIndex = frames.count / 2
+            clips.append(
+                BopFXLivingClip(
+                    descriptor: LivingStripClipDescriptor(
+                        captureID: Int64(index + 1),
+                        generation: 1,
+                        shutterTime:
+                            sourceTimes[shutterFrameIndex],
+                        sourceTimes: sourceTimes),
+                    frames: frames))
         }
         return clips
     }
 
     private static func draw(
-        clips: [[CGImage]],
-        frameIndex: Int,
+        clips: [BopFXLivingClip],
+        plan: LivingStripPlaybackPlan,
+        outputFrameIndex: Int,
         into pixelBuffer: CVPixelBuffer
     ) -> Bool {
         CVPixelBufferLockBaseAddress(pixelBuffer, [])
         defer {
             CVPixelBufferUnlockBaseAddress(pixelBuffer, [])
         }
-        guard clips.count == effects.count,
-              let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
-              let context = CGContext(
+        guard clips.count == plan.panelCount,
+            let baseAddress = CVPixelBufferGetBaseAddress(pixelBuffer),
+            let colorSpace = CGColorSpace(name: CGColorSpace.sRGB),
+            let context = CGContext(
                 data: baseAddress,
                 width: width,
                 height: height,
@@ -162,8 +207,9 @@ enum BopFXLivingStripWriter {
                 bytesPerRow: CVPixelBufferGetBytesPerRow(pixelBuffer),
                 space: colorSpace,
                 bitmapInfo:
-                    CGImageAlphaInfo.premultipliedFirst.rawValue |
-                    CGBitmapInfo.byteOrder32Little.rawValue) else {
+                    CGImageAlphaInfo.premultipliedFirst.rawValue
+                    | CGBitmapInfo.byteOrder32Little.rawValue)
+        else {
             return false
         }
 
@@ -183,14 +229,16 @@ enum BopFXLivingStripWriter {
         let gap = 18
         let topInset = 30
         let x = (width - panelSide) / 2
-        for index in effects.indices {
+        for index in clips.indices {
             let clip = clips[index]
-            guard !clip.isEmpty else { return false }
-            let phaseOffset = index * 2
-            let clipIndex =
-                (frameIndex + phaseOffset) % clip.count
-            let y = height - topInset - panelSide -
-                index * (panelSide + gap)
+            guard
+                let clipIndex = plan.sourceFrameIndex(
+                    panelIndex: index,
+                    outputFrameIndex: outputFrameIndex)
+            else {
+                return false
+            }
+            let y = height - topInset - panelSide - index * (panelSide + gap)
             let rect = CGRect(
                 x: x,
                 y: y,
@@ -199,7 +247,7 @@ enum BopFXLivingStripWriter {
             context.setFillColor(CGColor(gray: 0.08, alpha: 1))
             context.fill(rect.insetBy(dx: -3, dy: -3))
             context.interpolationQuality = .high
-            context.draw(clip[clipIndex], in: rect)
+            context.draw(clip.frames[clipIndex], in: rect)
         }
 
         let footerY = 34
@@ -231,12 +279,12 @@ enum BopFXLivingStripWriter {
     ) -> Bool {
         let deadline = Date().addingTimeInterval(5)
         while !input.isReadyForMoreMediaData,
-              writer.status == .writing,
-              Date() < deadline {
+            writer.status == .writing,
+            Date() < deadline
+        {
             Thread.sleep(forTimeInterval: 0.002)
         }
-        return input.isReadyForMoreMediaData &&
-            writer.status == .writing
+        return input.isReadyForMoreMediaData && writer.status == .writing
     }
 }
 

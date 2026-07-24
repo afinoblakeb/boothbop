@@ -125,7 +125,7 @@ async function validateArtifacts(labDirectory, report) {
     stream?.codec_name !== "h264" ||
     stream.width !== 720 ||
     stream.height !== 2016 ||
-    stream.r_frame_rate !== "15/1" ||
+    stream.r_frame_rate !== "30/1" ||
     Math.abs(duration - 2) > 0.05
   ) {
     throw new Error(
@@ -151,6 +151,7 @@ async function main() {
     "--recursive",
     path.join("ios", "CameraCore"),
     path.join("ios", "App", "App", "BopFXLivingCaptureBuffer.swift"),
+    path.join("ios", "App", "App", "BopFXLivingStripWriter.swift"),
   ]);
   await run("swift", [
     "test",

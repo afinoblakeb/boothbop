@@ -14,6 +14,16 @@ struct BopFXLivingShot {
     let generation: UInt64
     let shutterTime: CMTime
     let frames: [BopFXLivingFrame]
+
+    var playbackDescriptor: LivingStripClipDescriptor {
+        return LivingStripClipDescriptor(
+            captureID: captureID,
+            generation: generation,
+            shutterTime: CMTimeGetSeconds(shutterTime),
+            sourceTimes: frames.map {
+                CMTimeGetSeconds($0.presentationTime)
+            })
+    }
 }
 
 enum BopFXLivingCaptureFailure {
