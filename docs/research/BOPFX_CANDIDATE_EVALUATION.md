@@ -23,6 +23,27 @@ predictable for groups than the first face-centered version.
 
 None of these experiments is production-ready.
 
+## Decision Classes
+
+This ledger prevents an entertaining prototype from silently becoming release
+scope:
+
+| Class                      | Candidate                                      | Current evidence                                                       | Next decision                                               |
+| -------------------------- | ---------------------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Lead production brief      | Spectral Echo                                  | Strong live device identity, face tracking, and full-resolution render | Harden only after discovery closes                          |
+| Strong alternate           | Cutout Chorus                                  | Distinct device result and successful person matte                     | Measure and bound segmentation cost                         |
+| Lab hold                   | Funhouse                                       | High delight but inconsistent influence radius across faces            | Tune against more face sizes and scenes                     |
+| Pending device ranking     | Spin Cycle                                     | Deterministic simulator still/video only                               | Run the physical scorecard                                  |
+| Architecture spike         | Living Strip                                   | Deterministic 2-second H.264 composition and tested timestamp model    | Judge direction, then decide whether to wire capture        |
+| Interaction layer          | Tuning Frame                                   | Physical preview/still/freeze contract confirmed                       | Keep separate from effect ranking                           |
+| Rejected default           | Mirror Bloom                                   | Technically valid but composition-dependent and often unflattering     | Retain only as a research reference                         |
+| Device-limited future work | ARKit expression and TrueDepth spatial effects | Capability probes and architecture boundaries only                     | Do not pursue until a baseline effect earns production work |
+
+The strongest recommendation remains Spectral Echo. Spin Cycle can displace a
+secondary candidate, but it cannot become the lead without stronger device
+evidence. Living Strip is evaluated as a media format, not scored as a spatial
+effect.
+
 ## Ranked Effects
 
 | Rank | Candidate     | Device result                                                                  | Recommendation                                                |
@@ -213,3 +234,7 @@ following:
 - a missing face or mask falls back without a visual flash;
 - camera startup, rapid navigation, and teardown remain reliable;
 - the feature fits one focused release brief.
+
+The remaining physical evaluation follows
+`BOPFX_DEVICE_EVALUATION_PROTOCOL.md`. Its numeric score informs the decision
+but does not override an automatic reliability blocker.

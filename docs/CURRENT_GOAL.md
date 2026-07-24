@@ -88,7 +88,8 @@ one when device evidence justifies it.
 - [x] Add a shutter-centered four-clip playback plan and make the Debug writer
       accept real motion-clip inputs at 30 FPS.
 - [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
-      resumes physical-device testing.
+      resumes physical-device testing, using
+      `docs/research/BOPFX_DEVICE_EVALUATION_PROTOCOL.md`.
 - [ ] Record final candidate recommendation and close the discovery goal.
 
 ## Compaction And Handoff Rule

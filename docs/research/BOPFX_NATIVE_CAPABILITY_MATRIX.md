@@ -103,6 +103,32 @@ TrueDepth, ARKit, microphone, or new permission is required.
 - Measure first-effect latency, preview frame cadence, dropped sample count,
   still-render duration, and memory on a physical device before production work.
 
+## Implementation Audit
+
+The current discovery branch intentionally implements less than the framework
+matrix describes:
+
+| Tier                                 | Current state            | Runtime behavior                                                                                                                                            |
+| ------------------------------------ | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| AVFoundation still and sample stream | Active                   | Existing `AVCapturePhotoOutput` remains the full-quality still authority; `AVCaptureVideoDataOutput` feeds preview and bounded motion experiments           |
+| Metal-backed Core Image renderer     | Active                   | A single renderer owns one Metal device and `CIContext`; no effect is offered when Metal setup fails                                                        |
+| Vision face landmarks                | Active                   | A failed or empty request produces a stable non-face-aware render rather than blocking capture                                                              |
+| Vision person segmentation           | Active for Cutout Chorus | iOS 18+ probes supported output formats; older supported systems optimistically offer the request and use render-time failure as the authoritative fallback |
+| ARKit face mesh and expressions      | Capability probe only    | `ARFaceTrackingConfiguration.isSupported` and supported face count are reported; no current effect starts an `ARSession`                                    |
+| TrueDepth device and depth formats   | Capability probe only    | Device and format availability are reported; the active session is not configured for depth and no effect consumes depth                                    |
+| Custom Metal shader                  | Not implemented          | Current candidates use Core Image graphs rendered on Metal                                                                                                  |
+
+`trueDepthCamera` and `depthStream` mean that a suitable device/format was
+found, not that the active capture session has enabled synchronized depth.
+Photo depth must later be checked through
+`AVCapturePhotoOutput.isDepthDataDeliverySupported` after configuring the
+session. No current picker item may imply that depth or ARKit is active.
+
+`faceLandmarks` is statically available at the iOS 15 deployment floor, but a
+successful request remains the operational proof for a particular frame.
+Likewise, the pre-iOS 18 person-segmentation result is deliberately optimistic
+because that SDK surface has no equivalent up-front output-format query.
+
 ## Architecture Consequences
 
 ### Why Vision is the baseline
