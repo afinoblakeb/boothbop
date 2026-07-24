@@ -63,7 +63,7 @@ one when device evidence justifies it.
 ## Checkpoints
 
 - [x] Create a dedicated discovery branch and initial feature brief.
-- [ ] Make the native renderer and bridge compile with focused tests green.
+- [x] Make the native renderer and bridge compile with focused tests green.
 - [ ] Document framework and iPhone capability boundaries.
 - [ ] Add a minimal native-only effects picker for device evaluation.
 - [ ] Install and exercise the lab on Blerque.

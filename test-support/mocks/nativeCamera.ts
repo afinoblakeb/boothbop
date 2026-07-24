@@ -96,9 +96,12 @@ export async function installNativeCameraMock(
           methods: [
             ...[
               "isAvailable",
+              "bopFXCapabilities",
+              "setBopFX",
               "start",
               "setPreviewFrame",
               "capture",
+              "finishShutterFreeze",
               "release",
               "stop",
               "removeListener",
@@ -123,11 +126,30 @@ export async function installNativeCameraMock(
       nativePromise: async (
         pluginName: string,
         methodName: string,
+        options: Record<string, unknown>,
       ): Promise<Record<string, unknown>> => {
         if (pluginName !== "BoothBopCamera") {
           throw new Error(`Unexpected native plugin: ${pluginName}`);
         }
         if (methodName === "isAvailable") return { available: true };
+        if (methodName === "bopFXCapabilities") {
+          return {
+            nativePreview: true,
+            faceLandmarks: true,
+            personSegmentation: true,
+            metalRendering: true,
+            effects: [
+              "original",
+              "spectralEcho",
+              "funhouse",
+              "cutoutChorus",
+              "mirrorBloom",
+            ],
+          };
+        }
+        if (methodName === "setBopFX") {
+          return { effect: options.effect ?? "original" };
+        }
         if (methodName === "start") {
           camera.starts += 1;
           if (deferStart) {
@@ -158,6 +180,9 @@ export async function installNativeCameraMock(
         }
         if (methodName === "capture") {
           throw new Error("Native capture is unavailable in this mock");
+        }
+        if (methodName === "finishShutterFreeze") {
+          return { finished: true };
         }
         if (methodName === "removeListener") return { removed: true };
         if (methodName === "release") return { released: true };

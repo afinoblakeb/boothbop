@@ -2,6 +2,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const cameraPlugin = vi.hoisted(() => ({
   isAvailable: vi.fn(),
+  bopFXCapabilities: vi.fn(),
+  setBopFX: vi.fn(),
   start: vi.fn(),
   setPreviewFrame: vi.fn(),
   capture: vi.fn(),
@@ -15,7 +17,9 @@ vi.mock("./boothBopCameraPlugin", () => ({ BoothBopCamera: cameraPlugin }));
 import {
   canUseNativeCamera,
   captureNativeSquareFrame,
+  getNativeBopFXCapabilities,
   observeNativeCameraFailures,
+  setNativeBopFX,
   setNativePreviewFrame,
   startNativeCamera,
   stopNativeCamera,
@@ -40,16 +44,53 @@ function installCapacitor(values: Record<string, unknown>) {
 }
 
 function installNativePlugin(available = true) {
-  vi.stubGlobal("window", {
-    Capacitor: {
-      isNativePlatform: () => true,
-      isPluginAvailable: (name: string) =>
-        available && name === "BoothBopCamera",
-    },
+  installCapacitor({
+    isNativePlatform: () => true,
+    isPluginAvailable: (name: string) => available && name === "BoothBopCamera",
   });
 }
 
 describe("native camera bridge", () => {
+  it("validates native BopFX capabilities and effect selection", async () => {
+    installNativePlugin();
+    cameraPlugin.bopFXCapabilities.mockResolvedValue({
+      nativePreview: true,
+      faceLandmarks: true,
+      personSegmentation: true,
+      metalRendering: true,
+      effects: ["original", "spectralEcho", "notARealEffect", "mirrorBloom"],
+    });
+    cameraPlugin.setBopFX.mockResolvedValue({ effect: "spectralEcho" });
+
+    await expect(getNativeBopFXCapabilities()).resolves.toEqual({
+      nativePreview: true,
+      faceLandmarks: true,
+      personSegmentation: true,
+      metalRendering: true,
+      effects: ["original", "spectralEcho", "mirrorBloom"],
+    });
+    await setNativeBopFX("spectralEcho");
+
+    expect(cameraPlugin.setBopFX).toHaveBeenCalledWith({
+      effect: "spectralEcho",
+    });
+  });
+
+  it("falls back to Original when BopFX capability probing fails", async () => {
+    installNativePlugin();
+    cameraPlugin.bopFXCapabilities.mockRejectedValue(
+      new Error("Metal unavailable"),
+    );
+
+    await expect(getNativeBopFXCapabilities()).resolves.toEqual({
+      nativePreview: false,
+      faceLandmarks: false,
+      personSegmentation: false,
+      metalRendering: false,
+      effects: ["original"],
+    });
+  });
+
   it("uses the bridge only in the native shell with an available camera", async () => {
     installNativePlugin();
     cameraPlugin.isAvailable.mockResolvedValue({ available: true });

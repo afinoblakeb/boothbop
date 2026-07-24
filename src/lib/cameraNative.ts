@@ -1,4 +1,5 @@
 import { BoothBopCamera } from "./boothBopCameraPlugin";
+import { isBopFXId, type BopFXCapabilities, type BopFXId } from "./bopfx";
 import { captureSizeForSource, MAX_CAPTURE_SIZE } from "./camera";
 import { configureHighQualityScaling } from "./filter";
 import { isNativeShell } from "./platform";
@@ -8,10 +9,19 @@ const CAPTURE_TIMEOUT_MS = 15_000;
 const PREVIEW_TIMEOUT_MS = 3_000;
 const SHUTTER_FREEZE_TIMEOUT_MS = 3_000;
 const STOP_TIMEOUT_MS = 3_000;
+const BOPFX_TIMEOUT_MS = 3_000;
 const WARMUP_JPEG =
   "/9j/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAACAAIDASIAAhEBAxEB/8QAFAABAAAAAAAAAAAAAAAAAAAAAP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAUAQEAAAAAAAAAAAAAAAAAAAAA/8QAFBEBAAAAAAAAAAAAAAAAAAAAAP/aAAwDAQACEQMRAD8AAA//2Q==";
 let lifecycleQueue: Promise<void> = Promise.resolve();
 let activeGeneration = 0;
+
+const NO_BOPFX_CAPABILITIES: BopFXCapabilities = {
+  nativePreview: false,
+  faceLandmarks: false,
+  personSegmentation: false,
+  metalRendering: false,
+  effects: ["original"],
+};
 
 function enqueueLifecycle<T>(operation: () => Promise<T>): Promise<T> {
   const result = lifecycleQueue.then(operation);
@@ -52,6 +62,47 @@ export async function canUseNativeCamera(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export async function getNativeBopFXCapabilities(): Promise<BopFXCapabilities> {
+  if (!isNativeShell()) return NO_BOPFX_CAPABILITIES;
+  try {
+    const result = await withTimeout(
+      BoothBopCamera.bopFXCapabilities(),
+      BOPFX_TIMEOUT_MS,
+      "native BopFX capabilities",
+    );
+    const effects = [
+      "original" as const,
+      ...(Array.isArray(result.effects)
+        ? result.effects.filter(
+            (effect): effect is BopFXId =>
+              isBopFXId(effect) && effect !== "original",
+          )
+        : []),
+    ];
+    return {
+      nativePreview: result.nativePreview === true,
+      faceLandmarks: result.faceLandmarks === true,
+      personSegmentation: result.personSegmentation === true,
+      metalRendering: result.metalRendering === true,
+      effects: [...new Set(effects)],
+    };
+  } catch {
+    return NO_BOPFX_CAPABILITIES;
+  }
+}
+
+export async function setNativeBopFX(effect: BopFXId): Promise<void> {
+  if (!isNativeShell()) {
+    if (effect === "original") return;
+    throw new Error("BopFX requires the native iPhone camera");
+  }
+  await withTimeout(
+    BoothBopCamera.setBopFX({ effect }),
+    BOPFX_TIMEOUT_MS,
+    "native BopFX selection",
+  );
 }
 
 export async function startNativeCamera(): Promise<void> {

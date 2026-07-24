@@ -277,6 +277,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     public let jsName = "BoothBopCamera"
     public let pluginMethods: [CAPPluginMethod] = [
         CAPPluginMethod(name: "isAvailable", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "bopFXCapabilities", returnType: CAPPluginReturnPromise),
+        CAPPluginMethod(name: "setBopFX", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "start", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "setPreviewFrame", returnType: CAPPluginReturnPromise),
         CAPPluginMethod(name: "capture", returnType: CAPPluginReturnPromise),
@@ -342,6 +344,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var latestFrameSize: (width: Int, height: Int)?
     private var photoPreparationComplete = false
     private var previewInstalled = false
+    private var activeBopFX = BopFXEffect.original
     private var startupWarmupFileURL: URL?
     private var temporaryPhotoURLs = Set<URL>()
     private var sessionObservers: [NSObjectProtocol] = []
@@ -352,11 +355,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     // preview frames.
     private var latestPreviewPixelBuffer: CVPixelBuffer?
     private var sampleVideoOutput: AVCaptureVideoDataOutput?
+    private weak var sampleBopFXPreviewView: BopFXPreviewView?
     private var reportedFirstFrame = false
 
     // Preview properties are accessed only on the main thread.
     private var previewView: UIView?
     private var previewLayer: AVCaptureVideoPreviewLayer?
+    private var bopFXPreviewView: BopFXPreviewView?
     private var previewGeneration: UInt64?
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
@@ -390,6 +395,30 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     @objc func isAvailable(_ call: CAPPluginCall) {
         sessionQueue.async {
             call.resolve(["available": self.frontCamera() != nil])
+        }
+    }
+
+    @objc func bopFXCapabilities(_ call: CAPPluginCall) {
+        call.resolve(BopFXNativeSupport.payload)
+    }
+
+    @objc func setBopFX(_ call: CAPPluginCall) {
+        guard let rawEffect = call.getString("effect"),
+              let effect = BopFXEffect(rawValue: rawEffect) else {
+            return call.reject("A supported BopFX effect is required", "argumentError")
+        }
+        guard BopFXNativeSupport.supportedEffects.contains(effect) else {
+            return call.reject("This BopFX effect is unavailable", "unavailable")
+        }
+        sessionQueue.async {
+            self.activeBopFX = effect
+            DispatchQueue.main.async {
+                self.bopFXPreviewView?.setEffect(effect)
+                if effect != .original {
+                    self.clearFaceOverlays()
+                }
+                call.resolve(["effect": effect.rawValue])
+            }
         }
     }
 
@@ -583,12 +612,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 throw CameraError.configuration("The camera session could not start")
             }
 
+            let activeEffect = activeBopFX
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 let installed = self.installPreviewIfNeeded(
                     session: configured.session,
                     device: configured.device,
-                    generation: generation)
+                    generation: generation,
+                    effect: activeEffect)
                 self.sessionQueue.async {
                     guard self.pendingStartID == id,
                           self.session === configured.session else { return }
@@ -945,6 +976,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         guard output === sampleVideoOutput else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         latestPreviewPixelBuffer = pixelBuffer
+        sampleBopFXPreviewView?.consume(pixelBuffer)
         guard !reportedFirstFrame else { return }
         reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
@@ -990,7 +1022,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         let faces = metadataObjects.compactMap { $0 as? AVMetadataFaceObject }
         sessionQueue.async {
             guard self.metadataOutput === output,
-                  let generation = self.sessionGeneration else { return }
+                  let generation = self.sessionGeneration,
+                  self.activeBopFX == .original else { return }
             DispatchQueue.main.async {
                 guard self.previewGeneration == generation else { return }
                 self.renderFaceOverlays(faces)
@@ -1310,6 +1343,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         sampleQueue.sync {
             latestPreviewPixelBuffer = nil
             sampleVideoOutput = nil
+            sampleBopFXPreviewView = nil
             reportedFirstFrame = false
         }
         session = nil
@@ -1329,7 +1363,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private func installPreviewIfNeeded(
         session: AVCaptureSession,
         device: AVCaptureDevice,
-        generation: UInt64
+        generation: UInt64,
+        effect: BopFXEffect
     ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
@@ -1350,6 +1385,20 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             let layer = AVCaptureVideoPreviewLayer(session: session)
             layer.videoGravity = .resizeAspectFill
             nativePreview.layer.addSublayer(layer)
+
+            if let effectView = BopFXPreviewView(
+                bopFXFrame: nativePreview.bounds) {
+                effectView.autoresizingMask = [
+                    .flexibleWidth,
+                    .flexibleHeight,
+                ]
+                effectView.setEffect(effect)
+                nativePreview.addSubview(effectView)
+                bopFXPreviewView = effectView
+                sampleQueue.async {
+                    self.sampleBopFXPreviewView = effectView
+                }
+            }
             previewView = nativePreview
             previewLayer = layer
             previewGeneration = generation
@@ -1441,6 +1490,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewView.layer.cornerRadius = cornerRadius
         previewView.layer.cornerCurve = .continuous
         previewLayer?.frame = previewView.bounds
+        bopFXPreviewView?.frame = previewView.bounds
         shutterFreezeView?.frame = previewView.bounds
         return previewLayer != nil && !previewView.frame.isEmpty
     }
@@ -1454,6 +1504,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         clearFaceOverlays()
         shutterFreezeView?.removeFromSuperview()
         shutterFreezeView = nil
+        bopFXPreviewView?.removeFromSuperview()
+        bopFXPreviewView = nil
         previewLayer?.session = nil
         previewLayer?.removeFromSuperlayer()
         previewView?.removeFromSuperview()

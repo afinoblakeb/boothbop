@@ -1,4 +1,5 @@
 import { registerPlugin, type PluginListenerHandle } from "@capacitor/core";
+import type { BopFXCapabilities, BopFXId } from "./bopfx";
 
 export interface NativeCameraFrame {
   x: number;
@@ -31,6 +32,8 @@ export interface NativeCameraStateChange {
 
 export interface BoothBopCameraPlugin {
   isAvailable(): Promise<{ available: boolean }>;
+  bopFXCapabilities(): Promise<BopFXCapabilities>;
+  setBopFX(options: { effect: BopFXId }): Promise<{ effect: BopFXId }>;
   start(): Promise<NativeCameraStart>;
   setPreviewFrame(frame: NativeCameraFrame): Promise<{ visible: boolean }>;
   capture(options: { size: number }): Promise<NativePhoto>;
