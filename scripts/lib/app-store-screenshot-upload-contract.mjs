@@ -51,3 +51,17 @@ export function cancelReviewSubmissionBody(submissionId) {
     },
   };
 }
+
+export function screenshotSetIsCurrent(screenshots, expectedChecksums) {
+  return (
+    screenshots.length === expectedChecksums.size &&
+    screenshots.every((item) => {
+      const expected = expectedChecksums.get(item.attributes.fileName);
+      return (
+        expected !== undefined &&
+        item.attributes.assetDeliveryState?.state === "COMPLETE" &&
+        item.attributes.sourceFileChecksum?.toLowerCase() === expected
+      );
+    })
+  );
+}

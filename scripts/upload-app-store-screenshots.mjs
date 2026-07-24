@@ -14,6 +14,7 @@ import {
   commitScreenshotBody,
   createScreenshotBody,
   createScreenshotSetBody,
+  screenshotSetIsCurrent,
 } from "./lib/app-store-screenshot-upload-contract.mjs";
 import { APP_STORE_APP_ID } from "./lib/release-contract.mjs";
 
@@ -227,7 +228,7 @@ async function replaceScreenshotSet(client, set, device) {
   const desiredNames = new Set(
     APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.fileName),
   );
-  const current = await listScreenshots(client, set.id);
+  let current = await listScreenshots(client, set.id);
   const expectedChecksums = new Map(
     await Promise.all(
       APP_STORE_SCREENSHOT_SCENES.map(async (scene) => [
@@ -236,19 +237,24 @@ async function replaceScreenshotSet(client, set, device) {
       ]),
     ),
   );
-  const currentIsExact =
-    current.length === APP_STORE_SCREENSHOT_SCENES.length &&
-    current.every((item) => {
-      const expected = expectedChecksums.get(item.attributes.fileName);
-      return (
-        expected !== undefined &&
-        item.attributes.assetDeliveryState?.state === "COMPLETE" &&
-        item.attributes.sourceFileChecksum?.toLowerCase() === expected
-      );
-    });
-  if (currentIsExact) {
+  const checksumDeadline = Date.now() + 30_000;
+  while (
+    current.length === expectedChecksums.size &&
+    current.every(
+      (item) => item.attributes.assetDeliveryState?.state === "COMPLETE",
+    ) &&
+    current.some((item) => !item.attributes.sourceFileChecksum) &&
+    Date.now() < checksumDeadline
+  ) {
+    await wait(2_000);
+    current = await listScreenshots(client, set.id);
+  }
+  if (screenshotSetIsCurrent(current, expectedChecksums)) {
     process.stdout.write(`${device.displayType} is already current.\n`);
-    return current.map((item) => item.id);
+    return {
+      screenshotIds: current.map((item) => item.id),
+      uploadedScreenshotCount: 0,
+    };
   }
 
   for (const screenshot of current.filter((item) =>
@@ -302,7 +308,10 @@ async function replaceScreenshotSet(client, set, device) {
       `${device.displayType} verification failed: ${finalNames.join(", ")}`,
     );
   }
-  return uploaded.map((item) => item.id);
+  return {
+    screenshotIds: uploaded.map((item) => item.id),
+    uploadedScreenshotCount: uploaded.length,
+  };
 }
 
 async function validateLocalManifest() {
@@ -350,10 +359,12 @@ async function main() {
       device.displayType,
       sets,
     );
+    const replacement = await replaceScreenshotSet(client, set, device);
     result.push({
       displayType: device.displayType,
       setId: set.id,
-      screenshotIds: await replaceScreenshotSet(client, set, device),
+      screenshotIds: replacement.screenshotIds,
+      uploadedScreenshotCount: replacement.uploadedScreenshotCount,
     });
   }
 
@@ -364,7 +375,7 @@ async function main() {
         locale,
         canceledSubmissionId,
         uploadedScreenshotCount: result.reduce(
-          (total, item) => total + item.screenshotIds.length,
+          (total, item) => total + item.uploadedScreenshotCount,
           0,
         ),
         sets: result,
