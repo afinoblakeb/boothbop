@@ -64,7 +64,7 @@ one when device evidence justifies it.
 
 - [x] Create a dedicated discovery branch and initial feature brief.
 - [x] Make the native renderer and bridge compile with focused tests green.
-- [ ] Document framework and iPhone capability boundaries.
+- [x] Document framework and iPhone capability boundaries.
 - [ ] Add a minimal native-only effects picker for device evaluation.
 - [ ] Install and exercise the lab on Blerque.
 - [ ] Rank candidates from evidence.
