@@ -75,7 +75,7 @@ correctness:
    photos, and Select-then-Delete gallery interaction as quality corrections.
 8. Re-run production-browser and simulator matrices, then archive and validate.
 
-All 219 unit tests and 37 production-browser journeys pass. The
+All 220 unit tests and 37 production-browser journeys pass. The
 compact/standard/Pro-Max simulator matrix passes fresh launch, with the
 standard-device overwrite update also passing. Apple validated the signed
 `0.0.4 (0.0.5)` archive with no errors. Fifteen official-Simulator screenshots

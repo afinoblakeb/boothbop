@@ -37,6 +37,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     var window: UIWindow?
+    private var launchOverlay: UIView?
 
     func scene(
         _ scene: UIScene,
@@ -60,20 +61,22 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         launchOverlay.frame = rootViewController.view.bounds
         launchOverlay.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         rootViewController.view.addSubview(launchOverlay)
+        self.launchOverlay = launchOverlay
 
         sceneWindow.rootViewController = rootViewController
         window = sceneWindow
         sceneWindow.makeKeyAndVisible()
+    }
 
-        // Capacitor's SplashScreen plugin attaches its launch overlay on the
-        // next main-loop turn. Keep the storyboard surface above the bridge
-        // until that overlay exists, then remove only the temporary view. The
-        // window root never changes, preserving UIKit appearance transitions.
-        DispatchQueue.main.async {
-            DispatchQueue.main.async {
-                launchOverlay.removeFromSuperview()
-            }
-        }
+    func hideLaunchOverlay() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard let launchOverlay else { return }
+        self.launchOverlay = nil
+        UIView.animate(
+            withDuration: 0.15,
+            animations: { launchOverlay.alpha = 0 },
+            completion: { _ in launchOverlay.removeFromSuperview() }
+        )
     }
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
@@ -83,6 +86,29 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
         _ = ApplicationDelegateProxy.shared.application(UIApplication.shared, continue: userActivity) { _ in }
+    }
+}
+
+// MARK: - BoothBopLaunch
+//
+// UIKit owns the launch cover until the web app confirms that either the live
+// camera or a recoverable error surface has painted. This avoids exposing the
+// black WKWebView/native-preview handoff during a cold WebKit start.
+@objc(BoothBopLaunch)
+public class BoothBopLaunch: CAPPlugin, CAPBridgedPlugin {
+    public let identifier = "BoothBopLaunch"
+    public let jsName = "BoothBopLaunch"
+    public let pluginMethods: [CAPPluginMethod] = [
+        CAPPluginMethod(name: "hide", returnType: CAPPluginReturnPromise),
+    ]
+
+    @objc func hide(_ call: CAPPluginCall) {
+        DispatchQueue.main.async {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0.delegate as? SceneDelegate }
+                .forEach { $0.hideLaunchOverlay() }
+            call.resolve()
+        }
     }
 }
 
@@ -1779,6 +1805,7 @@ class BridgeViewController: CAPBridgeViewController {
     }
 
     override func capacitorDidLoad() {
+        bridge?.registerPluginInstance(BoothBopLaunch())
         bridge?.registerPluginInstance(BoothBopPhotos())
         bridge?.registerPluginInstance(BoothBopCamera())
         bridge?.registerPluginInstance(BoothBopVideo())

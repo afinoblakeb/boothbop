@@ -33,6 +33,7 @@ import {
 } from "./lib/video";
 import { encodeVideoNative } from "./lib/videoNative";
 import { canShareFiles, isNativeShell, probeShareFiles } from "./lib/platform";
+import { hideNativeLaunchSurface } from "./lib/launchNative";
 import {
   blobToCanvas,
   canvasToCoverBlob,
@@ -508,8 +509,7 @@ export default function App() {
     if (!isNativeShell()) return;
     hideNativeSplashRef.current ??= onceAfterSuccess(async () => {
       await afterPaint();
-      const { SplashScreen } = await import("@capacitor/splash-screen");
-      await SplashScreen.hide();
+      await hideNativeLaunchSurface();
     });
     try {
       await hideNativeSplashRef.current();

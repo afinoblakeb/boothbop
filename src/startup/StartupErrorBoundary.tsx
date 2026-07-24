@@ -1,4 +1,5 @@
 import { Component, type CSSProperties, type ReactNode } from "react";
+import { hideNativeLaunchSurface } from "../lib/launchNative";
 import { isNativeShell } from "../lib/platform";
 
 interface StartupErrorBoundaryProps {
@@ -65,8 +66,7 @@ export class StartupErrorBoundary extends Component<
       this.props.hideSplash ??
       (async () => {
         if (!isNativeShell()) return;
-        const { SplashScreen } = await import("@capacitor/splash-screen");
-        await SplashScreen.hide();
+        await hideNativeLaunchSurface();
       });
     void Promise.resolve(hideSplash()).catch(() => undefined);
   }

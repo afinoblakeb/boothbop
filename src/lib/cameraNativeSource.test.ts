@@ -11,11 +11,22 @@ describe("native camera source contract", () => {
     const sceneSource = source
       .split("class SceneDelegate")[1]
       .split("// MARK: - BoothBopPhotos")[0];
+    const connectionSource = sceneSource
+      .split("func scene(")[1]
+      .split("func hideLaunchOverlay()")[0];
     expect(
       sceneSource.match(/sceneWindow\.rootViewController\s*=/g),
     ).toHaveLength(1);
-    expect(sceneSource).toContain("launchOverlay");
+    expect(sceneSource).toContain("private var launchOverlay: UIView?");
+    expect(sceneSource).toContain("func hideLaunchOverlay()");
     expect(sceneSource).toContain("launchOverlay.removeFromSuperview()");
+    expect(connectionSource).not.toContain(
+      "launchOverlay.removeFromSuperview()",
+    );
+    expect(source).toContain("@objc(BoothBopLaunch)");
+    expect(source).toContain(
+      "bridge?.registerPluginInstance(BoothBopLaunch())",
+    );
   });
 
   it("prepares full-quality photo resources before reporting the camera ready", () => {
