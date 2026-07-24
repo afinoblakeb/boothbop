@@ -8,10 +8,10 @@ export const APP_STORE_SCREENSHOT_DEVICES = [
   },
   {
     displayType: "APP_IPHONE_61",
-    label: "iphone-61",
-    viewport: { width: 390, height: 844 },
+    label: "iphone-63",
+    viewport: { width: 393, height: 852 },
     scale: 3,
-    pixels: { width: 1170, height: 2532 },
+    pixels: { width: 1179, height: 2556 },
   },
   {
     displayType: "APP_IPHONE_55",

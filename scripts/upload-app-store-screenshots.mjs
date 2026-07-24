@@ -145,6 +145,8 @@ async function ensureScreenshotSet(
 async function listScreenshots(client, setId) {
   const payload = await client.request(
     queryPath(`/v1/appScreenshotSets/${setId}/appScreenshots`, {
+      "fields[appScreenshots]":
+        "fileName,sourceFileChecksum,assetDeliveryState",
       limit: "50",
     }),
   );
@@ -215,11 +217,39 @@ async function uploadScreenshot(client, setId, filePath, fileName) {
   return waitForScreenshot(client, reservation.data.id);
 }
 
+async function localChecksum(device, fileName) {
+  return createHash("md5")
+    .update(await readFile(path.join(SCREENSHOT_ROOT, device.label, fileName)))
+    .digest("hex");
+}
+
 async function replaceScreenshotSet(client, set, device) {
   const desiredNames = new Set(
     APP_STORE_SCREENSHOT_SCENES.map((scene) => scene.fileName),
   );
   const current = await listScreenshots(client, set.id);
+  const expectedChecksums = new Map(
+    await Promise.all(
+      APP_STORE_SCREENSHOT_SCENES.map(async (scene) => [
+        scene.fileName,
+        await localChecksum(device, scene.fileName),
+      ]),
+    ),
+  );
+  const currentIsExact =
+    current.length === APP_STORE_SCREENSHOT_SCENES.length &&
+    current.every((item) => {
+      const expected = expectedChecksums.get(item.attributes.fileName);
+      return (
+        expected !== undefined &&
+        item.attributes.assetDeliveryState?.state === "COMPLETE" &&
+        item.attributes.sourceFileChecksum?.toLowerCase() === expected
+      );
+    });
+  if (currentIsExact) {
+    process.stdout.write(`${device.displayType} is already current.\n`);
+    return current.map((item) => item.id);
+  }
 
   for (const screenshot of current.filter((item) =>
     desiredNames.has(item.attributes.fileName),
