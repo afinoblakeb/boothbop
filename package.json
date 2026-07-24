@@ -28,7 +28,8 @@
     "gen:cap-assets": "node scripts/gen-capacitor-assets.mjs",
     "appstore": "node scripts/app-store.mjs",
     "appstore:status": "node scripts/app-store.mjs status",
-    "appstore:screenshots": "node scripts/app-store-screenshots.mjs"
+    "appstore:screenshots": "node scripts/app-store-screenshots.mjs",
+    "appstore:screenshots:upload": "node scripts/upload-app-store-screenshots.mjs"
   },
   "dependencies": {
     "@capacitor/browser": "^8.0.3",
