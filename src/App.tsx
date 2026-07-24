@@ -124,6 +124,8 @@ const LIVE_PREVIEW_RECOVERY_MS = 50;
 const FINAL_CAPTURE_CONFIRMATION_MS = 150;
 const REVIEW_PRELOAD_TIMEOUT_MS = 1_500;
 const FIRST_SHOT_COUNTDOWN_SECONDS = 3;
+const SOCIAL_VIDEO_PREPARATION_ERROR =
+  "Couldn't prepare a social video. You can still share the original GIF.";
 const afterPaint = () =>
   new Promise<void>((resolve) =>
     requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
@@ -1679,9 +1681,7 @@ export default function App() {
       if (revision === renderRevision.current) {
         setSocialPreparation("error");
         if (userInitiated) {
-          setError(
-            "Couldn't prepare a social video. You can still share the original GIF.",
-          );
+          setError(SOCIAL_VIDEO_PREPARATION_ERROR);
         }
       }
       return null;
@@ -1691,6 +1691,11 @@ export default function App() {
   }
 
   async function shareSocialAnimation() {
+    if (!socialVideoResult && socialPreparation === "error") {
+      setNote(null);
+      setError(SOCIAL_VIDEO_PREPARATION_ERROR);
+      return;
+    }
     if (!socialVideoResult && !isNativeShell()) {
       void prepareSocialVideo(true);
       setNote("Finishing your high-quality share. Tap Share when it's ready.");
