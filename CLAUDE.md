@@ -6,6 +6,10 @@ BoothBop is developed entirely by AI agents (Claude + Codex). This file and
 the verification loop below are the contract that keeps that safe: make a
 change, then prove it with `npm run check` before considering the work done.
 
+When `docs/CURRENT_GOAL.md` exists, read it before beginning work and treat its
+active objective, scope boundaries, and checkpoints as authoritative across
+agent handoffs and context compactions.
+
 Before changing native iOS, camera, launch, lifecycle, permissions, sharing,
 media export, or distribution behavior, read `docs/IOS_AGENT_CONTEXT.md` and
 preserve every invariant defined there.
