@@ -84,6 +84,10 @@ describe("BopFX device command contract", () => {
   });
 
   it("accepts only explicit supported commands and a device override", () => {
+    expect(parseBopFXDeviceCommand(["report"])).toEqual({
+      command: "report",
+      deviceName: "Blerque",
+    });
     expect(
       parseBopFXDeviceCommand(["prepare", "--device", "Test Phone"]),
     ).toEqual({

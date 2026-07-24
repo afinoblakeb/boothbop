@@ -5,6 +5,7 @@ const supportedCommands = new Set([
   "launch",
   "logs",
   "collect",
+  "report",
 ]);
 
 export function parseBopFXDeviceCommand(args, defaultDeviceName = "Blerque") {

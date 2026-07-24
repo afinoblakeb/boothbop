@@ -79,6 +79,20 @@ artifacts. Repeated collection never overwrites an earlier successful artifact.
 Keep comparative screenshots and iPhone screen recordings in the same private
 archive; only non-identifying scores and observations belong in this document.
 
+After stopping the log stream and collecting the successful artifacts, run the
+offline gate:
+
+```bash
+npm run ios:bopfx:device -- report
+```
+
+`report` does not contact the phone. It inspects the active private session,
+uses `ffprobe` and decoded frame hashes to verify H.264, 720x2016, 30 FPS, 60
+frames, two-second duration, and real motion, then scans `device.log` for the
+app-owned crash and camera-session signatures from `IOS_AGENT_CONTEXT.md`. It
+writes `automatic-report.json` and `automatic-report.md`. A passing automatic
+report still leaves every visual and creative score below for manual judgment.
+
 ## Test Scenes
 
 Use these four scenes so the candidates are judged against the same stress:

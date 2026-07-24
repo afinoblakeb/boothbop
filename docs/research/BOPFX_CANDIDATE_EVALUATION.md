@@ -252,4 +252,7 @@ following:
 
 The remaining physical evaluation follows
 `BOPFX_DEVICE_EVALUATION_PROTOCOL.md`. Its numeric score informs the decision
-but does not override an automatic reliability blocker.
+but does not override an automatic reliability blocker. The private offline
+report verifies codec, dimensions, frame rate, duration, frame count, decoded
+motion, and the known crash/session log signatures; it cannot approve creative
+quality or visual parity.

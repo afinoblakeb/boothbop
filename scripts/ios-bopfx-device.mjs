@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from "node:child_process";
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import {
   makeBopFXDeviceCommands,
@@ -8,6 +8,11 @@ import {
   parseBopFXDeviceCommand,
   pickBopFXPhysicalDevice,
 } from "./lib/bopfx-device-contract.mjs";
+import {
+  assessLivingMedia,
+  buildBopFXAutomaticReport,
+  renderBopFXAutomaticReportMarkdown,
+} from "./lib/bopfx-device-report.mjs";
 
 const projectRoot = process.cwd();
 const projectFile = path.join("ios", "App", "App.xcodeproj");
@@ -228,6 +233,26 @@ async function currentEvidenceDirectory(device) {
   return makeEvidenceDirectory(device, "collect");
 }
 
+async function activeEvidenceDirectory() {
+  const override = process.env.BOPFX_DEVICE_EVIDENCE;
+  if (override) {
+    const directory = path.resolve(override);
+    await readdir(directory);
+    return directory;
+  }
+
+  const activeSession = await readJSON(activeSessionPath);
+  const directory = path.resolve(activeSession.directory);
+  const evidenceRoot = `${path.resolve(outputRoot, "evidence")}${path.sep}`;
+  if (!directory.startsWith(evidenceRoot)) {
+    throw new Error(
+      "The active BopFX evidence path is outside the private root",
+    );
+  }
+  await readdir(directory);
+  return directory;
+}
+
 async function status(deviceName) {
   const device = await selectDevice(deviceName);
   process.stdout.write(`${JSON.stringify(deviceSummary(device), null, 2)}\n`);
@@ -295,7 +320,7 @@ async function logs(deviceName) {
     "--udid",
     device.hardwareProperties.udid,
     "--process",
-    "App|ReportCrash",
+    "App",
     "--no-colors",
     "--output",
     logPath,
@@ -304,7 +329,7 @@ async function logs(deviceName) {
     args.unshift("--network");
   }
   process.stdout.write(
-    `Recording App and ReportCrash output to ${logPath}\nPress Ctrl-C after the manual test session.\n`,
+    `Recording BoothBop App output to ${logPath}\nPress Ctrl-C after the manual test session.\n`,
   );
   await streamDeviceLogs(args);
   process.stdout.write(`Device log saved to ${logPath}\n`);
@@ -421,6 +446,101 @@ async function collect(deviceName) {
   );
 }
 
+function uniqueFrameCount(framemd5) {
+  const hashes = framemd5
+    .split(/\r?\n/)
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .map((line) => line.split(",").at(-1)?.trim())
+    .filter(Boolean);
+  return new Set(hashes).size;
+}
+
+async function assessLivingArtifact(evidenceDirectory, filePath) {
+  const { stdout: probeOutput } = await run("ffprobe", [
+    "-v",
+    "error",
+    "-count_frames",
+    "-select_streams",
+    "v:0",
+    "-show_entries",
+    "stream=codec_type,codec_name,width,height,r_frame_rate,nb_read_frames:format=duration",
+    "-of",
+    "json",
+    filePath,
+  ]);
+  const { stdout: framemd5 } = await run("ffmpeg", [
+    "-v",
+    "error",
+    "-i",
+    filePath,
+    "-map",
+    "0:v:0",
+    "-f",
+    "framemd5",
+    "-",
+  ]);
+  const details = await stat(filePath);
+  return {
+    bytes: details.size,
+    file: path.relative(evidenceDirectory, filePath),
+    ...assessLivingMedia({
+      probe: JSON.parse(probeOutput),
+      uniqueFrameCount: uniqueFrameCount(framemd5),
+    }),
+  };
+}
+
+async function report() {
+  const evidenceDirectory = await activeEvidenceDirectory();
+  const livingFiles = await findNamedFiles(
+    evidenceDirectory,
+    "living-strip.mp4",
+  );
+  const artifacts = [];
+  for (const filePath of livingFiles) {
+    try {
+      artifacts.push(await assessLivingArtifact(evidenceDirectory, filePath));
+    } catch (error) {
+      artifacts.push({
+        file: path.relative(evidenceDirectory, filePath),
+        passed: false,
+        problems: [`Media inspection failed: ${error.message}`],
+      });
+    }
+  }
+
+  let deviceLog = "";
+  try {
+    deviceLog = await readFile(
+      path.join(evidenceDirectory, "device.log"),
+      "utf8",
+    );
+  } catch {
+    // A fixture-only report is intentionally incomplete without a device log.
+  }
+
+  const automaticReport = buildBopFXAutomaticReport({
+    artifacts,
+    deviceLog,
+  });
+  const jsonPath = path.join(evidenceDirectory, "automatic-report.json");
+  const markdownPath = path.join(evidenceDirectory, "automatic-report.md");
+  await writeJSON(jsonPath, automaticReport);
+  await writeFile(
+    markdownPath,
+    renderBopFXAutomaticReportMarkdown(automaticReport),
+  );
+  process.stdout.write(
+    [
+      `Automatic status: ${automaticReport.automaticStatus}`,
+      `Living Strip artifacts assessed: ${artifacts.length}`,
+      `Log blockers found: ${automaticReport.logBlockers.length}`,
+      `Report: ${markdownPath}`,
+      "",
+    ].join("\n"),
+  );
+}
+
 function help() {
   process.stdout.write(
     [
@@ -433,8 +553,9 @@ function help() {
       "  status                     Inspect the paired physical iPhone.",
       "  prepare                    Sync, build, and install Debug; do not launch.",
       "  launch                     Explicitly launch the installed app.",
-      "  logs                       Stream App/ReportCrash logs until Ctrl-C.",
+      "  logs                       Stream BoothBop App logs until Ctrl-C.",
       "  collect                    Copy private app temp/fixture evidence locally.",
+      "  report                     Analyze collected media and logs offline.",
       "",
       "Options:",
       '  --device "Name"            Override the default device name Blerque.',
@@ -466,6 +587,9 @@ async function main() {
       break;
     case "collect":
       await collect(deviceName);
+      break;
+    case "report":
+      await report();
       break;
   }
 }

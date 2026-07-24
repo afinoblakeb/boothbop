@@ -96,6 +96,8 @@ one when device evidence justifies it.
 - [x] Add an explicit physical-device harness that can inspect Blerque, install
       without launching, stream native logs, and collect private evidence under
       gitignored `ios/DerivedData`.
+- [x] Add an offline evidence report that validates Living media and scans
+      device logs for app-owned crash and camera-session blockers.
 - [ ] Evaluate Spin Cycle and Living Strip direction on Blerque after the owner
       resumes physical-device testing, using
       `docs/research/BOPFX_DEVICE_EVALUATION_PROTOCOL.md`.
