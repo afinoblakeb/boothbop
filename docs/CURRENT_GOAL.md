@@ -56,6 +56,8 @@ a release candidate.
 - Funhouse: controlled landmark-centered facial warping.
 - Cutout Chorus: person-segmented repeated silhouettes.
 - Mirror Bloom: face-centered kaleidoscopic geometry.
+- Tuning Frame: direct hue, saturation, and warmth manipulation on the live
+  camera border. This is a composable interaction layer, not another effect.
 
 The list is intentionally provisional. Remove weak candidates and add a better
 one when device evidence justifies it.
@@ -65,11 +67,15 @@ one when device evidence justifies it.
 - [x] Create a dedicated discovery branch and initial feature brief.
 - [x] Make the native renderer and bridge compile with focused tests green.
 - [x] Document framework and iPhone capability boundaries.
-- [ ] Add a minimal native-only effects picker for device evaluation.
-- [ ] Install and exercise the lab on Blerque.
-- [ ] Rank candidates from evidence.
-- [ ] Document the native migration architecture.
-- [ ] Run `npm run check` and the applicable Xcode build gates.
+- [x] Add a minimal native-only effects picker for device evaluation.
+- [x] Install and exercise the initial effects lab on Blerque.
+- [x] Record an evidence-backed preliminary ranking.
+- [x] Document the native migration architecture.
+- [x] Run `npm run check` and simulator/device Xcode build gates.
+- [x] Add Sequence mode and bake the confirmed effect into each saved still.
+- [x] Add a native Tuning Frame and one preview/still/freeze render contract.
+- [ ] Complete hands-on Tuning Frame and filtered-freeze evaluation on Blerque.
+- [ ] Record final candidate recommendation and close the discovery goal.
 
 ## Compaction And Handoff Rule
 

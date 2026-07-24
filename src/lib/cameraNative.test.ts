@@ -58,6 +58,10 @@ describe("native camera bridge", () => {
       faceLandmarks: true,
       personSegmentation: true,
       metalRendering: true,
+      arFaceTracking: true,
+      maximumTrackedFaces: 3,
+      trueDepthCamera: true,
+      depthStream: true,
       effects: ["original", "spectralEcho", "notARealEffect", "mirrorBloom"],
     });
     cameraPlugin.setBopFX.mockResolvedValue({ effect: "spectralEcho" });
@@ -67,6 +71,10 @@ describe("native camera bridge", () => {
       faceLandmarks: true,
       personSegmentation: true,
       metalRendering: true,
+      arFaceTracking: true,
+      maximumTrackedFaces: 3,
+      trueDepthCamera: true,
+      depthStream: true,
       effects: ["original", "spectralEcho", "mirrorBloom"],
     });
     await setNativeBopFX("spectralEcho");
@@ -87,6 +95,10 @@ describe("native camera bridge", () => {
       faceLandmarks: false,
       personSegmentation: false,
       metalRendering: false,
+      arFaceTracking: false,
+      maximumTrackedFaces: 0,
+      trueDepthCamera: false,
+      depthStream: false,
       effects: ["original"],
     });
   });

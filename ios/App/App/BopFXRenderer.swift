@@ -1,5 +1,7 @@
 import UIKit
 import AVFoundation
+import ARKit
+import CoreML
 import CoreImage
 import MetalKit
 import Vision
@@ -10,6 +12,33 @@ enum BopFXEffect: String, CaseIterable {
     case funhouse
     case cutoutChorus
     case mirrorBloom
+}
+
+struct BopFXTuning: Equatable {
+    static let neutral = BopFXTuning(
+        hue: 0,
+        saturation: 0,
+        warmth: 0)
+
+    let hue: CGFloat
+    let saturation: CGFloat
+    let warmth: CGFloat
+
+    init(
+        hue: CGFloat,
+        saturation: CGFloat,
+        warmth: CGFloat
+    ) {
+        self.hue = min(1, max(-1, hue))
+        self.saturation = min(1, max(-1, saturation))
+        self.warmth = min(1, max(-1, warmth))
+    }
+
+    var isNeutral: Bool {
+        return abs(hue) < 0.001 &&
+            abs(saturation) < 0.001 &&
+            abs(warmth) < 0.001
+    }
 }
 
 enum BopFXNativeSupport {
@@ -23,11 +52,36 @@ enum BopFXNativeSupport {
     }
 
     static var payload: [String: Any] {
+        let arFaceTracking = ARFaceTrackingConfiguration.isSupported
+        let trueDepthDevice = AVCaptureDevice.default(
+            .builtInTrueDepthCamera,
+            for: .video,
+            position: .front)
+        let depthStream = trueDepthDevice?.formats.contains {
+            !$0.supportedDepthDataFormats.isEmpty
+        } ?? false
+        let personSegmentation: Bool
+        if #available(iOS 18.0, *) {
+            personSegmentation =
+                (try? VNGeneratePersonSegmentationRequest()
+                    .supportedOutputPixelFormats())?.isEmpty == false
+        } else {
+            // The request itself is available from iOS 15; older SDKs expose
+            // no capability-query API, so render-time failure remains the
+            // authoritative fallback.
+            personSegmentation = true
+        }
         return [
             "nativePreview": metalRendering,
             "faceLandmarks": true,
-            "personSegmentation": true,
+            "personSegmentation": personSegmentation,
             "metalRendering": metalRendering,
+            "arFaceTracking": arFaceTracking,
+            "maximumTrackedFaces": arFaceTracking
+                ? ARFaceTrackingConfiguration.supportedNumberOfTrackedFaces
+                : 0,
+            "trueDepthCamera": trueDepthDevice != nil,
+            "depthStream": depthStream,
             "effects": supportedEffects.map(\.rawValue),
         ]
     }
@@ -48,8 +102,20 @@ private struct BopFXFace {
 private struct BopFXAnalysis {
     let faces: [BopFXFace]
     let personMask: CVPixelBuffer?
+    let errorMessage: String?
 
-    static let empty = BopFXAnalysis(faces: [], personMask: nil)
+    static let empty = BopFXAnalysis(
+        faces: [],
+        personMask: nil,
+        errorMessage: nil)
+}
+
+struct BopFXStillRender {
+    let image: UIImage
+    let faceCount: Int
+    let personMaskAvailable: Bool
+    let analysisError: String?
+    let durationMilliseconds: Int
 }
 
 private final class BopFXAnalyzer {
@@ -64,7 +130,9 @@ private final class BopFXAnalyzer {
         let needsFaces = effect != .cutoutChorus
         let personRequest: VNGeneratePersonSegmentationRequest? =
             effect == .cutoutChorus ? VNGeneratePersonSegmentationRequest() : nil
+        configureSimulatorComputeDevice(faceRequest)
         if let personRequest {
+            configureSimulatorComputeDevice(personRequest)
             personRequest.qualityLevel =
                 quality == .accurate ? .accurate : .balanced
             personRequest.outputPixelFormat =
@@ -83,7 +151,10 @@ private final class BopFXAnalyzer {
             let handler = VNImageRequestHandler(ciImage: image, orientation: .up)
             try handler.perform(requests)
         } catch {
-            return .empty
+            return BopFXAnalysis(
+                faces: [],
+                personMask: nil,
+                errorMessage: error.localizedDescription)
         }
 
         let faces = (faceRequest.results ?? []).map { observation in
@@ -100,7 +171,26 @@ private final class BopFXAnalyzer {
                     inside: observation.boundingBox))
         }
         let personMask = personRequest?.results?.first?.pixelBuffer
-        return BopFXAnalysis(faces: faces, personMask: personMask)
+        return BopFXAnalysis(
+            faces: faces,
+            personMask: personMask,
+            errorMessage: nil)
+    }
+
+    private func configureSimulatorComputeDevice(_ request: VNRequest) {
+#if targetEnvironment(simulator)
+        if #available(iOS 17.0, *) {
+            guard let stageDevices = try? request.supportedComputeStageDevices
+            else { return }
+            for (stage, devices) in stageDevices {
+                guard let cpu = devices.first(where: { device in
+                    if case .cpu = device { return true }
+                    return false
+                }) else { continue }
+                request.setComputeDevice(cpu, for: stage)
+            }
+        }
+#endif
     }
 
     private func center(
@@ -137,32 +227,57 @@ final class BopFXRenderer {
         ])
     }
 
+    static func animationPhase(
+        at time: CFTimeInterval = CACurrentMediaTime()
+    ) -> CGFloat {
+        return CGFloat(time.truncatingRemainder(dividingBy: 4) / 4)
+    }
+
     fileprivate func render(
         _ image: CIImage,
         effect: BopFXEffect,
         analysis: BopFXAnalysis,
-        phase: CGFloat
+        phase: CGFloat,
+        tuning: BopFXTuning
     ) -> CIImage {
+        let tuned = applyTuning(
+            image,
+            tuning: tuning)
         switch effect {
         case .original:
-            return image
+            return tuned
         case .spectralEcho:
-            return spectralEcho(image, analysis: analysis, phase: phase)
+            return spectralEcho(tuned, analysis: analysis, phase: phase)
         case .funhouse:
-            return funhouse(image, analysis: analysis, phase: phase)
+            return funhouse(tuned, analysis: analysis, phase: phase)
         case .cutoutChorus:
-            return cutoutChorus(image, analysis: analysis, phase: phase)
+            return cutoutChorus(tuned, analysis: analysis, phase: phase)
         case .mirrorBloom:
-            return mirrorBloom(image, analysis: analysis, phase: phase)
+            return mirrorBloom(tuned, analysis: analysis, phase: phase)
         }
     }
 
     func renderStillImage(
         _ image: UIImage,
         effect: BopFXEffect,
-        phase: CGFloat
+        phase: CGFloat,
+        tuning: BopFXTuning = .neutral
     ) -> UIImage? {
+        return renderStillResult(
+            image,
+            effect: effect,
+            phase: phase,
+            tuning: tuning)?.image
+    }
+
+    func renderStillResult(
+        _ image: UIImage,
+        effect: BopFXEffect,
+        phase: CGFloat,
+        tuning: BopFXTuning = .neutral
+    ) -> BopFXStillRender? {
         return autoreleasepool {
+            let startedAt = CACurrentMediaTime()
             guard let input = normalizedCIImage(image) else { return nil }
             let analysis = analyzer.analyze(
                 input,
@@ -172,13 +287,69 @@ final class BopFXRenderer {
                 input,
                 effect: effect,
                 analysis: analysis,
-                phase: phase).cropped(to: input.extent)
+                phase: phase,
+                tuning: tuning).cropped(to: input.extent)
             guard let cgImage = context.createCGImage(
                 output,
                 from: input.extent,
                 format: .RGBA8,
                 colorSpace: colorSpace) else { return nil }
-            return UIImage(cgImage: cgImage, scale: 1, orientation: .up)
+            let rendered = UIImage(
+                cgImage: cgImage,
+                scale: 1,
+                orientation: .up)
+            return BopFXStillRender(
+                image: rendered,
+                faceCount: analysis.faces.count,
+                personMaskAvailable: analysis.personMask != nil,
+                analysisError: analysis.errorMessage,
+                durationMilliseconds: Int(
+                    (CACurrentMediaTime() - startedAt) * 1_000))
+        }
+    }
+
+    func renderAnimationFrames(
+        _ image: UIImage,
+        effect: BopFXEffect,
+        frameCount: Int,
+        pixelSize: Int,
+        tuning: BopFXTuning = .neutral,
+        frameHandler: (CGImage, Int) -> Bool
+    ) -> Bool {
+        guard frameCount > 0, pixelSize > 0 else { return false }
+        return autoreleasepool {
+            guard let input = normalizedCIImage(image) else { return false }
+            let analysis = analyzer.analyze(
+                input,
+                effect: effect,
+                quality: .accurate)
+            let destination = CGRect(
+                x: 0,
+                y: 0,
+                width: pixelSize,
+                height: pixelSize)
+
+            for index in 0..<frameCount {
+                let accepted = autoreleasepool {
+                    let phase = CGFloat(index) / CGFloat(frameCount)
+                    let rendered = aspectFill(
+                        render(
+                            input,
+                            effect: effect,
+                            analysis: analysis,
+                            phase: phase,
+                            tuning: tuning),
+                        into: destination)
+                    guard let frame = context.createCGImage(
+                        rendered,
+                        from: destination,
+                        format: .RGBA8,
+                        colorSpace: colorSpace) else { return false }
+                    return frameHandler(frame, index)
+                }
+                if !accepted { return false }
+            }
+            return true
         }
     }
 
@@ -187,6 +358,7 @@ final class BopFXRenderer {
         effect: BopFXEffect,
         analysis: BopFXAnalysis,
         phase: CGFloat,
+        tuning: BopFXTuning,
         into texture: MTLTexture,
         commandBuffer: MTLCommandBuffer
     ) {
@@ -196,7 +368,12 @@ final class BopFXRenderer {
             width: texture.width,
             height: texture.height)
         let fitted = aspectFill(
-            render(image, effect: effect, analysis: analysis, phase: phase),
+            render(
+                image,
+                effect: effect,
+                analysis: analysis,
+                phase: phase,
+                tuning: tuning),
             into: destination)
         context.render(
             fitted,
@@ -206,20 +383,51 @@ final class BopFXRenderer {
             colorSpace: colorSpace)
     }
 
+    private func applyTuning(
+        _ image: CIImage,
+        tuning: BopFXTuning
+    ) -> CIImage {
+        guard !tuning.isNeutral else { return image }
+        var result = image
+        if abs(tuning.hue) >= 0.001 {
+            result = applying(
+                "CIHueAdjust",
+                to: result,
+                values: [
+                    kCIInputAngleKey: tuning.hue * .pi,
+                ])
+        }
+        if abs(tuning.saturation) >= 0.001 {
+            let saturation = tuning.saturation < 0
+                ? 1 + tuning.saturation * 0.95
+                : 1 + tuning.saturation * 0.8
+            result = applying(
+                "CIColorControls",
+                to: result,
+                values: [
+                    kCIInputSaturationKey: saturation,
+                ])
+        }
+        if abs(tuning.warmth) >= 0.001 {
+            result = applying(
+                "CITemperatureAndTint",
+                to: result,
+                values: [
+                    "inputNeutral": CIVector(x: 6_500, y: 0),
+                    "inputTargetNeutral": CIVector(
+                        x: 6_500 + tuning.warmth * 3_000,
+                        y: 0),
+                ])
+        }
+        return result.cropped(to: image.extent)
+    }
+
     private func spectralEcho(
         _ image: CIImage,
         analysis: BopFXAnalysis,
         phase: CGFloat
     ) -> CIImage {
-        guard !analysis.faces.isEmpty else {
-            return applying(
-                "CIColorControls",
-                to: image,
-                values: [
-                    kCIInputSaturationKey: 1.35,
-                    kCIInputContrastKey: 1.08,
-                ])
-        }
+        guard !analysis.faces.isEmpty else { return image }
 
         let colors = [
             CIColor(red: 1, green: 0.12, blue: 0.18),
@@ -275,14 +483,16 @@ final class BopFXRenderer {
         phase: CGFloat
     ) -> CIImage {
         guard !analysis.faces.isEmpty else { return image }
+        let originalExtent = image.extent
         var result = image
         let pulse = 0.28 + 0.08 * sin(phase * .pi * 2)
 
         for face in analysis.faces {
             let faceRect = rect(face.bounds, in: image.extent)
-            result = applying(
+            var distorted = result.clampedToExtent()
+            distorted = applying(
                 "CIBumpDistortion",
-                to: result,
+                to: distorted,
                 values: [
                     kCIInputCenterKey: CIVector(
                         x: faceRect.midX,
@@ -293,9 +503,9 @@ final class BopFXRenderer {
 
             for eye in [face.leftEye, face.rightEye].compactMap({ $0 }) {
                 let point = denormalized(eye, in: image.extent)
-                result = applying(
+                distorted = applying(
                     "CIPinchDistortion",
-                    to: result,
+                    to: distorted,
                     values: [
                         kCIInputCenterKey: CIVector(x: point.x, y: point.y),
                         kCIInputRadiusKey: faceRect.width * 0.23,
@@ -305,17 +515,28 @@ final class BopFXRenderer {
 
             if let mouth = face.mouth {
                 let point = denormalized(mouth, in: image.extent)
-                result = applying(
+                distorted = applying(
                     "CIBumpDistortion",
-                    to: result,
+                    to: distorted,
                     values: [
                         kCIInputCenterKey: CIVector(x: point.x, y: point.y),
                         kCIInputRadiusKey: faceRect.width * 0.28,
                         kCIInputScaleKey: 0.22 + 0.1 * cos(phase * .pi * 2),
                     ])
             }
+            let maskRect = faceRect.insetBy(
+                dx: -faceRect.width * 0.34,
+                dy: -faceRect.height * 0.3)
+            guard let mask = softRoundedMask(
+                maskRect,
+                extent: originalExtent) else { continue }
+            result = blend(
+                distorted,
+                over: result,
+                mask: mask,
+                extent: originalExtent)
         }
-        return result.cropped(to: image.extent)
+        return result.cropped(to: originalExtent)
     }
 
     private func cutoutChorus(
@@ -323,12 +544,7 @@ final class BopFXRenderer {
         analysis: BopFXAnalysis,
         phase: CGFloat
     ) -> CIImage {
-        guard let pixelBuffer = analysis.personMask else {
-            return applying(
-                "CIColorPosterize",
-                to: image,
-                values: ["inputLevels": 7])
-        }
+        guard let pixelBuffer = analysis.personMask else { return image }
         let mask = fitMask(
             CIImage(cvPixelBuffer: pixelBuffer),
             to: image.extent)
@@ -388,14 +604,18 @@ final class BopFXRenderer {
         }
         let faceRect = rect(primaryFace.bounds, in: image.extent)
         let center = CGPoint(x: faceRect.midX, y: faceRect.midY)
-        let reflected = applying(
-            "CIKaleidoscope",
-            to: image,
-            values: [
-                "inputCount": 8,
-                "inputAngle": phase * .pi * 2,
-                "inputCenter": CIVector(x: center.x, y: center.y),
-            ]).cropped(to: image.extent)
+        guard let tile = CIFilter(name: "CISixfoldReflectedTile") else {
+            return image
+        }
+        tile.setValue(image.clampedToExtent(), forKey: kCIInputImageKey)
+        tile.setValue(
+            CIVector(x: center.x, y: center.y),
+            forKey: "inputCenter")
+        tile.setValue(phase * .pi * 2, forKey: "inputAngle")
+        tile.setValue(
+            max(faceRect.width * 0.72, image.extent.width * 0.18),
+            forKey: "inputWidth")
+        let reflected = tile.outputImage?.cropped(to: image.extent) ?? image
         guard let mask = softFaceMask(
             faceRect.insetBy(dx: -faceRect.width * 0.08, dy: -faceRect.height * 0.08),
             extent: image.extent) else {
@@ -455,6 +675,30 @@ final class BopFXRenderer {
         filter.setValue(CIColor.white, forKey: "inputColor0")
         filter.setValue(CIColor.clear, forKey: "inputColor1")
         return filter.outputImage?.cropped(to: extent)
+    }
+
+    private func softRoundedMask(
+        _ rect: CGRect,
+        extent: CGRect
+    ) -> CIImage? {
+        guard let generator = CIFilter(
+            name: "CIRoundedRectangleGenerator") else { return nil }
+        generator.setValue(
+            CIVector(cgRect: rect),
+            forKey: "inputExtent")
+        generator.setValue(
+            min(rect.width, rect.height) * 0.36,
+            forKey: "inputRadius")
+        generator.setValue(CIColor.white, forKey: "inputColor")
+        guard let generated = generator.outputImage,
+              let blur = CIFilter(name: "CIGaussianBlur") else {
+            return nil
+        }
+        blur.setValue(generated, forKey: kCIInputImageKey)
+        blur.setValue(
+            max(3, min(rect.width, rect.height) * 0.025),
+            forKey: kCIInputRadiusKey)
+        return blur.outputImage?.cropped(to: extent)
     }
 
     private func fitMask(_ mask: CIImage, to extent: CGRect) -> CIImage {
@@ -542,7 +786,16 @@ final class BopFXPreviewView: MTKView {
     private var latestPixelBuffer: CVPixelBuffer?
     private var latestAnalysis = BopFXAnalysis.empty
     private var selectedEffect = BopFXEffect.original
+    private var tuning = BopFXTuning.neutral
+    private var displayFrozen = false
+    private var hasRenderedFrame = false
+    private var renderGeneration: UInt64 = 0
+    private var lastRenderedPhase: CGFloat = 0
+    private var inFlightCommandBuffer: MTLCommandBuffer?
+    private var inFlightPhase: CGFloat = 0
+    private var inFlightGeneration: UInt64 = 0
     private var analysisInFlight = false
+    private var analysisGeneration: UInt64 = 0
     private var lastAnalysisTime: CFTimeInterval = 0
     private let minimumAnalysisInterval: CFTimeInterval = 1.0 / 12.0
 
@@ -575,12 +828,28 @@ final class BopFXPreviewView: MTKView {
         stateLock.lock()
         selectedEffect = effect
         latestAnalysis = .empty
-        analysisInFlight = false
+        analysisGeneration &+= 1
         lastAnalysisTime = 0
+        hasRenderedFrame = false
+        renderGeneration &+= 1
         stateLock.unlock()
         DispatchQueue.main.async {
-            self.isHidden = effect == .original
-            if effect != .original {
+            self.updateVisibility()
+            if !self.isHidden {
+                self.setNeedsDisplay()
+            }
+        }
+    }
+
+    func setTuning(_ tuning: BopFXTuning) {
+        stateLock.lock()
+        self.tuning = tuning
+        hasRenderedFrame = false
+        renderGeneration &+= 1
+        stateLock.unlock()
+        DispatchQueue.main.async {
+            self.updateVisibility()
+            if !self.isHidden {
                 self.setNeedsDisplay()
             }
         }
@@ -588,9 +857,16 @@ final class BopFXPreviewView: MTKView {
 
     func consume(_ pixelBuffer: CVPixelBuffer) {
         stateLock.lock()
+        guard !displayFrozen else {
+            stateLock.unlock()
+            return
+        }
         latestPixelBuffer = pixelBuffer
         let effect = selectedEffect
+        let currentTuning = tuning
+        let generation = analysisGeneration
         let now = CACurrentMediaTime()
+        let shouldRender = effect != .original || !currentTuning.isNeutral
         let shouldAnalyze =
             effect != .original &&
             !analysisInFlight &&
@@ -601,7 +877,7 @@ final class BopFXPreviewView: MTKView {
         }
         stateLock.unlock()
 
-        guard effect != .original else { return }
+        guard shouldRender else { return }
         if shouldAnalyze {
             analysisQueue.async { [weak self] in
                 guard let self else { return }
@@ -611,7 +887,8 @@ final class BopFXPreviewView: MTKView {
                     effect: effect,
                     quality: .balanced)
                 self.stateLock.lock()
-                if self.selectedEffect == effect {
+                if self.selectedEffect == effect &&
+                    self.analysisGeneration == generation {
                     self.latestAnalysis = analysis
                 }
                 self.analysisInFlight = false
@@ -625,28 +902,116 @@ final class BopFXPreviewView: MTKView {
 
     override func draw(_ rect: CGRect) {
         stateLock.lock()
+        guard !displayFrozen else {
+            stateLock.unlock()
+            return
+        }
         let pixelBuffer = latestPixelBuffer
         let analysis = latestAnalysis
         let effect = selectedEffect
+        let currentTuning = tuning
+        let generation = renderGeneration
+        let phase = BopFXRenderer.animationPhase()
         stateLock.unlock()
 
-        guard effect != .original,
+        guard effect != .original || !currentTuning.isNeutral,
               let pixelBuffer,
               let drawable = currentDrawable,
               let commandBuffer = commandQueue.makeCommandBuffer() else {
             return
         }
-        let phase = CGFloat(
-            CACurrentMediaTime().truncatingRemainder(dividingBy: 4) / 4)
         effectRenderer.renderPreview(
             CIImage(cvPixelBuffer: pixelBuffer),
             effect: effect,
             analysis: analysis,
             phase: phase,
+            tuning: currentTuning,
             into: drawable.texture,
             commandBuffer: commandBuffer)
+
+        stateLock.lock()
+        guard !displayFrozen,
+              renderGeneration == generation else {
+            stateLock.unlock()
+            return
+        }
+        inFlightCommandBuffer = commandBuffer
+        inFlightPhase = phase
+        inFlightGeneration = generation
+        commandBuffer.addCompletedHandler { [weak self] completedBuffer in
+            guard let self else { return }
+            self.stateLock.lock()
+            if self.inFlightCommandBuffer === completedBuffer {
+                if completedBuffer.status == .completed &&
+                    self.renderGeneration == generation {
+                    self.hasRenderedFrame = true
+                    self.lastRenderedPhase = phase
+                }
+                self.inFlightCommandBuffer = nil
+            }
+            self.stateLock.unlock()
+        }
         commandBuffer.present(drawable)
         commandBuffer.commit()
+        stateLock.unlock()
+    }
+
+    func freezeCurrentFrame() -> CGFloat? {
+        stateLock.lock()
+        guard latestPixelBuffer != nil,
+              selectedEffect != .original || !tuning.isNeutral else {
+            stateLock.unlock()
+            return nil
+        }
+        displayFrozen = true
+        let commandBuffer = inFlightCommandBuffer
+        let pendingPhase = inFlightPhase
+        let pendingGeneration = inFlightGeneration
+        stateLock.unlock()
+
+        commandBuffer?.waitUntilCompleted()
+
+        stateLock.lock()
+        if let commandBuffer,
+           commandBuffer.status == .completed,
+           pendingGeneration == renderGeneration {
+            hasRenderedFrame = true
+            lastRenderedPhase = pendingPhase
+            if inFlightCommandBuffer === commandBuffer {
+                inFlightCommandBuffer = nil
+            }
+        }
+        guard hasRenderedFrame else {
+            displayFrozen = false
+            stateLock.unlock()
+            return nil
+        }
+        let phase = lastRenderedPhase
+        stateLock.unlock()
+        return phase
+    }
+
+    func resumeAfterFreeze() {
+        stateLock.lock()
+        displayFrozen = false
+        stateLock.unlock()
+        DispatchQueue.main.async {
+            self.updateVisibility()
+            if !self.isHidden {
+                self.setNeedsDisplay()
+            }
+        }
+    }
+
+    private func updateVisibility() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        stateLock.lock()
+        let shouldRender =
+            displayFrozen ||
+            selectedEffect != .original ||
+            !tuning.isNeutral
+        stateLock.unlock()
+        isHidden = !shouldRender
     }
 }
 

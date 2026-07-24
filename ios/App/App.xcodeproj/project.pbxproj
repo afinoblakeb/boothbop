@@ -12,6 +12,11 @@
 		50379B232058CBB4000EE86E /* capacitor.config.json in Resources */ = {isa = PBXBuildFile; fileRef = 50379B222058CBB4000EE86E /* capacitor.config.json */; };
 		504EC3081FED79650016851F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 504EC3071FED79650016851F /* AppDelegate.swift */; };
 		B0F000012F00000000000002 /* BopFXRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000001 /* BopFXRenderer.swift */; };
+		B0F000012F00000000000004 /* BopFXLabPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000003 /* BopFXLabPicker.swift */; };
+		B0F000012F00000000000006 /* BopFXFixtureViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000005 /* BopFXFixtureViewController.swift */; };
+		B0F000012F00000000000008 /* set1-1.jpg in Resources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000007 /* set1-1.jpg */; };
+		B0F000012F0000000000000A /* BopFXLabVideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F00000000000009 /* BopFXLabVideoWriter.swift */; };
+		B0F000012F0000000000000C /* BopFXTuningFrameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0F000012F0000000000000B /* BopFXTuningFrameView.swift */; };
 		504EC30D1FED79650016851F /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30B1FED79650016851F /* Main.storyboard */; };
 		504EC30F1FED79650016851F /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 504EC30E1FED79650016851F /* Assets.xcassets */; };
 		504EC3121FED79650016851F /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 504EC3101FED79650016851F /* LaunchScreen.storyboard */; };
@@ -25,6 +30,11 @@
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		B0F000012F00000000000001 /* BopFXRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BopFXRenderer.swift; sourceTree = "<group>"; };
+		B0F000012F00000000000003 /* BopFXLabPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BopFXLabPicker.swift; sourceTree = "<group>"; };
+		B0F000012F00000000000005 /* BopFXFixtureViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BopFXFixtureViewController.swift; sourceTree = "<group>"; };
+		B0F000012F00000000000007 /* set1-1.jpg */ = {isa = PBXFileReference; lastKnownFileType = image.jpeg; name = "set1-1.jpg"; path = "../../public/demo/set1-1.jpg"; sourceTree = SOURCE_ROOT; };
+		B0F000012F00000000000009 /* BopFXLabVideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BopFXLabVideoWriter.swift; sourceTree = "<group>"; };
+		B0F000012F0000000000000B /* BopFXTuningFrameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BopFXTuningFrameView.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -69,6 +79,11 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				B0F000012F00000000000001 /* BopFXRenderer.swift */,
+				B0F000012F00000000000003 /* BopFXLabPicker.swift */,
+				B0F000012F00000000000005 /* BopFXFixtureViewController.swift */,
+				B0F000012F00000000000009 /* BopFXLabVideoWriter.swift */,
+				B0F000012F0000000000000B /* BopFXTuningFrameView.swift */,
+				B0F000012F00000000000007 /* set1-1.jpg */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -152,6 +167,7 @@
 				50379B232058CBB4000EE86E /* capacitor.config.json in Resources */,
 				504EC30D1FED79650016851F /* Main.storyboard in Resources */,
 				2FAD9763203C412B000D30F8 /* config.xml in Resources */,
+				B0F000012F00000000000008 /* set1-1.jpg in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -164,6 +180,10 @@
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				B0F000012F00000000000002 /* BopFXRenderer.swift in Sources */,
+				B0F000012F00000000000004 /* BopFXLabPicker.swift in Sources */,
+				B0F000012F00000000000006 /* BopFXFixtureViewController.swift in Sources */,
+				B0F000012F0000000000000A /* BopFXLabVideoWriter.swift in Sources */,
+				B0F000012F0000000000000C /* BopFXTuningFrameView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

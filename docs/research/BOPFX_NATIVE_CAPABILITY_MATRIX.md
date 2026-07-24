@@ -57,6 +57,7 @@ and simulator behavior.
 | Funhouse                        |               Yes |           No |    No |    No | Baseline                                |
 | Cutout Chorus                   |                No |          Yes |    No |    No | Baseline, with the highest preview cost |
 | Mirror Bloom                    |               Yes |           No |    No |    No | Baseline                                |
+| Tuning Frame color stage        |                No |           No |    No |    No | Baseline Metal/Core Image               |
 | Expression-driven future effect | Optional fallback |           No |   Yes |    No | Enhanced devices only                   |
 | Spatial depth future effect     | Optional fallback |     Optional |    No |   Yes | TrueDepth devices only                  |
 
@@ -64,6 +65,9 @@ All four current MVP candidates deliberately fit the broad baseline. That lets
 the discovery compare creative merit without confusing it with hardware
 availability. ARKit and depth should be separate experiments only if the
 baseline candidates fail to feel differentiated enough.
+
+Tuning Frame is not a fifth effect. It is a bounded Core Image color stage that
+runs before whichever effect is selected and requires no Vision analysis.
 
 ## Performance And Quality Contract
 

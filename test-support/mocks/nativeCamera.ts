@@ -138,6 +138,10 @@ export async function installNativeCameraMock(
             faceLandmarks: true,
             personSegmentation: true,
             metalRendering: true,
+            arFaceTracking: true,
+            maximumTrackedFaces: 3,
+            trueDepthCamera: true,
+            depthStream: true,
             effects: [
               "original",
               "spectralEcho",

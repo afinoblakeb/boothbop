@@ -48,6 +48,14 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
         let sceneWindow = UIWindow(windowScene: windowScene)
         sceneWindow.backgroundColor = .boothBopCanvas
+#if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--bopfx-fixture") {
+            install(
+                BopFXFixtureViewController(),
+                in: sceneWindow)
+            return
+        }
+#endif
         let rootViewController = BridgeViewController()
         rootViewController.loadViewIfNeeded()
         rootViewController.view.backgroundColor = .boothBopCanvas
@@ -63,6 +71,15 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         rootViewController.view.addSubview(launchOverlay)
         self.launchOverlay = launchOverlay
 
+        install(
+            rootViewController,
+            in: sceneWindow)
+    }
+
+    private func install(
+        _ rootViewController: UIViewController,
+        in sceneWindow: UIWindow
+    ) {
         sceneWindow.rootViewController = rootViewController
         window = sceneWindow
         sceneWindow.makeKeyAndVisible()
@@ -325,6 +342,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private let previewImageContext = CIContext(options: [
         .cacheIntermediates: false
     ])
+    private let bopFXStillRenderer = BopFXRenderer()
 
     // All capture state below is owned by sessionQueue.
     private var session: AVCaptureSession?
@@ -339,12 +357,16 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var pendingCaptureCall: CAPPluginCall?
     private var pendingCaptureID: Int64?
     private var pendingCaptureSize = 1920
+    private var pendingCaptureBopFX = BopFXEffect.original
+    private var pendingCaptureBopFXTuning = BopFXTuning.neutral
+    private var pendingCaptureBopFXPhase: CGFloat = 0
     private var pendingPhoto: CapturedPhoto?
     private var captureCompletionReceived = false
     private var latestFrameSize: (width: Int, height: Int)?
     private var photoPreparationComplete = false
     private var previewInstalled = false
     private var activeBopFX = BopFXEffect.original
+    private var activeBopFXTuning = BopFXTuning.neutral
     private var startupWarmupFileURL: URL?
     private var temporaryPhotoURLs = Set<URL>()
     private var sessionObservers: [NSObjectProtocol] = []
@@ -362,12 +384,25 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
     private var previewView: UIView?
     private var previewLayer: AVCaptureVideoPreviewLayer?
     private var bopFXPreviewView: BopFXPreviewView?
+#if DEBUG
+    private var bopFXLabPicker: BopFXLabPicker?
+    private var bopFXTuningFrame: BopFXTuningFrameView?
+    private let bopFXSequenceOrder: [BopFXEffect] = [
+        .spectralEcho,
+        .funhouse,
+        .cutoutChorus,
+        .mirrorBloom,
+    ]
+    private var bopFXSequenceEnabled = false
+    private var bopFXSequenceIndex = 0
+#endif
     private var previewGeneration: UInt64?
     private var shutterFreezeView: UIImageView?
     private var shutterFreezeGeneration = 0
     private var shutterFreezeMinimumElapsed = false
     private var shutterFreezeCaptureComplete = false
     private var shutterFreezeDismissRequested = false
+    private var shutterFreezeUsesEffectSurface = false
     private var requestedPreviewFrame: CGRect = .zero
     private var requestedPreviewCornerRadius: CGFloat = 0
     private var faceOverlayLayers: [Int: CAShapeLayer] = [:]
@@ -412,8 +447,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         }
         sessionQueue.async {
             self.activeBopFX = effect
+#if DEBUG
+            self.bopFXSequenceEnabled = false
+            self.bopFXSequenceIndex = 0
+#endif
             DispatchQueue.main.async {
                 self.bopFXPreviewView?.setEffect(effect)
+#if DEBUG
+                self.bopFXLabPicker?.setEffect(effect)
+#endif
                 if effect != .original {
                     self.clearFaceOverlays()
                 }
@@ -508,18 +550,41 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             self.pendingCaptureCall = call
             self.pendingCaptureID = settings.uniqueID
             self.pendingCaptureSize = min(1920, max(640, call.getInt("size") ?? 1920))
+            self.pendingCaptureBopFX = self.activeBopFX
+            self.pendingCaptureBopFXTuning = self.activeBopFXTuning
             self.pendingPhoto = nil
             self.captureCompletionReceived = false
 
-            let shutterImage = self.sampleQueue.sync {
-                self.makeLatestPreviewImage()
-            }
-            if let shutterImage = shutterImage {
-                DispatchQueue.main.sync {
-                    self.showShutterFreeze(shutterImage)
-                }
+            let freezeSource = self.sampleQueue.sync {
+                (
+                    self.sampleBopFXPreviewView,
+                    self.latestPreviewPixelBuffer
+                )
             }
             output.capturePhoto(with: settings, delegate: self)
+            let wantsEffectSurface =
+                self.pendingCaptureBopFX != .original ||
+                !self.pendingCaptureBopFXTuning.isNeutral
+            let frozenPhase = wantsEffectSurface
+                ? freezeSource.0?.freezeCurrentFrame()
+                : nil
+            self.pendingCaptureBopFXPhase =
+                frozenPhase ?? BopFXRenderer.animationPhase()
+            let usesEffectSurface = frozenPhase != nil
+            let freezeGeneration = DispatchQueue.main.sync {
+                self.beginShutterFreeze(
+                    usingEffectSurface: usesEffectSurface)
+            }
+            if !wantsEffectSurface {
+                self.renderRawShutterFreeze(
+                    pixelBuffer: freezeSource.1,
+                    generation: freezeGeneration)
+            } else if !usesEffectSurface {
+                DispatchQueue.main.async {
+                    self.skipShutterFreeze(
+                        generation: freezeGeneration)
+                }
+            }
             let captureID = settings.uniqueID
             self.sessionQueue.asyncAfter(deadline: .now() + 12) { [weak self] in
                 guard let self = self,
@@ -613,13 +678,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             }
 
             let activeEffect = activeBopFX
+            let activeTuning = activeBopFXTuning
             DispatchQueue.main.async { [weak self] in
                 guard let self = self else { return }
                 let installed = self.installPreviewIfNeeded(
                     session: configured.session,
                     device: configured.device,
                     generation: generation,
-                    effect: activeEffect)
+                    effect: activeEffect,
+                    tuning: activeTuning)
                 self.sessionQueue.async {
                     guard self.pendingStartID == id,
                           self.session === configured.session else { return }
@@ -981,7 +1048,7 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         reportedFirstFrame = true
         let width = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
-        let previewImage = makeLatestPreviewImage()
+        let previewImage = makePreviewImage(pixelBuffer)
         // Exercise the exact 1920px crop, mirror, JPEG, file, and WebKit-load
         // path before the shutter is enabled, without holding the sample or
         // session queue behind image scaling and filesystem work.
@@ -993,7 +1060,10 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             let warmupFileURL: URL? = autoreleasepool {
                 guard let previewImage,
                       let warmupData = try? self.renderSquareJPEG(
-                          previewImage, size: 1920) else { return nil }
+                          previewImage,
+                          size: 1920,
+                          effect: .original,
+                          tuning: .neutral) else { return nil }
                 return try? self.writeTemporaryPhoto(warmupData)
             }
             self.sessionQueue.async {
@@ -1132,16 +1202,22 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         faceCueStartedAt.removeAll()
     }
 
-    private func makeLatestPreviewImage() -> UIImage? {
-        dispatchPrecondition(condition: .onQueue(sampleQueue))
-        guard let pixelBuffer = latestPreviewPixelBuffer else { return nil }
+    private func makePreviewImage(
+        _ pixelBuffer: CVPixelBuffer
+    ) -> UIImage? {
         let image = CIImage(cvPixelBuffer: pixelBuffer)
         guard let cgImage = previewImageContext.createCGImage(
             image, from: image.extent) else { return nil }
         return UIImage(cgImage: cgImage)
     }
 
-    private func renderSquareJPEG(_ image: UIImage, size: Int) throws -> Data {
+    private func renderSquareJPEG(
+        _ image: UIImage,
+        size: Int,
+        effect: BopFXEffect,
+        tuning: BopFXTuning,
+        phase: CGFloat = 0
+    ) throws -> Data {
         let target = CGFloat(size)
         guard image.size.width > 0, image.size.height > 0 else {
             throw CameraError.configuration("The captured photo has no pixels")
@@ -1170,7 +1246,17 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             context.cgContext.scaleBy(x: -1, y: 1)
             image.draw(in: drawRect)
         }
-        guard let data = rendered.jpegData(compressionQuality: 0.98) else {
+        let finalImage: UIImage
+        if effect == .original && tuning.isNeutral {
+            finalImage = rendered
+        } else {
+            finalImage = bopFXStillRenderer?.renderStillImage(
+                rendered,
+                effect: effect,
+                phase: phase,
+                tuning: tuning) ?? rendered
+        }
+        guard let data = finalImage.jpegData(compressionQuality: 0.98) else {
             throw CameraError.configuration("The captured photo could not be encoded")
         }
         return data
@@ -1204,6 +1290,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                 return self.failCapture(error.localizedDescription, code: "captureError")
             }
             let captureSize = self.pendingCaptureSize
+            let captureEffect = self.pendingCaptureBopFX
+            let captureTuning = self.pendingCaptureBopFXTuning
+            let capturePhase = self.pendingCaptureBopFXPhase
             self.photoProcessingQueue.async {
                 let shouldProcess = self.sessionQueue.sync {
                     self.pendingCaptureID == captureID
@@ -1217,7 +1306,11 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                                 "The captured photo could not be encoded")
                         }
                         let squareData = try self.renderSquareJPEG(
-                            image, size: captureSize)
+                            image,
+                            size: captureSize,
+                            effect: captureEffect,
+                            tuning: captureTuning,
+                            phase: capturePhase)
                         let fileURL = try self.writeTemporaryPhoto(squareData)
                         return CapturedPhoto(
                             fileURL: fileURL,
@@ -1269,8 +1362,14 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureCall = nil
         pendingCaptureID = nil
         pendingCaptureSize = 1920
+        pendingCaptureBopFX = .original
+        pendingCaptureBopFXTuning = .neutral
+        pendingCaptureBopFXPhase = 0
         pendingPhoto = nil
         captureCompletionReceived = false
+#if DEBUG
+        advanceBopFXLabSequence()
+#endif
         DispatchQueue.main.async {
             self.completeShutterFreeze()
             call.resolve([
@@ -1300,6 +1399,9 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureCall = nil
         pendingCaptureID = nil
         pendingCaptureSize = 1920
+        pendingCaptureBopFX = .original
+        pendingCaptureBopFXTuning = .neutral
+        pendingCaptureBopFXPhase = 0
         pendingPhoto = nil
         captureCompletionReceived = false
         DispatchQueue.main.async {
@@ -1323,12 +1425,19 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         pendingCaptureCall = nil
         pendingCaptureID = nil
         pendingCaptureSize = 1920
+        pendingCaptureBopFX = .original
+        pendingCaptureBopFXTuning = .neutral
+        pendingCaptureBopFXPhase = 0
         pendingPhoto = nil
         captureCompletionReceived = false
         latestFrameSize = nil
         photoPreparationComplete = false
         previewInstalled = false
         startupWarmupFileURL = nil
+#if DEBUG
+        bopFXSequenceEnabled = false
+        bopFXSequenceIndex = 0
+#endif
 
         let unpublishedURLs = [unpublishedPhotoURL, unpublishedWarmupURL].compactMap { $0 }
         unpublishedURLs.forEach { temporaryPhotoURLs.remove($0) }
@@ -1364,7 +1473,8 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         session: AVCaptureSession,
         device: AVCaptureDevice,
         generation: UInt64,
-        effect: BopFXEffect
+        effect: BopFXEffect,
+        tuning: BopFXTuning
     ) -> Bool {
         dispatchPrecondition(condition: .onQueue(.main))
         guard let rootView = bridge?.viewController?.view,
@@ -1393,11 +1503,38 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
                     .flexibleHeight,
                 ]
                 effectView.setEffect(effect)
+                effectView.setTuning(tuning)
                 nativePreview.addSubview(effectView)
                 bopFXPreviewView = effectView
                 sampleQueue.async {
                     self.sampleBopFXPreviewView = effectView
                 }
+#if DEBUG
+                let tuningFrame = BopFXTuningFrameView(tuning: tuning)
+                tuningFrame.autoresizingMask = [
+                    .flexibleWidth,
+                    .flexibleHeight,
+                ]
+                tuningFrame.onChange = { [weak self] nextTuning in
+                    self?.selectBopFXTuningFromLab(nextTuning)
+                }
+                previewHost.addSubview(tuningFrame)
+                bopFXTuningFrame = tuningFrame
+
+                let picker = BopFXLabPicker(effect: effect)
+                picker.autoresizingMask = [
+                    .flexibleWidth,
+                    .flexibleTopMargin,
+                ]
+                picker.onSelect = { [weak self] selectedEffect in
+                    self?.selectBopFXFromLab(selectedEffect)
+                }
+                picker.onSelectSequence = { [weak self] in
+                    self?.startBopFXLabSequence()
+                }
+                previewHost.addSubview(picker)
+                bopFXLabPicker = picker
+#endif
             }
             previewView = nativePreview
             previewLayer = layer
@@ -1421,9 +1558,55 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         return previewView != nil && previewLayer?.session === session
     }
 
-    private func showShutterFreeze(_ image: UIImage) {
+    private func beginShutterFreeze(
+        usingEffectSurface: Bool
+    ) -> Int {
         dispatchPrecondition(condition: .onQueue(.main))
-        guard let previewView = previewView else { return }
+        shutterFreezeGeneration &+= 1
+        shutterFreezeMinimumElapsed = false
+        shutterFreezeCaptureComplete = false
+        shutterFreezeDismissRequested = false
+        shutterFreezeUsesEffectSurface = usingEffectSurface
+        shutterFreezeView?.isHidden = true
+        shutterFreezeView?.image = nil
+        if usingEffectSurface {
+            scheduleShutterFreezeMinimum(
+                generation: shutterFreezeGeneration)
+        }
+        return shutterFreezeGeneration
+    }
+
+    private func renderRawShutterFreeze(
+        pixelBuffer: CVPixelBuffer?,
+        generation: Int
+    ) {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard let pixelBuffer else {
+            DispatchQueue.main.async {
+                self.skipShutterFreeze(generation: generation)
+            }
+            return
+        }
+        photoProcessingQueue.async {
+            let freezeImage = self.makePreviewImage(pixelBuffer)
+            DispatchQueue.main.async {
+                guard let freezeImage else {
+                    return self.skipShutterFreeze(generation: generation)
+                }
+                self.showShutterFreeze(
+                    freezeImage,
+                    generation: generation)
+            }
+        }
+    }
+
+    private func showShutterFreeze(
+        _ image: UIImage,
+        generation: Int
+    ) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard shutterFreezeGeneration == generation,
+              let previewView = previewView else { return }
 
         let freezeView: UIImageView
         if let existing = shutterFreezeView {
@@ -1438,20 +1621,27 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
             freezeView = created
         }
 
-        shutterFreezeGeneration &+= 1
-        let generation = shutterFreezeGeneration
         shutterFreezeMinimumElapsed = false
-        shutterFreezeCaptureComplete = false
-        shutterFreezeDismissRequested = false
         freezeView.frame = previewView.bounds
         freezeView.image = image
         freezeView.isHidden = false
+        scheduleShutterFreezeMinimum(generation: generation)
+    }
 
+    private func scheduleShutterFreezeMinimum(generation: Int) {
+        dispatchPrecondition(condition: .onQueue(.main))
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(600)) {
             guard self.shutterFreezeGeneration == generation else { return }
             self.shutterFreezeMinimumElapsed = true
             self.finishShutterFreezeIfReady()
         }
+    }
+
+    private func skipShutterFreeze(generation: Int) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard shutterFreezeGeneration == generation else { return }
+        shutterFreezeMinimumElapsed = true
+        finishShutterFreezeIfReady()
     }
 
     private func completeShutterFreeze() {
@@ -1472,9 +1662,13 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         dispatchPrecondition(condition: .onQueue(.main))
         shutterFreezeView?.isHidden = true
         shutterFreezeView?.image = nil
+        if shutterFreezeUsesEffectSurface {
+            bopFXPreviewView?.resumeAfterFreeze()
+        }
         shutterFreezeMinimumElapsed = false
         shutterFreezeCaptureComplete = false
         shutterFreezeDismissRequested = false
+        shutterFreezeUsesEffectSurface = false
     }
 
     @discardableResult
@@ -1491,6 +1685,15 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         previewView.layer.cornerCurve = .continuous
         previewLayer?.frame = previewView.bounds
         bopFXPreviewView?.frame = previewView.bounds
+#if DEBUG
+        let previewFrame = previewView.frame
+        bopFXTuningFrame?.frame = previewFrame
+        bopFXLabPicker?.frame = CGRect(
+            x: previewFrame.minX + 8,
+            y: max(previewFrame.minY + 8, previewFrame.maxY - 58),
+            width: max(0, previewFrame.width - 16),
+            height: 50)
+#endif
         shutterFreezeView?.frame = previewView.bounds
         return previewLayer != nil && !previewView.frame.isEmpty
     }
@@ -1501,11 +1704,18 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         shutterFreezeMinimumElapsed = false
         shutterFreezeCaptureComplete = false
         shutterFreezeDismissRequested = false
+        shutterFreezeUsesEffectSurface = false
         clearFaceOverlays()
         shutterFreezeView?.removeFromSuperview()
         shutterFreezeView = nil
         bopFXPreviewView?.removeFromSuperview()
         bopFXPreviewView = nil
+#if DEBUG
+        bopFXTuningFrame?.removeFromSuperview()
+        bopFXTuningFrame = nil
+        bopFXLabPicker?.removeFromSuperview()
+        bopFXLabPicker = nil
+#endif
         previewLayer?.session = nil
         previewLayer?.removeFromSuperlayer()
         previewView?.removeFromSuperview()
@@ -1520,6 +1730,63 @@ public class BoothBopCamera: CAPPlugin, CAPBridgedPlugin,
         bridge?.webView?.backgroundColor = .boothBopCanvas
         bridge?.webView?.scrollView.backgroundColor = .boothBopCanvas
     }
+
+#if DEBUG
+    private func selectBopFXFromLab(_ effect: BopFXEffect) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        guard BopFXNativeSupport.supportedEffects.contains(effect) else { return }
+        sessionQueue.async {
+            self.bopFXSequenceEnabled = false
+            self.bopFXSequenceIndex = 0
+            self.activeBopFX = effect
+            DispatchQueue.main.async {
+                self.bopFXPreviewView?.setEffect(effect)
+                self.bopFXLabPicker?.setEffect(effect)
+                self.clearFaceOverlays()
+            }
+        }
+    }
+
+    private func selectBopFXTuningFromLab(_ tuning: BopFXTuning) {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sessionQueue.async {
+            self.activeBopFXTuning = tuning
+            DispatchQueue.main.async {
+                self.bopFXPreviewView?.setTuning(tuning)
+                self.bopFXTuningFrame?.setTuning(tuning)
+            }
+        }
+    }
+
+    private func startBopFXLabSequence() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        sessionQueue.async {
+            self.bopFXSequenceEnabled = true
+            self.bopFXSequenceIndex = 0
+            let effect = self.bopFXSequenceOrder[0]
+            self.activeBopFX = effect
+            DispatchQueue.main.async {
+                self.bopFXPreviewView?.setEffect(effect)
+                self.bopFXLabPicker?.setSequenceEffect(effect)
+                self.clearFaceOverlays()
+            }
+        }
+    }
+
+    private func advanceBopFXLabSequence() {
+        dispatchPrecondition(condition: .onQueue(sessionQueue))
+        guard bopFXSequenceEnabled, !bopFXSequenceOrder.isEmpty else { return }
+        bopFXSequenceIndex = (bopFXSequenceIndex + 1) %
+            bopFXSequenceOrder.count
+        let effect = bopFXSequenceOrder[bopFXSequenceIndex]
+        activeBopFX = effect
+        DispatchQueue.main.async {
+            self.bopFXPreviewView?.setEffect(effect)
+            self.bopFXLabPicker?.setSequenceEffect(effect)
+            self.clearFaceOverlays()
+        }
+    }
+#endif
 
     deinit {
         let center = NotificationCenter.default

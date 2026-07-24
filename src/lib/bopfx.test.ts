@@ -14,6 +14,10 @@ const fullCapabilities: BopFXCapabilities = {
   faceLandmarks: true,
   personSegmentation: true,
   metalRendering: true,
+  arFaceTracking: true,
+  maximumTrackedFaces: 3,
+  trueDepthCamera: true,
+  depthStream: true,
   effects: [
     "original",
     "spectralEcho",
@@ -48,6 +52,10 @@ describe("BopFX contract", () => {
         faceLandmarks: false,
         personSegmentation: false,
         metalRendering: false,
+        arFaceTracking: false,
+        maximumTrackedFaces: 0,
+        trueDepthCamera: false,
+        depthStream: false,
         effects: ["original"],
       }).map(({ id }) => id),
     ).toEqual(["original"]);

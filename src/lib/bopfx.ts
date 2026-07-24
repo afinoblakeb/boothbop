@@ -12,6 +12,10 @@ export interface BopFXCapabilities {
   faceLandmarks: boolean;
   personSegmentation: boolean;
   metalRendering: boolean;
+  arFaceTracking: boolean;
+  maximumTrackedFaces: number;
+  trueDepthCamera: boolean;
+  depthStream: boolean;
   effects: readonly BopFXId[];
 }
 

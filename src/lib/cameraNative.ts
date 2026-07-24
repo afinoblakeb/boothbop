@@ -20,6 +20,10 @@ const NO_BOPFX_CAPABILITIES: BopFXCapabilities = {
   faceLandmarks: false,
   personSegmentation: false,
   metalRendering: false,
+  arFaceTracking: false,
+  maximumTrackedFaces: 0,
+  trueDepthCamera: false,
+  depthStream: false,
   effects: ["original"],
 };
 
@@ -86,6 +90,14 @@ export async function getNativeBopFXCapabilities(): Promise<BopFXCapabilities> {
       faceLandmarks: result.faceLandmarks === true,
       personSegmentation: result.personSegmentation === true,
       metalRendering: result.metalRendering === true,
+      arFaceTracking: result.arFaceTracking === true,
+      maximumTrackedFaces:
+        typeof result.maximumTrackedFaces === "number" &&
+        Number.isFinite(result.maximumTrackedFaces)
+          ? Math.max(0, Math.floor(result.maximumTrackedFaces))
+          : 0,
+      trueDepthCamera: result.trueDepthCamera === true,
+      depthStream: result.depthStream === true,
       effects: [...new Set(effects)],
     };
   } catch {
